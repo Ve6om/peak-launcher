@@ -335,7 +335,11 @@ const mock = (() => {
     '[Worker-Main-2/INFO]: Found 1 shader pack(s)',
     '[Render thread/WARN]: Missing sound for event: minecraft:item.goat_horn.play',
     '[Render thread/INFO]: Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas',
-    '[Render thread/INFO]: Sound engine started'
+    '[Render thread/INFO]: Sound engine started',
+    '\x1b[32m[Server thread/INFO]\x1b[0m: Preparing spawn area: \x1b[1;36m83%\x1b[0m',
+    '\x1b[33m[modloading-worker-0/WARN]\x1b[0m: Mod \x1b[38;5;213mcreate\x1b[0m is using a deprecated API',
+    '[Render thread/INFO]: [CHAT] §6[Server]§r Welcome, §bPeakPlayer§r! §lHave fun§r',
+    '[Render thread/INFO]: [CHAT] §x§F§F§7§7§A§AHex pink§r and §m§cstruck red'
   ];
 
   async function call(cmd: string, a: Record<string, any>): Promise<unknown> {

@@ -3,6 +3,7 @@
   import { Copy, Check, Eraser, FolderOpen, Search, SquareArrowOutUpRight, Pin, PinOff, Play, OctagonX, WrapText, ArrowDownToLine } from '@lucide/svelte';
   import { api } from '$lib/api';
   import type { LogLine } from '$lib/types';
+  import { parseColors, type Segment } from '$lib/ansi';
 
   let {
     instanceId,
@@ -35,18 +36,43 @@
   let confirmKill = $state(false);
   let killTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const isWarn = (l: string) => /\bWARN/.test(l);
-  const isErr = (l: string) => /\b(ERROR|FATAL)|Exception/.test(l);
+  interface Row {
+    text: string;
+    stream: LogLine['stream'];
+    segs: Segment[] | null;
+    warn: boolean;
+    err: boolean;
+  }
 
+  // Parsed lines are cached by their raw text, so new output doesn't re-parse the whole log.
+  const cache = new Map<string, Omit<Row, 'stream'>>();
+  function row(l: LogLine): Row {
+    let r = cache.get(l.line);
+    if (!r) {
+      const segs = parseColors(l.line);
+      const text = segs ? segs.map((x) => x.text).join('') : l.line;
+      r = {
+        text,
+        segs: segs && segs.some((x) => x.style) ? segs : null,
+        warn: /\bWARN/.test(text),
+        err: /\b(ERROR|FATAL)|Exception/.test(text)
+      };
+      if (cache.size > 20000) cache.clear();
+      cache.set(l.line, r);
+    }
+    return { ...r, stream: l.stream };
+  }
+
+  const rows = $derived(logs.map(row));
   const shown = $derived.by(() => {
     const q = query.trim().toLowerCase();
-    return logs.filter((l) => {
-      if (level === 'error' && !isErr(l.line)) return false;
-      if (level === 'warn' && !isWarn(l.line) && !isErr(l.line)) return false;
-      return !q || l.line.toLowerCase().includes(q);
+    return rows.filter((r) => {
+      if (level === 'error' && !r.err) return false;
+      if (level === 'warn' && !r.warn && !r.err) return false;
+      return !q || r.text.toLowerCase().includes(q);
     });
   });
-  const counts = $derived({ warn: logs.filter((l) => isWarn(l.line)).length, error: logs.filter((l) => isErr(l.line)).length });
+  const counts = $derived({ warn: rows.filter((r) => r.warn).length, error: rows.filter((r) => r.err).length });
 
   $effect(() => {
     shown.length;
@@ -65,7 +91,7 @@
   }
 
   async function copy() {
-    await navigator.clipboard.writeText(shown.map((l) => l.line).join('\n'));
+    await navigator.clipboard.writeText(shown.map((r) => r.text).join('\n'));
     copied = true;
     setTimeout(() => (copied = false), 1500);
   }
@@ -122,7 +148,8 @@
 
   <div class="log" class:nowrap={!wrap} bind:this={el} {onscroll}>
     {#each shown as l, i (i)}
-      <div class="line {l.stream}" class:warn={isWarn(l.line)} class:err={isErr(l.line)}>{l.line}</div>
+      <!-- One line on purpose: lines keep their whitespace. -->
+      <div class="line {l.stream}" class:warn={l.warn} class:err={l.err}>{#if l.segs}{#each l.segs as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}{:else}{l.text}{/if}</div>
     {:else}
       <div class="empty">
         {#if logs.length}No lines match.{:else if running}Waiting for output…{:else}Game output will appear here when you press Play.{/if}
