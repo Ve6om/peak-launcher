@@ -133,6 +133,8 @@ export const api = {
   launch: (id: string) => call<void>('launch_instance', { id }),
   stop: (id: string) => call<void>('stop_instance', { id }),
   running: () => call<string[]>('running_instances'),
+  gameLogs: (id: string) => call<LogLine[]>('game_logs', { id }),
+  openConsoleWindow: (id: string) => call<void>('open_console_window', { id }),
   accounts: () => call<AccountInfo[]>('list_accounts'),
   msLoginStart: () => call<DeviceCode>('ms_login_start'),
   msLoginFinish: (code: DeviceCode) => call<AccountInfo[]>('ms_login_finish', { code }),
@@ -726,6 +728,7 @@ const mock = (() => {
         const inst = instances.find((i) => i.id === a.id)!;
         if (!inst.installed) await fakeInstall(a.id);
         running.add(a.id);
+        emit('game-log-reset', { instanceId: a.id });
         emit('game-log', { instanceId: a.id, line: `[Peak] Launching ${inst.name} (${inst.gameVersion})`, stream: 'launcher' } satisfies LogLine & { instanceId: string });
         emit('game-state', { instanceId: a.id, state: 'running', exitCode: null });
         instances = instances.map((i) => (i.id === a.id ? { ...i, lastPlayed: new Date().toISOString() } : i));
@@ -740,6 +743,15 @@ const mock = (() => {
         return;
       case 'running_instances':
         return [...running];
+      case 'game_logs':
+        // The preview's pop-out is a separate page with its own mock, so show sample output.
+        return [
+          { line: '[Peak] Launching Survival Island (1.21.4)', stream: 'launcher' },
+          ...logs.map((line) => ({ line, stream: line.includes('WARN') ? 'stderr' : 'stdout' }))
+        ];
+      case 'open_console_window':
+        window.open(`/?console=${encodeURIComponent(a.id)}`, `console-${a.id}`, 'popup,width=920,height=600');
+        return;
       case 'list_accounts':
         return accounts;
       case 'ms_login_start':

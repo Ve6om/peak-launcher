@@ -22,9 +22,15 @@
   import Accounts from '$lib/views/Accounts.svelte';
   import Browse from '$lib/views/Browse.svelte';
   import Settings from '$lib/views/Settings.svelte';
+  import ConsoleWindow from '$lib/views/ConsoleWindow.svelte';
   import { app, init, toast, errorText, pending } from '$lib/state.svelte';
 
+  // Pop-out console windows load this same page with an instance id.
+  const consoleFor: string | null =
+    (window as unknown as { __PEAK_CONSOLE__?: string }).__PEAK_CONSOLE__ ?? new URLSearchParams(location.search).get('console');
+
   onMount(() => {
+    if (consoleFor) return;
     init().catch((e) => toast(`Startup failed: ${errorText(e)}`, 'error'));
     startUpdateChecks();
   });
@@ -33,6 +39,7 @@
   // launcher feels like a native app. Text fields keep it for copy/paste, and
   // in development builds Shift+right-click still opens it for Inspect.
   function blockNativeMenu(e: MouseEvent) {
+    if (consoleFor) return; // the console window handles its own
     const t = e.target as HTMLElement | null;
     const editable = t?.closest('input, textarea, [contenteditable="true"]');
     const selecting = !!window.getSelection()?.toString();
@@ -50,6 +57,10 @@
 </script>
 
 <svelte:window oncontextmenu={blockNativeMenu} />
+
+{#if consoleFor}
+  <ConsoleWindow instanceId={consoleFor} />
+{:else}
 
 <Background />
 
@@ -109,6 +120,7 @@
   {/key}
 {/if}
 <Toasts />
+{/if}
 
 <style>
   .shell {
