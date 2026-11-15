@@ -1,5 +1,6 @@
 mod error;
 mod launcher;
+mod window;
 
 use crate::error::{Error, Result};
 use crate::launcher::accounts::{self, AccountInfo, DeviceCode};
@@ -264,6 +265,9 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let mut child = cmd.spawn().map_err(|e| Error::msg(format!("Couldn't start the game: {e}")))?;
+    let pid = child.id();
+    // Set by the log readers when the game prints that its window is up.
+    let window_seen = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     for (pipe, stream) in [
         (child.stdout.take().map(|p| Box::new(p) as Box<dyn tokio::io::AsyncRead + Send + Unpin>), "stdout"),
@@ -272,9 +276,13 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
         if let Some(pipe) = pipe {
             let app = app.clone();
             let id = id.clone();
+            let window_seen = window_seen.clone();
             tokio::spawn(async move {
                 let mut lines = BufReader::new(pipe).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
+                    if window::looks_like_window_opened(&line) {
+                        window_seen.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
                     push_log(&app, &id, line, stream);
                 }
             });
@@ -285,27 +293,14 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
     state.running.lock().unwrap().insert(id.clone(), kill_tx);
     let _ = app.emit("game-state", StateEvent { instance_id: id.clone(), state: "running", exit_code: None });
 
-    let window = app.get_webview_window("main");
-    match settings.after_launch.as_str() {
-        "minimize" => {
-            if let Some(w) = &window {
-                let _ = w.minimize();
-            }
-        }
-        "hide" => {
-            if let Some(w) = &window {
-                let _ = w.hide();
-            }
-        }
-        _ => {}
-    }
+    window::after_launch(app.clone(), id.clone(), settings.after_launch.clone(), pid, window_seen);
 
     let started = std::time::Instant::now();
     inst.last_played = Some(chrono::Utc::now());
     instances::save(&paths, &inst).await?;
 
     let app2 = app.clone();
-    let hide = settings.after_launch == "hide";
+    let after_launch = settings.after_launch.clone();
     tokio::spawn(async move {
         let code = tokio::select! {
             status = child.wait() => status.ok().and_then(|s| s.code()),
@@ -322,12 +317,7 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
         if let Some(post) = &plan.post_exit {
             let _ = launch::shell_command(post, &inst, &plan, &paths).spawn();
         }
-        if hide {
-            if let Some(w) = app2.get_webview_window("main") {
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
-        }
+        window::after_exit(&app2, &after_launch);
         let _ = app2.emit("game-state", StateEvent { instance_id: id, state: "stopped", exit_code: code });
     });
     Ok(())
@@ -346,13 +336,22 @@ fn game_logs(state: State<'_, AppState>, id: String) -> Vec<LogLine> {
     state.logs.lock().unwrap().get(&id).map(|l| l.iter().cloned().collect()).unwrap_or_default()
 }
 
+fn console_label(id: &str) -> String {
+    format!("console-{}", id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect::<String>())
+}
+
+/// Close an instance's console window, putting the console back in the launcher.
+#[tauri::command]
+fn close_console_window(app: AppHandle, id: String) {
+    if let Some(w) = app.get_webview_window(&console_label(&id)) {
+        let _ = w.close();
+    }
+}
+
 /// Open (or focus) an instance's console in its own window.
 #[tauri::command]
 async fn open_console_window(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<()> {
-    let label = format!(
-        "console-{}",
-        id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect::<String>()
-    );
+    let label = console_label(&id);
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.unminimize();
         let _ = w.show();
@@ -361,7 +360,7 @@ async fn open_console_window(app: AppHandle, state: State<'_, AppState>, id: Str
     }
     let name = instances::get(&state.paths, &id).await.map(|i| i.name).unwrap_or_else(|_| id.clone());
     let script = format!("window.__PEAK_CONSOLE__ = {};", serde_json::to_string(&id).unwrap_or_default());
-    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App("index.html".into()))
+    let window = tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App("index.html".into()))
         .title(format!("{name} - Console"))
         .inner_size(920.0, 600.0)
         .min_inner_size(520.0, 320.0)
@@ -369,6 +368,14 @@ async fn open_console_window(app: AppHandle, state: State<'_, AppState>, id: Str
         .initialization_script(&script)
         .build()
         .map_err(|e| Error::msg(format!("Couldn't open the console window: {e}")))?;
+    // Let the launcher hide its own copy of the console while this is open.
+    let _ = app.emit("console-window", serde_json::json!({ "instanceId": id, "open": true }));
+    let (app2, id2) = (app.clone(), id.clone());
+    window.on_window_event(move |e| {
+        if matches!(e, tauri::WindowEvent::Destroyed) {
+            let _ = app2.emit("console-window", serde_json::json!({ "instanceId": id2, "open": false }));
+        }
+    });
     Ok(())
 }
 
@@ -920,6 +927,9 @@ pub fn run() {
             if let Err(e) = net::configure(&s.net_config()) {
                 eprintln!("Ignoring invalid network settings: {e}");
             }
+            if let Err(e) = window::setup_tray(app) {
+                eprintln!("Tray icon unavailable: {e}");
+            }
             app.manage(AppState {
                 paths,
                 running: Mutex::new(HashMap::new()),
@@ -942,6 +952,7 @@ pub fn run() {
             game_logs,
             content_linked,
             open_console_window,
+            close_console_window,
             get_versions,
             loader_versions,
             list_instances,

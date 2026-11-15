@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import ConsolePanel from '$lib/components/ConsolePanel.svelte';
@@ -12,7 +12,6 @@
   import { app, go, selected, playtime, ago, isBusy, isRunning, toast, repairInstance, openInstanceMenu } from '$lib/state.svelte';
 
   const inst = $derived(selected());
-  let tab = $state<'overview' | 'content' | 'settings' | 'console'>(app.instanceTab);
 
   const logs = $derived(inst ? (app.logs[inst.id] ?? []) : []);
 
@@ -30,7 +29,7 @@
   let wasRunning = false;
   $effect(() => {
     const r = !!inst && isRunning(inst.id);
-    if (r && !wasRunning && app.settings?.openConsole !== false) tab = 'console';
+    if (r && !wasRunning && app.settings?.openConsole !== false) app.instanceTab = 'console';
     wasRunning = r;
   });
 </script>
@@ -65,15 +64,15 @@
     </section>
 
     <div class="tabs">
-      <button class:active={tab === 'overview'} onclick={() => (tab = 'overview')}><LayoutGrid size={15} /> Overview</button>
-      <button class:active={tab === 'content'} onclick={() => (tab = 'content')}><Puzzle size={15} /> Content</button>
-      <button class:active={tab === 'settings'} onclick={() => (tab = 'settings')}><SlidersHorizontal size={15} /> Settings</button>
-      <button class:active={tab === 'console'} onclick={() => (tab = 'console')}>
+      <button class:active={app.instanceTab === 'overview'} onclick={() => (app.instanceTab = 'overview')}><LayoutGrid size={15} /> Overview</button>
+      <button class:active={app.instanceTab === 'content'} onclick={() => (app.instanceTab = 'content')}><Puzzle size={15} /> Content</button>
+      <button class:active={app.instanceTab === 'settings'} onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> Settings</button>
+      <button class:active={app.instanceTab === 'console'} onclick={() => (app.instanceTab = 'console')}>
         <Terminal size={15} /> Console {#if logs.length}<span class="count">{logs.length}</span>{/if}
       </button>
     </div>
 
-    {#if tab === 'overview'}
+    {#if app.instanceTab === 'overview'}
       <div class="overview">
         {#if manualPending}
           <div class="panel glass blocked">
@@ -99,7 +98,7 @@
             {#if inst.pack.description}<p class="notes">{inst.pack.description}</p>{/if}
           {/if}
           {#if inst.notes}<p class="notes">{inst.notes}</p>{/if}
-          <button class="btn" onclick={() => (tab = 'settings')}><SlidersHorizontal size={15} /> Edit settings</button>
+          <button class="btn" onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> Edit settings</button>
         </div>
 
         <div class="panel glass">
@@ -112,12 +111,23 @@
           </div>
         </div>
       </div>
-    {:else if tab === 'content'}
+    {:else if app.instanceTab === 'content'}
       <InstanceContent {inst} />
-    {:else if tab === 'settings'}
+    {:else if app.instanceTab === 'settings'}
       <InstanceSettings {inst} />
     {:else}
-      <ConsolePanel instanceId={inst.id} {logs} running={isRunning(inst.id)} onclear={() => (app.logs[inst.id] = [])} />
+      {#if app.poppedOut[inst.id]}
+        <div class="popped glass">
+          <SquareArrowOutUpRight size={22} />
+          <b>The console is open in its own window</b>
+          <div class="popped-actions">
+            <button class="btn" onclick={() => api.openConsoleWindow(inst.id)}>Show window</button>
+            <button class="btn ghost" onclick={() => api.closeConsoleWindow(inst.id)}>Bring it back here</button>
+          </div>
+        </div>
+      {:else}
+        <ConsolePanel instanceId={inst.id} {logs} running={isRunning(inst.id)} onclear={() => (app.logs[inst.id] = [])} />
+      {/if}
     {/if}
   </div>
 
@@ -316,6 +326,25 @@
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+  }
+  .popped {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 220px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .popped b {
+    color: var(--text);
+    font-size: 14px;
+  }
+  .popped-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
   }
   .missing {
     color: var(--muted);

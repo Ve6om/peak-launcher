@@ -138,6 +138,7 @@ export const api = {
   running: () => call<string[]>('running_instances'),
   gameLogs: (id: string) => call<LogLine[]>('game_logs', { id }),
   openConsoleWindow: (id: string) => call<void>('open_console_window', { id }),
+  closeConsoleWindow: (id: string) => call<void>('close_console_window', { id }),
   accounts: () => call<AccountInfo[]>('list_accounts'),
   msLoginStart: () => call<DeviceCode>('ms_login_start'),
   msLoginFinish: (code: DeviceCode) => call<AccountInfo[]>('ms_login_finish', { code }),
@@ -313,6 +314,7 @@ const mock = (() => {
     return hits.map((h) => ({ ...h, project_id: 'cf:' + h.project_id }));
   };
   // A few mods on the first instance so the Content tab has something to show.
+  const popouts: Record<string, Window | null> = {};
   const mockContent: Record<string, InstalledItem[]> = {
     'survival-spmod': [
       { fileName: 'fabric-api-0.110.0.jar', enabled: true, size: 2_400_000, sha1: 'fabric-api-0.110.0.jar', projectId: 'fabric-api-0.110.0.jar', versionId: 'v1', title: 'Fabric API', versionNumber: '0.110.0', iconUrl: null },
@@ -775,8 +777,22 @@ const mock = (() => {
           { line: '[Peak] Launching Survival Island (1.21.4)', stream: 'launcher' },
           ...logs.map((line) => ({ line, stream: line.includes('WARN') ? 'stderr' : 'stdout' }))
         ];
-      case 'open_console_window':
-        window.open(`/?console=${encodeURIComponent(a.id)}`, `console-${a.id}`, 'popup,width=920,height=600');
+      case 'open_console_window': {
+        const w = window.open(`/?console=${encodeURIComponent(a.id)}`, `console-${a.id}`, 'popup,width=920,height=600');
+        popouts[a.id] = w;
+        emit('console-window', { instanceId: a.id, open: true });
+        // Notice when the preview's pop-up is closed.
+        const timer = setInterval(() => {
+          if (!w || w.closed) {
+            clearInterval(timer);
+            delete popouts[a.id];
+            emit('console-window', { instanceId: a.id, open: false });
+          }
+        }, 500);
+        return;
+      }
+      case 'close_console_window':
+        popouts[a.id]?.close();
         return;
       case 'list_accounts':
         return accounts;

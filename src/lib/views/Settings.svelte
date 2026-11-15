@@ -15,6 +15,13 @@
   const maxMem = $derived(Math.max(4096, Math.floor((app.info?.totalMemoryMb ?? 16384) / 512) * 512));
   const linux = $derived(app.info?.os === 'linux');
 
+  const afterLaunchHelp: Record<string, string> = {
+    open: 'Peak stays where it is while you play.',
+    minimize: 'Peak minimizes once the game is on screen and comes back when the game closes or crashes.',
+    hide: 'Peak hides once the game is on screen; click its tray icon to bring it back. It returns by itself when the game closes or crashes.',
+    close: "Peak closes once the game is on screen. The game keeps running, but that session's playtime and console output aren't kept."
+  };
+
   async function checkUpdates() {
     const r = await checkForUpdate(true);
     if (r === 'current') toast(`You're on the latest version (${app.info?.version}).`, 'success');
@@ -140,11 +147,12 @@
           <Row title="Start fullscreen">
             <Switch bind:checked={s.fullscreen} label="Start fullscreen" />
           </Row>
-          <Row title="When the game starts" desc="What the launcher does while you play">
+          <Row title="When the game window opens" desc={afterLaunchHelp[s.afterLaunch] ?? afterLaunchHelp.open}>
             <div class="seg">
               <button class:active={s.afterLaunch === 'open'} onclick={() => (s.afterLaunch = 'open')}>Stay open</button>
               <button class:active={s.afterLaunch === 'minimize'} onclick={() => (s.afterLaunch = 'minimize')}>Minimize</button>
-              <button class:active={s.afterLaunch === 'hide'} onclick={() => (s.afterLaunch = 'hide')}>Hide until closed</button>
+              <button class:active={s.afterLaunch === 'hide'} onclick={() => (s.afterLaunch = 'hide')}>Hide to tray</button>
+              <button class:active={s.afterLaunch === 'close'} onclick={() => (s.afterLaunch = 'close')}>Close Peak</button>
             </div>
           </Row>
           <Row title="Open console on launch" desc="Switch to the instance's console when the game starts">
