@@ -306,6 +306,14 @@ export interface ContentVersion {
   loaders: string[];
 }
 
+/** A mod affected by disabling, removing or enabling another one. */
+export interface LinkedMod {
+  fileName: string;
+  name: string;
+  /** "Needs Fabric API" / "Needed by Create" */
+  reason: string;
+}
+
 export interface InstalledItem {
   fileName: string;
   enabled: boolean;

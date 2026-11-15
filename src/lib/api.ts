@@ -24,6 +24,7 @@ import type {
   RuntimeOption,
   Instance,
   InstallProgress,
+  LinkedMod,
   LogLine,
   Settings,
   VersionManifest
@@ -69,6 +70,8 @@ export const api = {
   contentList: (instanceId: string, kind: ContentKind) => call<InstalledItem[]>('content_list', { instanceId, kind }),
   contentSetEnabled: (instanceId: string, kind: ContentKind, fileName: string, enabled: boolean) =>
     call<void>('content_set_enabled', { instanceId, kind, fileName, enabled }),
+  contentLinked: (instanceId: string, fileName: string, action: 'disable' | 'remove' | 'enable') =>
+    call<LinkedMod[]>('content_linked', { instanceId, fileName, action }),
   contentRemove: (instanceId: string, kind: ContentKind, fileName: string) =>
     call<void>('content_remove', { instanceId, kind, fileName }),
   contentUpdates: (instanceId: string, kind: ContentKind) => call<UpdateInfo[]>('content_updates', { instanceId, kind }),
@@ -309,7 +312,15 @@ const mock = (() => {
     if (!settings.curseforgeApiKey.trim()) throw NEED_KEY;
     return hits.map((h) => ({ ...h, project_id: 'cf:' + h.project_id }));
   };
-  const mockContent: Record<string, InstalledItem[]> = {};
+  // A few mods on the first instance so the Content tab has something to show.
+  const mockContent: Record<string, InstalledItem[]> = {
+    'survival-spmod': [
+      { fileName: 'fabric-api-0.110.0.jar', enabled: true, size: 2_400_000, sha1: 'fabric-api-0.110.0.jar', projectId: 'fabric-api-0.110.0.jar', versionId: 'v1', title: 'Fabric API', versionNumber: '0.110.0', iconUrl: null },
+      { fileName: 'sodium-0.6.5.jar', enabled: true, size: 2_400_000, sha1: 'sodium-0.6.5.jar', projectId: 'sodium-0.6.5.jar', versionId: 'v1', title: 'Sodium', versionNumber: '0.6.5', iconUrl: null },
+      { fileName: 'iris-1.8.1.jar', enabled: true, size: 2_400_000, sha1: 'iris-1.8.1.jar', projectId: 'iris-1.8.1.jar', versionId: 'v1', title: 'Iris', versionNumber: '1.8.1', iconUrl: null },
+      { fileName: 'modmenu-12.0.0.jar', enabled: true, size: 2_400_000, sha1: 'modmenu-12.0.0.jar', projectId: 'modmenu-12.0.0.jar', versionId: 'v1', title: 'Mod Menu', versionNumber: '12.0.0', iconUrl: null }
+    ]
+  };
   const mockManual: Record<string, ManualFile[]> = {};
   const mockScans: Record<string, number> = {};
 
@@ -485,6 +496,17 @@ const mock = (() => {
           it.fileName = a.enabled ? it.fileName.replace(/\.disabled$/, '') : it.fileName + '.disabled';
         }
         return;
+      }
+      case 'content_linked': {
+        // Preview: pretend the first mod in the list is a library the next two need.
+        const list = (mockContent[a.instanceId + 'mod'] ?? []) as InstalledItem[];
+        const i = list.findIndex((x) => x.fileName === a.fileName);
+        if (a.action === 'enable') {
+          return i > 0 && i < 3 && !list[0].enabled ? [{ fileName: list[0].fileName, name: list[0].title, reason: `Needed by ${list[i].title}` }] : [];
+        }
+        return i === 0
+          ? list.slice(1, 3).filter((x) => x.enabled).map((x) => ({ fileName: x.fileName, name: x.title, reason: `Needs ${list[0].title}` }))
+          : [];
       }
       case 'content_remove':
         mockContent[a.instanceId + a.kind] = (mockContent[a.instanceId + a.kind] ?? []).filter((x) => x.fileName !== a.fileName);

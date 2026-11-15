@@ -14,6 +14,7 @@ use crate::launcher::ftb;
 use crate::launcher::technic;
 use crate::launcher::importer;
 use crate::launcher::manual;
+use crate::launcher::moddeps::{self, LinkedMod};
 use crate::launcher::modpacks;
 use crate::launcher::modrinth::{self, InstalledItem, Kind, Project, SearchResult, UpdateInfo};
 use crate::launcher::net;
@@ -476,6 +477,13 @@ async fn content_set_enabled(state: State<'_, AppState>, instance_id: String, ki
     modrinth::set_enabled(&state.paths, &instance_id, Kind::parse(&kind)?, &file_name, enabled).await
 }
 
+/// Mods affected when one is disabled, removed or enabled, so the user can
+/// change them together.
+#[tauri::command]
+async fn content_linked(state: State<'_, AppState>, instance_id: String, file_name: String, action: String) -> Result<Vec<LinkedMod>> {
+    moddeps::linked(&state.paths, &instance_id, &file_name, &action).await
+}
+
 #[tauri::command]
 async fn content_remove(state: State<'_, AppState>, instance_id: String, kind: String, file_name: String) -> Result<()> {
     modrinth::remove(&state.paths, &instance_id, Kind::parse(&kind)?, &file_name).await
@@ -932,6 +940,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             game_logs,
+            content_linked,
             open_console_window,
             get_versions,
             loader_versions,
