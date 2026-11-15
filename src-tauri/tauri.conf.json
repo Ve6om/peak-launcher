@@ -36,6 +36,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxNUI3MTU2RERFNzhDNzQKUldSMGpPZmRWbkZiOGJpVVhScFZqeXExNjd1b2tnamRYaUYyTFB2Rm5YK0VaUFluZW8zTFJaWWUK",
+      "endpoints": [
+        "https://github.com/Ve6om/peak-launcher/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

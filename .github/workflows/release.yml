@@ -1,0 +1,102 @@
+name: Release
+
+# Push a tag like v0.2.0 to build, sign and publish installers for every
+# platform. The release notes (shown in the launcher's update prompt) come
+# from release-notes/<tag>.md if it exists, otherwise from the tag message.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check versions match the tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CONF=$(jq -r .version src-tauri/tauri.conf.json)
+          PKG=$(jq -r .version package.json)
+          CARGO=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
+          if [ "$TAG" != "$CONF" ] || [ "$TAG" != "$PKG" ] || [ "$TAG" != "$CARGO" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match versions (tauri.conf.json $CONF, package.json $PKG, Cargo.toml $CARGO)"
+            exit 1
+          fi
+      - name: Read release notes
+        id: notes
+        run: |
+          FILE="release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$FILE" ]; then
+            BODY=$(cat "$FILE")
+          else
+            # Checkout drops annotated tag messages, so fetch the tag itself.
+            git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+            BODY=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          fi
+          [ -z "$(echo "$BODY" | tr -d '[:space:]')" ] && BODY="Bug fixes and improvements."
+          {
+            echo 'body<<NOTES_EOF'
+            echo "$BODY"
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: notes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Baked into the build; leave unset to ship without them.
+          PEAK_CF_PROXY: ${{ vars.PEAK_CF_PROXY }}
+          PEAK_MS_CLIENT_ID: ${{ vars.PEAK_MS_CLIENT_ID }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Peak Launcher ${{ github.ref_name }}
+          releaseBody: ${{ needs.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
