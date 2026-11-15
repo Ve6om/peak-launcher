@@ -21,7 +21,7 @@ use crate::launcher::paths::Paths;
 use crate::launcher::settings::{self, Settings};
 use crate::launcher::versions::{self, VersionManifest};
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -31,6 +31,31 @@ pub struct AppState {
     paths: Paths,
     running: Mutex<HashMap<String, oneshot::Sender<()>>>,
     installing: Mutex<HashSet<String>>,
+    /// Recent console output per instance, so a console window opened later
+    /// can show what was already printed.
+    logs: Mutex<HashMap<String, VecDeque<LogLine>>>,
+}
+
+const LOG_LIMIT: usize = 5000;
+
+#[derive(Clone, Serialize)]
+struct LogLine {
+    line: String,
+    stream: &'static str,
+}
+
+/// Record a console line and send it to every open window.
+fn push_log(app: &AppHandle, id: &str, line: String, stream: &'static str) {
+    {
+        let state = app.state::<AppState>();
+        let mut logs = state.logs.lock().unwrap();
+        let list = logs.entry(id.to_string()).or_default();
+        list.push_back(LogLine { line: line.clone(), stream });
+        while list.len() > LOG_LIMIT {
+            list.pop_front();
+        }
+    }
+    let _ = app.emit("game-log", LogEvent { instance_id: id.to_string(), line, stream });
 }
 
 #[derive(Clone, Serialize)]
@@ -208,9 +233,9 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
     let version = versions::resolve(&paths, &version_id).await?;
     let plan = launch::plan(&paths, &inst, &version, &account, &settings).await?;
 
-    let log = |line: String, stream: &'static str| {
-        let _ = app.emit("game-log", LogEvent { instance_id: id.clone(), line, stream });
-    };
+    state.logs.lock().unwrap().remove(&id);
+    let _ = app.emit("game-log-reset", serde_json::json!({ "instanceId": id }));
+    let log = |line: String, stream: &'static str| push_log(&app, &id, line, stream);
     log(format!("[Peak] Launching {} ({} {})", inst.name, inst.game_version, inst.loader), "launcher");
 
     if let Some(pre) = &plan.pre_launch {
@@ -249,7 +274,7 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
             tokio::spawn(async move {
                 let mut lines = BufReader::new(pipe).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    let _ = app.emit("game-log", LogEvent { instance_id: id.clone(), line, stream });
+                    push_log(&app, &id, line, stream);
                 }
             });
         }
@@ -312,6 +337,37 @@ fn stop_instance(state: State<'_, AppState>, id: String) -> Result<()> {
     if let Some(tx) = state.running.lock().unwrap().remove(&id) {
         let _ = tx.send(());
     }
+    Ok(())
+}
+
+#[tauri::command]
+fn game_logs(state: State<'_, AppState>, id: String) -> Vec<LogLine> {
+    state.logs.lock().unwrap().get(&id).map(|l| l.iter().cloned().collect()).unwrap_or_default()
+}
+
+/// Open (or focus) an instance's console in its own window.
+#[tauri::command]
+async fn open_console_window(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<()> {
+    let label = format!(
+        "console-{}",
+        id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect::<String>()
+    );
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    let name = instances::get(&state.paths, &id).await.map(|i| i.name).unwrap_or_else(|_| id.clone());
+    let script = format!("window.__PEAK_CONSOLE__ = {};", serde_json::to_string(&id).unwrap_or_default());
+    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App("index.html".into()))
+        .title(format!("{name} - Console"))
+        .inner_size(920.0, 600.0)
+        .min_inner_size(520.0, 320.0)
+        .background_color(tauri::window::Color(7, 8, 13, 255))
+        .initialization_script(&script)
+        .build()
+        .map_err(|e| Error::msg(format!("Couldn't open the console window: {e}")))?;
     Ok(())
 }
 
@@ -860,10 +916,23 @@ pub fn run() {
                 paths,
                 running: Mutex::new(HashMap::new()),
                 installing: Mutex::new(HashSet::new()),
+                logs: Mutex::new(HashMap::new()),
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // Console windows belong to the launcher; close them with it.
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                for (label, w) in window.app_handle().webview_windows() {
+                    if label.starts_with("console-") {
+                        let _ = w.destroy();
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            game_logs,
+            open_console_window,
             get_versions,
             loader_versions,
             list_instances,

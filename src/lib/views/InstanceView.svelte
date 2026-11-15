@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, Copy, SlidersHorizontal, Layers, PackageOpen } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
+  import ConsolePanel from '$lib/components/ConsolePanel.svelte';
   import { Puzzle } from '@lucide/svelte';
   import { loaderLabel, packVersion } from '$lib/types';
   import InstanceArt from '$lib/components/InstanceArt.svelte';
@@ -13,8 +13,6 @@
 
   const inst = $derived(selected());
   let tab = $state<'overview' | 'content' | 'settings' | 'console'>(app.instanceTab);
-  let consoleEl = $state<HTMLDivElement>();
-  let follow = $state(true);
 
   const logs = $derived(inst ? (app.logs[inst.id] ?? []) : []);
 
@@ -35,16 +33,6 @@
     if (r && !wasRunning && app.settings?.openConsole !== false) tab = 'console';
     wasRunning = r;
   });
-
-  $effect(() => {
-    logs.length;
-    if (follow && consoleEl) tick().then(() => consoleEl && (consoleEl.scrollTop = consoleEl.scrollHeight));
-  });
-
-  function copyLogs() {
-    navigator.clipboard.writeText(logs.map((l) => l.line).join('\n'));
-    toast('Console copied');
-  }
 </script>
 
 {#if inst}
@@ -129,19 +117,7 @@
     {:else if tab === 'settings'}
       <InstanceSettings {inst} />
     {:else}
-      <div class="console glass">
-        <div class="console-bar">
-          <label class="toggle"><input type="checkbox" bind:checked={follow} /> Auto-scroll</label>
-          <button class="btn ghost" onclick={copyLogs} disabled={!logs.length}><Copy size={14} /> Copy</button>
-        </div>
-        <div class="log" bind:this={consoleEl}>
-          {#each logs as l, i (i)}
-            <div class="line {l.stream}" class:warn={/\bWARN/.test(l.line)} class:err={/\b(ERROR|FATAL)|Exception/.test(l.line)}>{l.line}</div>
-          {:else}
-            <div class="log-empty">Game output will appear here when you press Play.</div>
-          {/each}
-        </div>
-      </div>
+      <ConsolePanel instanceId={inst.id} {logs} running={isRunning(inst.id)} onclear={() => (app.logs[inst.id] = [])} />
     {/if}
   </div>
 
@@ -203,9 +179,6 @@
   .chip.live {
     background: rgba(16, 185, 129, 0.25) !important;
     color: #a7f3d0 !important;
-  }
-  .cap {
-    text-transform: capitalize;
   }
   .actions {
     display: flex;
@@ -297,14 +270,6 @@
     font-weight: 650;
     margin-bottom: 8px;
   }
-  .toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12.5px;
-    color: var(--muted);
-    cursor: pointer;
-  }
   .blocked {
     border-color: rgba(245, 158, 11, 0.35);
     background: rgba(245, 158, 11, 0.07);
@@ -316,11 +281,6 @@
     margin: 6px 0 12px;
     font-size: 13px;
     color: var(--muted);
-  }
-  .blocked-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
   }
   .blocked-actions {
     display: flex;
@@ -356,49 +316,6 @@
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
-  }
-  .console {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 470px);
-    min-height: 280px;
-    padding: 0;
-    overflow: hidden;
-    background: rgba(5, 6, 10, 0.6);
-  }
-  .console-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 8px 6px 16px;
-    border-bottom: 1px solid var(--stroke);
-  }
-  .log {
-    flex: 1;
-    overflow: auto;
-    padding: 12px 16px;
-    font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    user-select: text;
-  }
-  .line {
-    white-space: pre-wrap;
-    word-break: break-all;
-    color: #c4c9d8;
-  }
-  .line.launcher {
-    color: var(--accent-2);
-  }
-  .line.warn {
-    color: #fcd34d;
-  }
-  .line.err {
-    color: #fda4af;
-  }
-  .log-empty {
-    color: var(--faint);
-    font-family: inherit;
   }
   .missing {
     color: var(--muted);

@@ -282,6 +282,9 @@ export async function init() {
     list.push({ line: l.line, stream: l.stream });
     if (list.length > 5000) list.splice(0, list.length - 5000);
   });
+  await on<{ instanceId: string }>('game-log-reset', (e) => {
+    app.logs[e.instanceId] = [];
+  });
   await on<{ instanceId: string; state: 'running' | 'stopped'; exitCode: number | null }>('game-state', (s) => {
     if (s.state === 'running') {
       if (!app.running.includes(s.instanceId)) app.running.push(s.instanceId);
