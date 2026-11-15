@@ -9,6 +9,7 @@ pub mod java;
 pub mod launch;
 pub mod loaders;
 pub mod manual;
+pub mod moddeps;
 pub mod modpacks;
 pub mod modrinth;
 pub mod net;

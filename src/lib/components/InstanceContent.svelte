@@ -3,9 +3,10 @@
   import ContentBrowser from './ContentBrowser.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
   import Switch from './Switch.svelte';
+  import LinkedModsDialog from './LinkedModsDialog.svelte';
   import { api } from '$lib/api';
   import { toast, errorText, isRunning, requestInstall } from '$lib/state.svelte';
-  import { CONTENT_KINDS, type ContentKind, type Instance, type InstalledItem, type UpdateInfo } from '$lib/types';
+  import { CONTENT_KINDS, type ContentKind, type Instance, type InstalledItem, type LinkedMod, type UpdateInfo } from '$lib/types';
 
   let { inst }: { inst: Instance } = $props();
 
@@ -57,14 +58,56 @@
     }
   }
 
+  /** Open prompt about mods that depend on (or are needed by) the one being changed. */
+  let linkPrompt = $state<null | {
+    action: 'disable' | 'remove' | 'enable';
+    item: InstalledItem;
+    links: LinkedMod[];
+    resolve: (choice: 'all' | 'only' | null) => void;
+  }>(null);
+
+  /**
+   * Mods to change along with `item`, after asking. Returns null if the user
+   * cancelled. Only mods have dependencies; other content goes straight through.
+   */
+  async function withLinked(item: InstalledItem, action: 'disable' | 'remove' | 'enable'): Promise<LinkedMod[] | null> {
+    if (kind !== 'mod') return [];
+    let links: LinkedMod[] = [];
+    try {
+      links = await api.contentLinked(inst.id, item.fileName, action);
+    } catch {
+      return []; // Can't read the mods; don't block the change.
+    }
+    if (!links.length) return [];
+    const choice = await new Promise<'all' | 'only' | null>((resolve) => (linkPrompt = { action, item, links, resolve }));
+    linkPrompt = null;
+    if (choice === null) return null;
+    return choice === 'all' ? links : [];
+  }
+
   async function toggle(item: InstalledItem, enabled: boolean) {
-    await withBusy(item.fileName, () => api.contentSetEnabled(inst.id, kind, item.fileName, enabled));
+    const links = await withLinked(item, enabled ? 'enable' : 'disable');
+    if (links === null) {
+      // The switch already moved; put it back.
+      items = items.map((x) => ({ ...x }));
+      return;
+    }
+    await withBusy(item.fileName, async () => {
+      await api.contentSetEnabled(inst.id, kind, item.fileName, enabled);
+      for (const l of links) await api.contentSetEnabled(inst.id, kind, l.fileName, enabled);
+    });
+    if (links.length) toast(`${enabled ? 'Enabled' : 'Disabled'} ${item.title} and ${links.length} more`);
     await refresh();
   }
 
   async function remove(item: InstalledItem) {
-    await withBusy(item.fileName, () => api.contentRemove(inst.id, kind, item.fileName));
-    toast(`Removed ${item.title}`);
+    const links = await withLinked(item, 'remove');
+    if (links === null) return;
+    await withBusy(item.fileName, async () => {
+      await api.contentRemove(inst.id, kind, item.fileName);
+      for (const l of links) await api.contentRemove(inst.id, kind, l.fileName);
+    });
+    toast(links.length ? `Removed ${item.title} and ${links.length} more` : `Removed ${item.title}`);
     await refresh();
   }
 
@@ -170,6 +213,10 @@
     <p class="count">{items.length} {items.length === 1 ? label.single : label.label.toLowerCase()} · {items.filter((i) => !i.enabled).length} disabled</p>
   {/if}
 </div>
+
+{#if linkPrompt}
+  <LinkedModsDialog action={linkPrompt.action} name={linkPrompt.item.title} links={linkPrompt.links} onchoose={linkPrompt.resolve} />
+{/if}
 
 <style>
   .content {
