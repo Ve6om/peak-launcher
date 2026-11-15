@@ -578,8 +578,8 @@ const mock = (() => {
           // Preview: CurseForge packs come with two files that need a manual download.
           if (String(a.projectId ?? '').startsWith('cf:')) {
             const files: ManualFile[] = [
-              { name: 'OptiFine-ish Shaders', url: 'https://www.curseforge.com/minecraft/mc-mods/example-a/files/1', fileName: 'example-a-1.2.jar', sha1: null, size: 1, folder: 'mods', done: false },
-              { name: 'Faithful Textures', url: 'https://www.curseforge.com/minecraft/texture-packs/example-b/files/2', fileName: 'example-b.zip', sha1: null, size: 1, folder: 'resourcepacks', done: false }
+              { name: 'OptiFine-ish Shaders', url: 'https://www.curseforge.com/minecraft/mc-mods/example-a/download/1', fileName: 'example-a-1.2.jar', sha1: null, size: 1, folder: 'mods', done: false },
+              { name: 'Faithful Textures', url: 'https://www.curseforge.com/minecraft/texture-packs/example-b/download/2', fileName: 'example-b.zip', sha1: null, size: 1, folder: 'resourcepacks', done: false }
             ];
             mockManual[inst.id] = files;
             emit('install-blocked', { instanceId: inst.id, name: inst.name, files });

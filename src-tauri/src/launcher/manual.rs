@@ -38,7 +38,24 @@ fn store(paths: &Paths, inst: &str) -> PathBuf {
 }
 
 pub async fn load(paths: &Paths, inst: &str) -> Result<Vec<ManualFile>> {
-    Ok(paths::read_json(&store(paths, inst)).await?.unwrap_or_default())
+    let mut list: Vec<ManualFile> = paths::read_json(&store(paths, inst)).await?.unwrap_or_default();
+    for f in &mut list {
+        f.url = direct_link(&f.url);
+    }
+    Ok(list)
+}
+
+/// Lists saved by older versions link to CurseForge's /files/<id> page; the
+/// /download/<id> page starts the download instead.
+fn direct_link(url: &str) -> String {
+    if url.starts_with("https://www.curseforge.com/minecraft/") {
+        if let Some((base, id)) = url.rsplit_once("/files/") {
+            if !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) {
+                return format!("{base}/download/{id}");
+            }
+        }
+    }
+    url.to_string()
 }
 
 pub async fn save(paths: &Paths, inst: &str, list: &[ManualFile]) -> Result<()> {
@@ -147,6 +164,17 @@ pub async fn scan(paths: &Paths, inst_id: &str, downloads: &Path) -> Result<Vec<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn upgrades_curseforge_links() {
+        assert_eq!(
+            direct_link("https://www.curseforge.com/minecraft/mc-mods/scape-and-run-parasites/files/4436467"),
+            "https://www.curseforge.com/minecraft/mc-mods/scape-and-run-parasites/download/4436467"
+        );
+        let other = "https://www.curseforge.com/minecraft/mc-mods/foo/files/all";
+        assert_eq!(direct_link(other), other);
+        assert_eq!(direct_link("https://example.com/files/1"), "https://example.com/files/1");
+    }
+
     use super::*;
 
     #[test]
