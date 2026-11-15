@@ -29,6 +29,15 @@ pub const PREFIX: &str = "cf:";
 /// Built-in key, if the launcher was built with one.
 pub const BUILT_IN_KEY: Option<&str> = option_env!("PEAK_CF_API_KEY");
 
+/// A proxy that adds the API key on the server, so release builds don't ship
+/// one (e.g. "https://api.peaklauncher.com/v1"). Set with PEAK_CF_PROXY.
+pub const PROXY: Option<&str> = option_env!("PEAK_CF_PROXY");
+
+/// Can CurseForge be used without the user entering their own key?
+pub fn works_without_user_key() -> bool {
+    BUILT_IN_KEY.map(|k| !k.trim().is_empty()).unwrap_or(false) || PROXY.map(|p| !p.trim().is_empty()).unwrap_or(false)
+}
+
 pub fn is_cf(id: &str) -> bool {
     id.starts_with(PREFIX)
 }
@@ -77,27 +86,45 @@ fn accepted_labels(loader: &str) -> &'static [&'static str] {
 
 // ---------------------------------------------------------------- HTTP
 
+/// Talks to CurseForge directly with a key, or through the key-holding proxy.
 #[derive(Clone)]
 pub struct Client {
-    key: String,
+    base: String,
+    key: Option<String>,
 }
 
 impl Client {
+    /// The user's own key wins, then a key built into the app, then the proxy.
     pub fn new(settings_key: &str) -> Result<Client> {
-        let key = Some(settings_key.trim())
-            .filter(|k| !k.is_empty())
-            .or(BUILT_IN_KEY.filter(|k| !k.is_empty()))
-            .ok_or_else(|| Error::msg("CurseForge needs an API key. Add yours in Settings → Integrations."))?;
-        Ok(Client { key: key.to_string() })
+        Self::choose(settings_key, BUILT_IN_KEY, PROXY)
+    }
+
+    fn choose(settings_key: &str, built_in: Option<&str>, proxy: Option<&str>) -> Result<Client> {
+        let nonempty = |s: Option<&str>| s.map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+        if let Some(key) = nonempty(Some(settings_key)).or(nonempty(built_in)) {
+            return Ok(Client { base: API.to_string(), key: Some(key) });
+        }
+        if let Some(proxy) = nonempty(proxy) {
+            return Ok(Client { base: proxy.trim_end_matches('/').to_string(), key: None });
+        }
+        Err(Error::msg("CurseForge needs an API key. Add yours in Settings → Integrations."))
+    }
+
+    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let rb = net::client().request(method, format!("{}{path}", self.base));
+        match &self.key {
+            Some(k) => rb.header("x-api-key", k),
+            None => rb,
+        }
     }
 
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
-        let resp = net::client().get(format!("{API}{path}")).header("x-api-key", &self.key).query(query).send().await?;
+        let resp = self.request(reqwest::Method::GET, path).query(query).send().await?;
         Self::parse(resp).await
     }
 
     async fn post<T: DeserializeOwned>(&self, path: &str, body: serde_json::Value) -> Result<T> {
-        let resp = net::client().post(format!("{API}{path}")).header("x-api-key", &self.key).json(&body).send().await?;
+        let resp = self.request(reqwest::Method::POST, path).json(&body).send().await?;
         Self::parse(resp).await
     }
 
@@ -130,7 +157,7 @@ impl Client {
 
     async fn parse<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T> {
         match resp.status().as_u16() {
-            401 | 403 => Err(Error::msg("CurseForge rejected the API key. Check it in Settings → Integrations.")),
+            401 | 403 => Err(Error::msg("CurseForge refused the request. If you added your own API key, check it in Settings → Integrations.")),
             _ => Ok(resp.error_for_status()?.json::<Data<T>>().await?.data),
         }
     }
@@ -398,9 +425,9 @@ pub async fn search(cf: &Client, inst: Option<&Instance>, kind: Option<Kind>, qu
             q.push(("modLoaderType", lt.to_string()));
         }
     }
-    let resp = net::client().get(format!("{API}/mods/search")).header("x-api-key", &cf.key).query(&q).send().await?;
+    let resp = cf.request(reqwest::Method::GET, "/mods/search").query(&q).send().await?;
     if matches!(resp.status().as_u16(), 401 | 403) {
-        return Err(Error::msg("CurseForge rejected the API key. Check it in Settings → Integrations."));
+        return Err(Error::msg("CurseForge refused the request. If you added your own API key, check it in Settings → Integrations."));
     }
     let page: Page = resp.error_for_status()?.json().await?;
     Ok(SearchResult {
@@ -853,9 +880,20 @@ mod tests {
                 let cf = Client::new("not-a-real-key").unwrap();
                 let err = search(&cf, None, Some(Kind::Mod), "jei", "relevance", 0).await.unwrap_err().to_string();
                 println!("fake key -> {err}");
-                assert!(err.contains("rejected"), "unexpected error: {err}");
+                assert!(err.contains("refused"), "unexpected error: {err}");
             }
         }
+    }
+
+    #[test]
+    fn picks_key_then_proxy() {
+        let own = Client::choose("mine", Some("built"), Some("https://api.example.com/v1/")).unwrap();
+        assert_eq!((own.base.as_str(), own.key.as_deref()), (API, Some("mine")));
+        let built = Client::choose("", Some("built"), Some("https://api.example.com/v1")).unwrap();
+        assert_eq!(built.key.as_deref(), Some("built"));
+        let proxied = Client::choose(" ", None, Some("https://api.example.com/v1/")).unwrap();
+        assert_eq!((proxied.base.as_str(), proxied.key), ("https://api.example.com/v1", None));
+        assert!(Client::choose("", None, None).is_err());
     }
 
     #[test]

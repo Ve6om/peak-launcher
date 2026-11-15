@@ -41,7 +41,11 @@ Development builds can also add offline accounts for testing.
 CurseForge's API needs a key. Get one free at https://console.curseforge.com, then either:
 
 - paste it into **Settings → Integrations** (stored only on that computer), or
-- build it in: `PEAK_CF_API_KEY=<your-key> npm run tauri build`
+- build it in: `PEAK_CF_API_KEY=<your-key> npm run tauri build`, or better for public releases,
+- build against a proxy that adds the key on the server, so the app ships without one:
+  `PEAK_CF_PROXY=https://api.peaklauncher.com/v1 npm run tauri build`
+
+A key entered in Settings always takes priority over a built-in key or the proxy.
 
 Files whose authors turned off third-party downloads are never fetched automatically; the instance page lists them with links so they can be downloaded by hand.
 

@@ -823,7 +823,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "totalMemoryMb": sys.total_memory() / 1024 / 1024,
         "dataDir": state.paths.root.to_string_lossy(),
         "defaultJvmArgs": settings::DEFAULT_JVM_ARGS,
-        "curseforgeBuiltIn": curseforge::BUILT_IN_KEY.map(|k| !k.is_empty()).unwrap_or(false),
+        "curseforgeBuiltIn": curseforge::works_without_user_key(),
     })
 }
 
