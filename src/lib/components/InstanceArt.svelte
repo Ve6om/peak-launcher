@@ -94,9 +94,15 @@
     width: 100%;
     height: 100%;
   }
-  .cover,
-  .filled {
+  .cover {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     object-position: center 35%;
+    transition: transform 0.6s var(--ease);
   }
   .letter {
     position: absolute;

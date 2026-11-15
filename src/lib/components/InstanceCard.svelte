@@ -59,10 +59,12 @@
     aspect-ratio: 16 / 9;
     overflow: hidden;
   }
-  .art :global(svg) {
+  .art :global(svg),
+  .art :global(img) {
     transition: transform 0.6s var(--ease);
   }
-  .card:hover .art :global(svg) {
+  .card:hover .art :global(svg),
+  .card:hover .art :global(img) {
     transform: scale(1.05);
   }
   .badges {
