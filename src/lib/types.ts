@@ -153,7 +153,7 @@ export interface Settings {
   windowWidth: number;
   windowHeight: number;
   fullscreen: boolean;
-  afterLaunch: 'open' | 'minimize' | 'hide';
+  afterLaunch: 'open' | 'minimize' | 'hide' | 'close';
   openConsole: boolean;
   enableCommands: boolean;
   preLaunchCommand: string;

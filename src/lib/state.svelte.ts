@@ -29,6 +29,8 @@ export const app = $state({
   settings: null as Settings | null,
   info: null as AppInfo | null,
   running: [] as string[],
+  /** Instances whose console is open in its own window. */
+  poppedOut: {} as Record<string, boolean>,
   progress: {} as Record<string, InstallProgress>,
   logs: {} as Record<string, LogLine[]>,
   toasts: [] as Toast[],
@@ -282,6 +284,12 @@ export async function init() {
     list.push({ line: l.line, stream: l.stream });
     if (list.length > 5000) list.splice(0, list.length - 5000);
   });
+  await on<{ instanceId: string; open: boolean }>('console-window', (e) => {
+    if (e.open) app.poppedOut[e.instanceId] = true;
+    else delete app.poppedOut[e.instanceId];
+  });
+  // "Quit Peak" from the tray icon: same as closing the window.
+  await on('tray-quit', () => requestClose());
   await on<{ instanceId: string }>('game-log-reset', (e) => {
     app.logs[e.instanceId] = [];
   });
@@ -290,7 +298,11 @@ export async function init() {
       if (!app.running.includes(s.instanceId)) app.running.push(s.instanceId);
     } else {
       app.running = app.running.filter((r) => r !== s.instanceId);
-      if (s.exitCode && s.exitCode !== 0) toast(`Game exited with code ${s.exitCode}. Check the console for details.`, 'error');
+      if (s.exitCode && s.exitCode !== 0) {
+        toast(`Game exited with code ${s.exitCode}. Check the console for details.`, 'error');
+        // Show what went wrong (the pop-out window, if open, already does).
+        if (!app.poppedOut[s.instanceId]) go('instance', s.instanceId, 'console');
+      }
       refreshInstances();
     }
   });
