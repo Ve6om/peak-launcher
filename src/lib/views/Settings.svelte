@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { RotateCcw, ExternalLink } from '@lucide/svelte';
+  import { RotateCcw, ExternalLink, RefreshCw } from '@lucide/svelte';
+  import { updates, checkForUpdate } from '$lib/updates.svelte';
   import { api } from '$lib/api';
   import { app, ACCENTS, accentName, applyAccent, toast, errorText } from '$lib/state.svelte';
   import Logo from '$lib/components/Logo.svelte';
@@ -13,6 +14,12 @@
   const dirty = $derived(JSON.stringify(s) !== JSON.stringify(app.settings));
   const maxMem = $derived(Math.max(4096, Math.floor((app.info?.totalMemoryMb ?? 16384) / 512) * 512));
   const linux = $derived(app.info?.os === 'linux');
+
+  async function checkUpdates() {
+    const r = await checkForUpdate(true);
+    if (r === 'current') toast(`You're on the latest version (${app.info?.version}).`, 'success');
+    else if (r === 'error') toast(`Couldn't check for updates: ${updates.error}`, 'error');
+  }
 
   const sections = ['Appearance', 'Java & memory', 'Game', 'Commands', 'Network', 'Integrations', 'About'] as const;
   let showKey = $state(false);
@@ -237,6 +244,10 @@
           <span>Version {app.info?.version}{app.info?.devBuild ? ' · development build' : ''} · GPL-3.0</span>
           {#if app.info?.dataDir}<span class="mono path">{app.info.dataDir}</span>{/if}
         </div>
+        <button class="btn check" disabled={updates.checking} onclick={checkUpdates}>
+          <RefreshCw size={14} class={updates.checking ? 'spin' : ''} />
+          {updates.checking ? 'Checking…' : 'Check for updates'}
+        </button>
       </section>
     </div>
   </div>
@@ -392,6 +403,9 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
+  }
+  .about .check {
+    margin-left: auto;
   }
   .about b {
     font-size: 14px;

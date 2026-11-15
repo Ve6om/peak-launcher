@@ -13,6 +13,8 @@
   import DependencyDialog from '$lib/components/DependencyDialog.svelte';
   import ManualDownloads from '$lib/components/ManualDownloads.svelte';
   import CloseDialog from '$lib/components/CloseDialog.svelte';
+  import UpdateDialog from '$lib/components/UpdateDialog.svelte';
+  import { updates, startUpdateChecks } from '$lib/updates.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Home from '$lib/views/Home.svelte';
   import Library from '$lib/views/Library.svelte';
@@ -24,6 +26,7 @@
 
   onMount(() => {
     init().catch((e) => toast(`Startup failed: ${errorText(e)}`, 'error'));
+    startUpdateChecks();
   });
 
   // Hide the browser's own right-click menu (Back, Refresh, Inspect…) so the
@@ -96,6 +99,9 @@
 {/if}
 {#if app.closePrompt}
   <CloseDialog />
+{/if}
+{#if updates.open && updates.available}
+  <UpdateDialog />
 {/if}
 {#if app.manualFor}
   {#key app.manualFor}

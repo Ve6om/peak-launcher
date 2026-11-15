@@ -98,29 +98,6 @@
   .filled {
     object-position: center 35%;
   }
-  .backdrop {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .backdrop {
-    filter: blur(22px) saturate(1.2) brightness(0.55);
-    transform: scale(1.4);
-  }
-  .icon {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 46%;
-    max-width: 120px;
-    aspect-ratio: 1;
-    transform: translate(-50%, -50%);
-    object-fit: cover;
-    border-radius: 18%;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-  }
   .letter {
     position: absolute;
     inset: 0;

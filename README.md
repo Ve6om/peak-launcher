@@ -60,6 +60,29 @@ cargo test --lib -- --ignored --nocapture install_and_plan
 
 Pick a version and loader with `PEAK_TEST_VERSION=1.20.1 PEAK_TEST_LOADER=forge` (optionally `PEAK_TEST_LOADER_VERSION`).
 
+## Releases and updates
+
+Peak checks GitHub Releases for a newer version on start-up and every few hours (or from **Settings → About → Check for updates**). When one is out, it shows the version and patch notes and installs it on **Update now**. Updates are signed; the app only accepts ones signed with the project's key.
+
+To ship a release:
+
+1. Set the version: `node scripts/set-version.mjs 0.2.0` (updates package.json, Cargo.toml and tauri.conf.json), then merge that change.
+2. Write the patch notes in `release-notes/v0.2.0.md` (Markdown, keep it short; this is what users see in the update prompt). Without that file the tag message is used instead.
+3. Tag and push:
+   ```bash
+   git tag -a v0.2.0 -m "Short description of what changed"
+   git push origin v0.2.0
+   ```
+
+The Release workflow builds Windows, macOS (Apple Silicon and Intel) and Linux installers, signs them and publishes the release with `latest.json`, which running copies of Peak pick up.
+
+Repository settings it uses:
+
+- Secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the update signing key. Keep a backup of it; if it's lost, existing installs can't verify new updates.
+- Variables `PEAK_CF_PROXY` and `PEAK_MS_CLIENT_ID` (optional): built into release builds.
+
+Release downloads must be publicly reachable for the update check to work.
+
 ## Data location
 
 `%APPDATA%\PeakLauncher` on Windows, `~/.local/share/PeakLauncher` on Linux, `~/Library/Application Support/PeakLauncher` on macOS.
