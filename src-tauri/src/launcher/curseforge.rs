@@ -771,16 +771,7 @@ pub async fn populate_modpack(cf: &Client, paths: &Paths, inst: &Instance, zip_p
                     ));
                 }
                 None => blocked.push(Blocked {
-                    url: format!(
-                        "https://www.curseforge.com/minecraft/{}/{}/files/{}",
-                        match kind {
-                            Kind::Resourcepack => "texture-packs",
-                            Kind::Shader => "shaders",
-                            Kind::Mod => "mc-mods",
-                        },
-                        m.map(|m| m.slug.as_str()).unwrap_or(""),
-                        f.id
-                    ),
+                    url: download_page(kind, m.map(|m| m.slug.as_str()), f.mod_id, f.id),
                     name,
                     file_name: f.file_name.clone(),
                     sha1: f.sha1(),
@@ -816,6 +807,23 @@ pub async fn populate_modpack(cf: &Client, paths: &Paths, inst: &Instance, zip_p
     .await
     .map_err(|e| Error::msg(e.to_string()))??;
     Ok(blocked)
+}
+
+/// The file's download page on curseforge.com, which starts the download
+/// straight away (the /files/ page only shows details).
+pub fn download_page(kind: Kind, slug: Option<&str>, mod_id: u64, file_id: u64) -> String {
+    match slug.filter(|s| !s.is_empty()) {
+        Some(slug) => format!(
+            "https://www.curseforge.com/minecraft/{}/{slug}/download/{file_id}",
+            match kind {
+                Kind::Resourcepack => "texture-packs",
+                Kind::Shader => "shaders",
+                Kind::Mod => "mc-mods",
+            }
+        ),
+        // Without a slug, send them to the project; curseforge.com redirects by id.
+        None => format!("https://www.curseforge.com/projects/{mod_id}"),
+    }
 }
 
 #[cfg(test)]
