@@ -907,7 +907,12 @@ async fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
 
 #[tauri::command]
 async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result<Settings> {
+    let old_key = settings::load(&state.paths).await.map(|s| s.curseforge_api_key).unwrap_or_default();
     settings::save(&state.paths, &settings).await?;
+    // The key decides whether CurseForge is asked directly or via the proxy.
+    if old_key.trim() != settings.curseforge_api_key.trim() {
+        curseforge::clear_cache();
+    }
     Ok(settings)
 }
 
