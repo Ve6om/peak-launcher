@@ -88,7 +88,9 @@ pub fn java_executable(paths: &Paths, component: &str) -> PathBuf {
 
 /// Make sure the runtime `component` is installed and return its java binary.
 /// With `verify` false an already-complete runtime is trusted without any
-/// network access, which keeps launches instant and works offline.
+/// network access, which keeps launches instant and works offline. With
+/// `verify` true (installs and repairs) every file is checked against
+/// Mojang's checksums and damaged ones are downloaded again.
 pub async fn ensure_runtime<F>(paths: &Paths, component: &str, verify: bool, on_progress: F) -> Result<PathBuf>
 where
     F: Fn(net::Progress) + Send + Sync + 'static,
@@ -107,14 +109,8 @@ where
         .next()
         .ok_or_else(|| Error::msg(format!("Java runtime '{component}' isn't available for this platform")))?;
 
-    // Skip re-verifying hundreds of files if this exact runtime is already in place.
-    if exe.exists() {
-        if let Ok(done) = tokio::fs::read_to_string(&marker).await {
-            if done.trim() == entry.manifest.sha1 {
-                return Ok(exe);
-            }
-        }
-    }
+    // Not trusted until every file has been checked again.
+    let _ = tokio::fs::remove_file(&marker).await;
 
     let manifest: RuntimeManifest = net::get_json(&entry.manifest.url).await?;
     let mut files = Vec::new();
