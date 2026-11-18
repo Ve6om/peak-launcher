@@ -1,7 +1,8 @@
 name: Release
 
 # Push a tag like v0.2.0 to build, sign and publish installers for every
-# platform. The release notes (shown in the launcher's update prompt) come
+# platform. The release stays a draft until every platform has uploaded, so
+# running copies of Peak never see a half-finished latest.json. The release notes (shown in the launcher's update prompt) come
 # from release-notes/<tag>.md if it exists, otherwise from the tag message.
 on:
   push:
@@ -14,7 +15,7 @@ jobs:
   notes:
     runs-on: ubuntu-latest
     outputs:
-      body: ${{ steps.notes.outputs.body }}
+      release_id: ${{ steps.draft.outputs.id }}
     steps:
       - uses: actions/checkout@v4
       - name: Check versions match the tag
@@ -39,11 +40,17 @@ jobs:
             BODY=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
           fi
           [ -z "$(echo "$BODY" | tr -d '[:space:]')" ] && BODY="Bug fixes and improvements."
-          {
-            echo 'body<<NOTES_EOF'
-            echo "$BODY"
-            echo 'NOTES_EOF'
-          } >> "$GITHUB_OUTPUT"
+          echo "$BODY" > notes.md
+      # One draft for every build to upload into; published at the end.
+      - name: Create the draft release
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Peak Launcher $GITHUB_REF_NAME" --notes-file notes.md
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\" and .draft) | .id" | head -1)
+          [ -n "$ID" ] || { echo "::error::Draft release not found"; exit 1; }
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
 
   build:
     needs: notes
@@ -93,10 +100,21 @@ jobs:
           PEAK_CF_PROXY: ${{ vars.PEAK_CF_PROXY }}
           PEAK_MS_CLIENT_ID: ${{ vars.PEAK_MS_CLIENT_ID }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Peak Launcher ${{ github.ref_name }}
-          releaseBody: ${{ needs.notes.outputs.body }}
-          releaseDraft: false
-          prerelease: false
+          releaseId: ${{ needs.notes.outputs.release_id }}
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Every platform must be in latest.json before Peak can see it.
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir .
+          for p in windows-x86_64 darwin-aarch64 darwin-x86_64 linux-x86_64; do
+            jq -e --arg p "$p" '.platforms[$p]' latest.json > /dev/null || { echo "::error::latest.json is missing $p"; exit 1; }
+          done
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
