@@ -10,6 +10,7 @@
 //! have no download URL; we never work around that and instead tell the user
 //! where to download them by hand.
 
+use super::apicache::{self, ResponseCache};
 use super::install::{InstallProgress, ProgressFn, stage};
 use super::instances::{self, Instance, PackInfo};
 use super::modrinth::{self, Dependency, GalleryImage, Kind, Meta, PlanItem, Project, SearchHit, SearchResult, UpdateInfo, Version, VersionFile};
@@ -21,6 +22,8 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 const API: &str = "https://api.curseforge.com/v1";
 const MINECRAFT: u32 = 432;
@@ -86,11 +89,37 @@ fn accepted_labels(loader: &str) -> &'static [&'static str] {
 
 // ---------------------------------------------------------------- HTTP
 
+/// Recent GET responses, shared by every Client (one is made per command).
+static CACHE: LazyLock<Mutex<ResponseCache>> = LazyLock::new(|| Mutex::new(ResponseCache::new(apicache::CAPACITY)));
+
+/// Forget cached responses, e.g. when the API key (and so the server) changes.
+pub fn clear_cache() {
+    CACHE.lock().unwrap().clear();
+}
+
+/// How long a GET response may be reused, by endpoint; None means never.
+fn cache_ttl(path: &str) -> Option<Duration> {
+    const MIN: u64 = 60;
+    let id = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+    let secs = match parts.as_slice() {
+        ["mods", "search"] => 5 * MIN,
+        ["mods", m, "files"] if id(m) => 5 * MIN,
+        ["mods", m] if id(m) => 10 * MIN,
+        ["mods", m, "description"] if id(m) => 60 * MIN,
+        ["mods", m, "files", f] if id(m) && id(f) => 60 * MIN,
+        _ => return None,
+    };
+    Some(Duration::from_secs(secs))
+}
+
 /// Talks to CurseForge directly with a key, or through the key-holding proxy.
 #[derive(Clone)]
 pub struct Client {
     base: String,
     key: Option<String>,
+    /// Skip cached responses (still refreshes the cache).
+    fresh: bool,
 }
 
 impl Client {
@@ -102,10 +131,10 @@ impl Client {
     fn choose(settings_key: &str, built_in: Option<&str>, proxy: Option<&str>) -> Result<Client> {
         let nonempty = |s: Option<&str>| s.map(str::trim).filter(|s| !s.is_empty()).map(String::from);
         if let Some(key) = nonempty(Some(settings_key)).or(nonempty(built_in)) {
-            return Ok(Client { base: API.to_string(), key: Some(key) });
+            return Ok(Client { base: API.to_string(), key: Some(key), fresh: false });
         }
         if let Some(proxy) = nonempty(proxy) {
-            return Ok(Client { base: proxy.trim_end_matches('/').to_string(), key: None });
+            return Ok(Client { base: proxy.trim_end_matches('/').to_string(), key: None, fresh: false });
         }
         Err(Error::msg("CurseForge needs an API key. Add yours in Settings → Integrations."))
     }
@@ -118,9 +147,42 @@ impl Client {
         }
     }
 
+    /// A copy that always asks the server, for results that must be current
+    /// (update checks).
+    pub fn fresh(&self) -> Client {
+        Client { fresh: true, ..self.clone() }
+    }
+
     async fn get<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
-        let resp = self.request(reqwest::Method::GET, path).query(query).send().await?;
-        Self::parse(resp).await
+        Ok(self.get_json::<Data<T>>(path, query).await?.data)
+    }
+
+    /// GET and parse the whole response body, reusing a recent response when
+    /// the endpoint allows it.
+    async fn get_json<T: DeserializeOwned>(&self, path: &str, query: &[(&str, String)]) -> Result<T> {
+        let req = self.request(reqwest::Method::GET, path).query(query).build()?;
+        let url = req.url().to_string();
+        let ttl = cache_ttl(path);
+        if ttl.is_some() && !self.fresh {
+            let hit = CACHE.lock().unwrap().get(&url, Instant::now());
+            if let Some(v) = hit.and_then(|body| serde_json::from_str(&body).ok()) {
+                return Ok(v);
+            }
+        }
+        let body = Self::body(net::client().execute(req).await?).await?;
+        let value: T = serde_json::from_str(&body)?;
+        // Only responses that came back OK and parsed get here.
+        if let Some(ttl) = ttl {
+            CACHE.lock().unwrap().put(url, body, ttl, Instant::now());
+        }
+        Ok(value)
+    }
+
+    async fn body(resp: reqwest::Response) -> Result<String> {
+        match resp.status().as_u16() {
+            401 | 403 => Err(Error::msg("CurseForge refused the request. If you added your own API key, check it in Settings → Integrations.")),
+            _ => Ok(resp.error_for_status()?.text().await?),
+        }
     }
 
     async fn post<T: DeserializeOwned>(&self, path: &str, body: serde_json::Value) -> Result<T> {
@@ -425,11 +487,7 @@ pub async fn search(cf: &Client, inst: Option<&Instance>, kind: Option<Kind>, qu
             q.push(("modLoaderType", lt.to_string()));
         }
     }
-    let resp = cf.request(reqwest::Method::GET, "/mods/search").query(&q).send().await?;
-    if matches!(resp.status().as_u16(), 401 | 403) {
-        return Err(Error::msg("CurseForge refused the request. If you added your own API key, check it in Settings → Integrations."));
-    }
-    let page: Page = resp.error_for_status()?.json().await?;
+    let page: Page = cf.get_json("/mods/search", &q).await?;
     Ok(SearchResult {
         total_hits: page.pagination.total_count.min(10_000),
         offset: offset as u64,
@@ -559,6 +617,8 @@ async fn record(paths: &Paths, inst_id: &str, items: Vec<(Option<String>, Meta)>
 
 /// Newer compatible files for CurseForge content in an instance.
 pub async fn check_updates(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind) -> Result<Vec<UpdateInfo>> {
+    // Always ask for current file lists here, never cached ones.
+    let cf = &cf.fresh();
     let inst = instances::get(paths, inst_id).await?;
     let labels = if kind == Kind::Mod { accepted_labels(&inst.loader) } else { &[] };
     let mut out = Vec::new();
@@ -910,5 +970,116 @@ mod tests {
             assert!(Client::new("").is_err());
         }
         assert!(Client::new("abc").is_ok());
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// A tiny local server that counts requests per path. /mods/500 always
+    /// fails; everything else answers {"data": <count>}.
+    async fn server() -> (String, Arc<Mutex<HashMap<String, usize>>>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let hits: Arc<Mutex<HashMap<String, usize>>> = Arc::default();
+        let counter = hits.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else { return };
+                let counter = counter.clone();
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 8192];
+                    let mut got = 0;
+                    // Read the headers, then any body the request announced.
+                    loop {
+                        let n = sock.read(&mut buf[got..]).await.unwrap_or(0);
+                        if n == 0 {
+                            break;
+                        }
+                        got += n;
+                        let text = String::from_utf8_lossy(&buf[..got]).to_string();
+                        if let Some(end) = text.find("\r\n\r\n") {
+                            let len = text
+                                .lines()
+                                .find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0)))
+                                .unwrap_or(0);
+                            if got >= end + 4 + len {
+                                break;
+                            }
+                        }
+                    }
+                    let text = String::from_utf8_lossy(&buf[..got]).to_string();
+                    let path = text.split_whitespace().nth(1).unwrap_or("/").split('?').next().unwrap_or("/").to_string();
+                    let n = {
+                        let mut h = counter.lock().unwrap();
+                        let e = h.entry(path.clone()).or_insert(0);
+                        *e += 1;
+                        *e
+                    };
+                    let (status, body) = if path.ends_with("/mods/500") { ("500 Internal Server Error", "{}".to_string()) } else { ("200 OK", format!("{{\"data\":{n}}}")) };
+                    let resp = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                });
+            }
+        });
+        (base, hits)
+    }
+
+    fn count(hits: &Arc<Mutex<HashMap<String, usize>>>, path: &str) -> usize {
+        hits.lock().unwrap().get(path).copied().unwrap_or(0)
+    }
+
+    #[test]
+    fn ttl_per_endpoint() {
+        let m = |s: Option<Duration>| s.map(|d| d.as_secs() / 60);
+        assert_eq!(m(cache_ttl("/mods/search")), Some(5));
+        assert_eq!(m(cache_ttl("/mods/238222/files")), Some(5));
+        assert_eq!(m(cache_ttl("/mods/238222")), Some(10));
+        assert_eq!(m(cache_ttl("/mods/238222/description")), Some(60));
+        assert_eq!(m(cache_ttl("/mods/238222/files/5101366")), Some(60));
+        assert_eq!(cache_ttl("/mods"), None);
+        assert_eq!(cache_ttl("/mods/files"), None);
+        assert_eq!(cache_ttl("/fingerprints/432"), None);
+    }
+
+    // One test so the shared cache isn't cleared by another test mid-way.
+    #[tokio::test]
+    async fn client_uses_cache_only_where_it_should() {
+        let (base, hits) = server().await;
+        let cf = Client::choose("", None, Some(&base)).unwrap();
+
+        // Same GET twice: one request. A different query is a different entry.
+        let a: u32 = cf.get("/mods/1", &[]).await.unwrap();
+        let b: u32 = cf.get("/mods/1", &[]).await.unwrap();
+        assert_eq!((a, b), (1, 1));
+        assert_eq!(count(&hits, "/mods/1"), 1);
+        let _: u32 = cf.get("/mods/1/files", &[("gameVersion", "1.21.1".into())]).await.unwrap();
+        let _: u32 = cf.get("/mods/1/files", &[("gameVersion", "1.20.1".into())]).await.unwrap();
+        assert_eq!(count(&hits, "/mods/1/files"), 2);
+
+        // POSTs always reach the server.
+        let _: u32 = cf.post("/mods", json!({ "modIds": [1] })).await.unwrap();
+        let _: u32 = cf.post("/mods", json!({ "modIds": [1] })).await.unwrap();
+        assert_eq!(count(&hits, "/mods"), 2);
+
+        // Errors aren't stored.
+        assert!(cf.get::<u32>("/mods/500", &[]).await.is_err());
+        assert!(cf.get::<u32>("/mods/500", &[]).await.is_err());
+        assert_eq!(count(&hits, "/mods/500"), 2);
+
+        // A fresh client skips the cache and stores the new answer.
+        let f: u32 = cf.fresh().get("/mods/1", &[]).await.unwrap();
+        assert_eq!(f, 2);
+        let again: u32 = cf.get("/mods/1", &[]).await.unwrap();
+        assert_eq!(again, 2);
+        assert_eq!(count(&hits, "/mods/1"), 2);
+
+        // Changing the key clears it.
+        clear_cache();
+        let _: u32 = cf.get("/mods/1", &[]).await.unwrap();
+        assert_eq!(count(&hits, "/mods/1"), 3);
     }
 }
