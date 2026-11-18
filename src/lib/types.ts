@@ -188,6 +188,8 @@ export interface AppInfo {
   version: string;
   devBuild: boolean;
   msConfigured: boolean;
+  /** Sign-in tokens are encrypted with a key in the OS password store. */
+  tokensEncrypted: boolean;
   os: string;
   totalMemoryMb: number;
   dataDir: string;

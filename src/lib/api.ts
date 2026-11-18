@@ -817,6 +817,7 @@ const mock = (() => {
           version: '0.1.0',
           devBuild: true,
           msConfigured: false,
+          tokensEncrypted: true,
           os: 'windows',
           totalMemoryMb: 32768,
           dataDir: String.raw`C:\Users\you\AppData\Roaming\PeakLauncher`,

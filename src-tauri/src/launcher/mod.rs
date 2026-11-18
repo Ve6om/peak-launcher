@@ -17,6 +17,7 @@ pub mod net;
 pub mod paths;
 pub mod technic;
 pub mod rules;
+pub mod secrets;
 pub mod settings;
 pub mod versions;
 

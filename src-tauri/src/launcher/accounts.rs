@@ -3,10 +3,13 @@
 
 use super::net::client;
 use super::paths::{self, Paths};
+use super::secrets::{self, SecretKey};
 use crate::error::{Error, Result};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 /// Your Azure app's client ID. Set PEAK_MS_CLIENT_ID when building. Each
 /// launcher needs its own ID, approved by Mojang for the Minecraft API.
@@ -20,19 +23,20 @@ pub enum AccountKind {
     Offline,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// An account in memory. Only the id, name, kind and (encrypted) refresh
+/// token are saved; the Minecraft token lasts a day and is kept in memory.
+#[derive(Debug, Clone)]
 pub struct Account {
     /// Minecraft profile UUID (no dashes).
     pub id: String,
     pub username: String,
     pub kind: AccountKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_token: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
-    #[serde(default)]
     pub expires_at: Option<DateTime<Utc>>,
+    /// An encrypted refresh token that couldn't be opened (e.g. the password
+    /// store was locked); kept as is so it isn't lost on the next save.
+    pub unopened: Option<String>,
 }
 
 /// What the frontend sees: no tokens.
@@ -45,18 +49,143 @@ pub struct AccountInfo {
     pub active: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct AccountStore {
     pub active: Option<String>,
     pub accounts: Vec<Account>,
 }
 
+// ---------- on disk ----------
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct DiskStore {
+    #[serde(default)]
+    active: Option<String>,
+    #[serde(default)]
+    accounts: Vec<DiskAccount>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DiskAccount {
+    id: String,
+    username: String,
+    kind: AccountKind,
+    /// Microsoft refresh token, encrypted with the key in the OS password store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sealed_refresh_token: Option<String>,
+    /// Unencrypted: only without a password store, or from older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    refresh_token: Option<String>,
+    /// Older versions saved the Minecraft token too; read once, never written.
+    #[serde(default, skip_serializing)]
+    access_token: Option<String>,
+    #[serde(default, skip_serializing)]
+    expires_at: Option<DateTime<Utc>>,
+}
+
+/// Minecraft tokens for this session, by account id.
+static SESSIONS: LazyLock<Mutex<HashMap<String, (String, DateTime<Utc>)>>> = LazyLock::new(Default::default);
+
+/// Turn the saved file into accounts. Also says whether the file should be
+/// rewritten (it holds tokens in an older, unencrypted form).
+fn from_disk(disk: DiskStore, key: Option<&SecretKey>) -> (AccountStore, bool) {
+    let mut rewrite = false;
+    let mut sessions = SESSIONS.lock().unwrap();
+    let accounts = disk
+        .accounts
+        .into_iter()
+        .map(|d| {
+            let opened = match (&d.sealed_refresh_token, key) {
+                (Some(s), Some(k)) => secrets::open(k, &d.id, s),
+                _ => None,
+            };
+            let unopened = if opened.is_none() { d.sealed_refresh_token.clone() } else { None };
+            if d.refresh_token.is_some() && key.is_some() {
+                rewrite = true;
+            }
+            if d.access_token.is_some() {
+                rewrite = true;
+            }
+            if let (Some(tok), Some(exp)) = (d.access_token, d.expires_at) {
+                sessions.entry(d.id.clone()).or_insert((tok, exp));
+            }
+            let (access_token, expires_at) = match sessions.get(&d.id) {
+                Some((t, e)) => (Some(t.clone()), Some(*e)),
+                None => (None, None),
+            };
+            Account {
+                refresh_token: opened.or(d.refresh_token),
+                id: d.id,
+                username: d.username,
+                kind: d.kind,
+                access_token,
+                expires_at,
+                unopened,
+            }
+        })
+        .collect();
+    (AccountStore { active: disk.active, accounts }, rewrite)
+}
+
+/// What gets written: refresh tokens encrypted when possible, Minecraft
+/// tokens only remembered in memory.
+fn to_disk(store: &AccountStore, key: Option<&SecretKey>) -> DiskStore {
+    let mut sessions = SESSIONS.lock().unwrap();
+    let accounts = store
+        .accounts
+        .iter()
+        .map(|a| {
+            if let (Some(t), Some(e)) = (&a.access_token, a.expires_at) {
+                sessions.insert(a.id.clone(), (t.clone(), e));
+            }
+            let (sealed, plain) = match (&a.refresh_token, key) {
+                (Some(t), Some(k)) => (Some(secrets::seal(k, &a.id, t)), None),
+                (Some(t), None) => (None, Some(t.clone())),
+                (None, _) => (a.unopened.clone(), None),
+            };
+            DiskAccount {
+                id: a.id.clone(),
+                username: a.username.clone(),
+                kind: a.kind.clone(),
+                sealed_refresh_token: sealed,
+                refresh_token: plain,
+                access_token: None,
+                expires_at: None,
+            }
+        })
+        .collect();
+    DiskStore { active: store.active.clone(), accounts }
+}
+
+/// Whether sign-in tokens are encrypted on this computer.
+pub fn tokens_encrypted() -> bool {
+    secrets::key().is_some()
+}
+
+async fn key() -> Option<SecretKey> {
+    tokio::task::spawn_blocking(secrets::key).await.unwrap_or(None)
+}
+
 pub async fn load(paths: &Paths) -> Result<AccountStore> {
-    Ok(paths::read_json(&paths.accounts_file()).await?.unwrap_or_default())
+    let disk: DiskStore = paths::read_json(&paths.accounts_file()).await?.unwrap_or_default();
+    let key = key().await;
+    let (store, rewrite) = from_disk(disk, key.as_ref());
+    if rewrite {
+        // Encrypt tokens saved by older versions straight away.
+        save(paths, &store).await?;
+    }
+    Ok(store)
 }
 
 pub async fn save(paths: &Paths, store: &AccountStore) -> Result<()> {
-    paths::write_json(&paths.accounts_file(), store).await
+    let key = key().await;
+    paths::write_json(&paths.accounts_file(), &to_disk(store, key.as_ref())).await
+}
+
+/// Forget an account's in-memory token (when it's removed).
+pub fn forget_session(id: &str) {
+    SESSIONS.lock().unwrap().remove(id);
 }
 
 pub fn info(store: &AccountStore) -> Vec<AccountInfo> {
@@ -92,6 +221,7 @@ pub fn offline_account(username: &str) -> Result<Account> {
         access_token: None,
         refresh_token: None,
         expires_at: None,
+        unopened: None,
     })
 }
 
@@ -308,5 +438,84 @@ async fn complete_login(ms_access: &str, ms_refresh: String) -> Result<Account> 
         access_token: Some(mc.access_token),
         refresh_token: Some(ms_refresh),
         expires_at: Some(Utc::now() + Duration::seconds(mc.expires_in)),
+        unopened: None,
     })
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+
+    fn legacy_file(id: &str) -> DiskStore {
+        serde_json::from_value(json!({
+            "active": id,
+            "accounts": [{
+                "id": id, "username": "Steve", "kind": "microsoft",
+                "accessToken": "mc-access-token", "refreshToken": "ms-refresh-token",
+                "expiresAt": "2099-01-01T00:00:00Z"
+            }]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn upgrades_old_files_and_never_writes_tokens_in_the_clear() {
+        let key = [3u8; 32];
+        let (store, rewrite) = from_disk(legacy_file("acc-upgrade"), Some(&key));
+        assert!(rewrite, "plain tokens should trigger a rewrite");
+        let a = &store.accounts[0];
+        assert_eq!(a.refresh_token.as_deref(), Some("ms-refresh-token"));
+        assert_eq!(a.access_token.as_deref(), Some("mc-access-token"), "kept for this session");
+
+        let text = serde_json::to_string(&to_disk(&store, Some(&key))).unwrap();
+        assert!(!text.contains("ms-refresh-token"), "{text}");
+        assert!(!text.contains("mc-access-token"), "{text}");
+        assert!(!text.contains("expiresAt"), "{text}");
+        assert!(text.contains("sealedRefreshToken"));
+
+        // Reading the new file back needs no rewrite and gives the same tokens.
+        let (again, rewrite) = from_disk(serde_json::from_str(&text).unwrap(), Some(&key));
+        assert!(!rewrite);
+        assert_eq!(again.accounts[0].refresh_token.as_deref(), Some("ms-refresh-token"));
+        assert_eq!(again.accounts[0].access_token.as_deref(), Some("mc-access-token"));
+    }
+
+    #[test]
+    fn without_a_password_store_tokens_stay_usable() {
+        let (store, rewrite) = from_disk(legacy_file("acc-nostore"), None);
+        assert!(rewrite, "the Minecraft token is still dropped from the file");
+        let text = serde_json::to_string(&to_disk(&store, None)).unwrap();
+        assert!(text.contains("ms-refresh-token"));
+        assert!(!text.contains("mc-access-token"));
+        let (again, rewrite) = from_disk(serde_json::from_str(&text).unwrap(), None);
+        assert!(!rewrite);
+        assert_eq!(again.accounts[0].refresh_token.as_deref(), Some("ms-refresh-token"));
+    }
+
+    #[test]
+    fn keeps_tokens_it_cannot_open_yet() {
+        let key = [3u8; 32];
+        let (store, _) = from_disk(legacy_file("acc-locked"), Some(&key));
+        let text = serde_json::to_string(&to_disk(&store, Some(&key))).unwrap();
+        let sealed = serde_json::from_str::<DiskStore>(&text).unwrap().accounts[0].sealed_refresh_token.clone();
+
+        // Password store locked or key missing: the account needs signing in
+        // again, but saving must not throw the encrypted token away.
+        let (locked, _) = from_disk(serde_json::from_str(&text).unwrap(), None);
+        assert_eq!(locked.accounts[0].refresh_token, None);
+        let saved = to_disk(&locked, None);
+        assert_eq!(saved.accounts[0].sealed_refresh_token, sealed);
+
+        // A different key can't open it either.
+        let (wrong, _) = from_disk(serde_json::from_str(&text).unwrap(), Some(&[9u8; 32]));
+        assert_eq!(wrong.accounts[0].refresh_token, None);
+    }
+
+    #[test]
+    fn offline_accounts_have_nothing_secret() {
+        let key = [3u8; 32];
+        let store = AccountStore { active: None, accounts: vec![offline_account("Alex_1").unwrap()] };
+        let text = serde_json::to_string(&to_disk(&store, Some(&key))).unwrap();
+        assert!(!text.contains("efreshToken"));
+    }
 }
