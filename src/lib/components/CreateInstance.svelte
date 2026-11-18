@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { Search, LoaderCircle, Check } from '@lucide/svelte';
   import Modal from './Modal.svelte';
-  import InstanceArt from './InstanceArt.svelte';
   import LoaderIcon from './LoaderIcon.svelte';
   import { scale } from 'svelte/transition';
   import { api } from '$lib/api';
@@ -91,17 +90,24 @@
       saving = false;
     }
   }
+
+  /** Each loader's brand colour, for the preview's glow. */
+  const TINTS: Record<string, string> = {
+    vanilla: '#5fa83c',
+    fabric: '#dbd0b4',
+    quilt: '#9c4bf5',
+    neoforge: '#e07a2b',
+    forge: '#dfa86a'
+  };
 </script>
 
 <Modal title="New instance" subtitle="Pick a version. Everything else is handled for you." width={640} onclose={() => (app.creating = false)}>
   <div class="layout">
     <div class="preview">
-      <div class="art">
-        <InstanceArt seed={name || 'new'} />
+      <div class="art" style:--tint={TINTS[loader] ?? TINTS.vanilla}>
         {#key loader}
-          <div class="badge" in:scale={{ start: 0.85, duration: 180 }}>
-            <LoaderIcon {loader} size={30} />
-            <span>{loaderLabel(loader)}</span>
+          <div class="mark" in:scale={{ start: 0.8, duration: 200 }}>
+            <LoaderIcon {loader} size={88} />
           </div>
         {/key}
       </div>
@@ -206,23 +212,21 @@
     flex-wrap: wrap;
     gap: 6px;
   }
-  .badge {
-    position: absolute;
-    left: 10px;
-    bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px 6px 6px;
-    border-radius: 12px;
-    background: rgba(8, 9, 12, 0.62);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
-    font-size: 13px;
-    font-weight: 650;
+  .art {
+    display: grid;
+    place-items: center;
+    /* A soft glow in the loader's own colour behind its logo. */
+    background:
+      radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tint) 34%, transparent), transparent 62%),
+      linear-gradient(160deg, color-mix(in srgb, var(--tint) 14%, #101216), #0b0c0f);
+    transition: background 0.3s;
   }
-  .badge :global(img) {
-    border-radius: 6px;
+  .mark {
+    grid-area: 1 / 1;
+    filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.45));
+  }
+  .mark :global(img) {
+    border-radius: 14px;
   }
   .loader {
     display: inline-flex;
