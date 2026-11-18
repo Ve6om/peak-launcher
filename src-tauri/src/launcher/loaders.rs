@@ -293,6 +293,14 @@ fn lib_path(paths: &Paths, coord: &str) -> Result<PathBuf> {
     Ok(paths.libraries().join(maven_path(coord).ok_or_else(|| Error::msg(format!("Bad library coordinate {coord}")))?))
 }
 
+/// Output that means the JVM never got going (as opposed to the tool failing).
+fn java_failed_to_start(out: &std::process::Output) -> bool {
+    let text = String::from_utf8_lossy(&out.stderr).to_string() + &String::from_utf8_lossy(&out.stdout);
+    text.contains("Error occurred during initialization of VM")
+        || text.contains("Error: could not open")
+        || text.contains("Could not create the Java Virtual Machine")
+}
+
 async fn run_processors(paths: &Paths, profile: &Value, installer: &Path, mc: &str, id: &str, progress: &ProgressFn) -> Result<()> {
     let processors: Vec<Value> = profile["processors"].as_array().cloned().unwrap_or_default();
     let processors: Vec<Value> = processors
@@ -412,11 +420,21 @@ async fn run_processors(paths: &Paths, profile: &Value, installer: &Path, mc: &s
             }
         }
 
-        let mut cmd = tokio::process::Command::new(&java_exe);
-        cmd.args(&args).current_dir(&tmp);
-        #[cfg(windows)]
-        cmd.creation_flags(0x0800_0000);
-        let out = cmd.output().await.map_err(|e| Error::msg(format!("Couldn't run Java: {e}")))?;
+        let run = || async {
+            let mut cmd = tokio::process::Command::new(&java_exe);
+            cmd.args(&args).current_dir(&tmp);
+            #[cfg(windows)]
+            cmd.creation_flags(0x0800_0000);
+            cmd.output().await.map_err(|e| Error::msg(format!("Couldn't run Java: {e}")))
+        };
+        let mut out = run().await?;
+        if !out.status.success() && java_failed_to_start(&out) {
+            // Java itself couldn't start, usually a damaged runtime file:
+            // check every file, replace bad ones, and try once more.
+            progress(install::InstallProgress { stage: "Repairing Java", done: 0, total: 0, bytes: 0 });
+            java::ensure_runtime(paths, &component, true, |_| {}).await?;
+            out = run().await?;
+        }
         if !out.status.success() {
             let text = String::from_utf8_lossy(&out.stderr).to_string() + &String::from_utf8_lossy(&out.stdout);
             let tail: Vec<&str> = text.lines().rev().take(12).collect::<Vec<_>>().into_iter().rev().collect();
