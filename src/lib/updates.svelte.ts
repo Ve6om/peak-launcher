@@ -42,7 +42,7 @@ export async function checkForUpdate(interactive = false): Promise<'available' |
     if (interactive || updates.snoozed !== found.version) updates.open = true;
     return 'available';
   } catch (e) {
-    updates.error = e instanceof Error ? e.message : String(e);
+    updates.error = friendly(e instanceof Error ? e.message : String(e));
     return 'error';
   } finally {
     updates.checking = false;
@@ -83,6 +83,14 @@ async function findUpdate(): Promise<AvailableUpdate | null> {
     date: update.date ?? null,
     notes: update.body?.trim() || 'Bug fixes and improvements.'
   };
+}
+
+/** Plain-language versions of the updater's errors. */
+function friendly(message: string): string {
+  if (/platforms/i.test(message)) return 'the latest release is still being published. Try again in a few minutes.';
+  if (/(404|not found)/i.test(message)) return "no release information was found. Try again later.";
+  if (/(network|dns|connect|timed? ?out|offline)/i.test(message)) return "couldn't reach the update server. Check your connection.";
+  return message;
 }
 
 /** Download, install and restart. */
