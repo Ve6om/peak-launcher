@@ -308,6 +308,24 @@ export interface ContentVersion {
   loaders: string[];
 }
 
+/** A mod sorted for a server pack. */
+export interface ModSide {
+  fileName: string;
+  name: string;
+  clientOnly: boolean;
+  /** False when it's a best guess worth checking. */
+  sure: boolean;
+  reason: string;
+}
+
+export interface ServerPackReport {
+  path: string;
+  sizeBytes: number;
+  serverMods: number;
+  clientMods: number;
+  javaMajor: number;
+}
+
 /** A mod affected by disabling, removing or enabling another one. */
 export interface LinkedMod {
   fileName: string;

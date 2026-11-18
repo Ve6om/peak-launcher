@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import ConsolePanel from '$lib/components/ConsolePanel.svelte';
@@ -107,6 +107,7 @@
             <button class="btn" disabled={isBusy(inst.id) || isRunning(inst.id)} onclick={() => repairInstance(inst)}><Wrench size={16} /> Verify & repair files</button>
             <button class="btn" onclick={() => api.openFolder(inst.id)}><FolderOpen size={16} /> Open folder</button>
             <button class="btn" onclick={() => (app.exporting = inst)}><PackageOpen size={16} /> Export as modpack</button>
+            <button class="btn" onclick={() => (app.serverPack = inst)}><Server size={16} /> Export as server pack</button>
             <button class="btn danger" disabled={isRunning(inst.id)} onclick={() => (app.deleting = inst)}><Trash2 size={16} /> Delete instance</button>
           </div>
         </div>

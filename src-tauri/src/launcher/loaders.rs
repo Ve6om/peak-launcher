@@ -17,8 +17,8 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-const FABRIC_META: &str = "https://meta.fabricmc.net/v2";
-const QUILT_META: &str = "https://meta.quiltmc.org/v3";
+pub const FABRIC_META: &str = "https://meta.fabricmc.net/v2";
+pub const QUILT_META: &str = "https://meta.quiltmc.org/v3";
 const FORGE_MAVEN: &str = "https://maven.minecraftforge.net/net/minecraftforge/forge";
 const FORGE_PROMOS: &str = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 const NEOFORGE_MAVEN: &str = "https://maven.neoforged.net/releases/net/neoforged/neoforge";
@@ -228,13 +228,20 @@ async fn extract_to(zip_path: &Path, name: &str, dest: &Path) -> Result<bool> {
     }
 }
 
-async fn install_forge_like(paths: &Paths, loader: Loader, mc: &str, version: &str, progress: &ProgressFn) -> Result<String> {
+/// The Forge/NeoForge installer jar for `version`, downloaded once and kept
+/// in the cache (also used to build server packs).
+pub async fn forge_installer(paths: &Paths, loader: Loader, version: &str) -> Result<PathBuf> {
     let (base, name) = if loader == Loader::Forge { (FORGE_MAVEN, "forge") } else { (NEOFORGE_MAVEN, "neoforge") };
     let file = format!("{name}-{version}-installer.jar");
     let installer = paths.cache().join("installers").join(&file);
     net::download_all(vec![Download::new(format!("{base}/{version}/{file}"), installer.clone(), None, None)], 1, |_| {})
         .await
         .map_err(|e| Error::msg(format!("Couldn't download the {name} installer: {e}")))?;
+    Ok(installer)
+}
+
+async fn install_forge_like(paths: &Paths, loader: Loader, mc: &str, version: &str, progress: &ProgressFn) -> Result<String> {
+    let installer = forge_installer(paths, loader, version).await?;
 
     let profile_bytes = read_entry_async(&installer, "install_profile.json")
         .await?

@@ -25,6 +25,8 @@ import type {
   Instance,
   InstallProgress,
   LinkedMod,
+  ModSide,
+  ServerPackReport,
   LogLine,
   Settings,
   VersionManifest
@@ -87,6 +89,9 @@ export const api = {
     }),
   exportEntries: (instanceId: string) => call<ExportEntry[]>('export_entries', { instanceId }),
   exportPack: (instanceId: string, options: ExportOptions) => call<ExportReport>('export_pack', { instanceId, options }),
+  serverPackAnalyze: (instanceId: string) => call<ModSide[]>('serverpack_analyze', { instanceId }),
+  serverPackExport: (instanceId: string, options: { path: string; clientFiles: string[]; keepClient: boolean }) =>
+    call<ServerPackReport>('serverpack_export', { instanceId, options }),
   /** Ask where to save a file. Returns null if cancelled. */
   pickSavePath: async (defaultName: string, ext: string, label: string): Promise<string | null> => {
     if (!isTauri) return `C:/Users/you/Downloads/${defaultName}`;
@@ -641,6 +646,19 @@ const mock = (() => {
           { name: 'options.txt', isDir: false, suggested: false },
           { name: 'servers.dat', isDir: false, suggested: false }
         ] satisfies ExportEntry[];
+      case 'serverpack_analyze':
+        await sleep(900);
+        return [
+          { fileName: 'sodium-0.6.5.jar', name: 'Sodium', clientOnly: true, sure: true, reason: 'Marked client-only in fabric.mod.json' },
+          { fileName: 'iris-1.8.1.jar', name: 'Iris', clientOnly: true, sure: true, reason: 'Modrinth: client only' },
+          { fileName: 'zoomify-2.14.jar', name: 'Zoomify', clientOnly: true, sure: false, reason: 'Known client-only mod' },
+          { fileName: 'fabric-api-0.110.0.jar', name: 'Fabric API', clientOnly: false, sure: true, reason: 'Modrinth: runs on servers' },
+          { fileName: 'lithium-0.14.jar', name: 'Lithium', clientOnly: false, sure: true, reason: 'Modrinth: runs on servers' },
+          { fileName: 'mystery-mod-1.0.jar', name: 'Mystery Mod', clientOnly: false, sure: false, reason: 'No client-only marker found, kept to be safe' }
+        ] satisfies ModSide[];
+      case 'serverpack_export':
+        await sleep(1500);
+        return { path: a.options.path, sizeBytes: 182_000_000, serverMods: 3, clientMods: a.options.clientFiles.length, javaMajor: 21 };
       case 'export_pack': {
         await sleep(1200);
         const o = a.options as ExportOptions;

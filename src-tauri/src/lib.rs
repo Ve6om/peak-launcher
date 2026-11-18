@@ -11,6 +11,7 @@ use crate::launcher::launch;
 use crate::launcher::loaders::{self, Loader, LoaderVersion};
 use crate::launcher::curseforge;
 use crate::launcher::export;
+use crate::launcher::serverpack;
 use crate::launcher::ftb;
 use crate::launcher::technic;
 use crate::launcher::importer;
@@ -754,6 +755,18 @@ async fn export_pack(state: State<'_, AppState>, instance_id: String, options: e
     export::export(&state.paths, &instance_id, &options, cf.as_ref()).await
 }
 
+/// Sort an instance's mods into server and client-only for a server pack.
+#[tauri::command]
+async fn serverpack_analyze(state: State<'_, AppState>, instance_id: String) -> Result<Vec<serverpack::ModSide>> {
+    serverpack::analyze(&state.paths, &instance_id).await
+}
+
+/// Write a server pack zip with start scripts for the instance's loader.
+#[tauri::command]
+async fn serverpack_export(state: State<'_, AppState>, instance_id: String, options: serverpack::ServerPackOptions) -> Result<serverpack::ServerPackReport> {
+    serverpack::export(&state.paths, &instance_id, &options).await
+}
+
 // ---------------- modpack artwork ----------------
 
 /// Fill in icon/banner artwork for a modpack instance installed before Peak
@@ -958,6 +971,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             game_logs,
             content_linked,
+            serverpack_analyze,
+            serverpack_export,
             open_console_window,
             close_console_window,
             get_versions,
