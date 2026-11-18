@@ -47,9 +47,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Peak Launcher $GITHUB_REF_NAME" --notes-file notes.md
-          ID=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\" and .draft) | .id" | head -1)
-          [ -n "$ID" ] || { echo "::error::Draft release not found"; exit 1; }
+          # Take the id from the create call: a new draft isn't listed by tag right away.
+          ID=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="$GITHUB_REF_NAME" -f name="Peak Launcher $GITHUB_REF_NAME" \
+            -F body=@notes.md -F draft=true --jq .id)
+          [ -n "$ID" ] || { echo "::error::Couldn't create the draft release"; exit 1; }
           echo "id=$ID" >> "$GITHUB_OUTPUT"
 
   build:
@@ -105,16 +107,19 @@ jobs:
           args: ${{ matrix.args }}
 
   publish:
-    needs: build
+    needs: [notes, build]
     runs-on: ubuntu-latest
     steps:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.notes.outputs.release_id }}
         run: |
           # Every platform must be in latest.json before Peak can see it.
-          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir .
+          ASSET=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[] | select(.name == "latest.json") | .id')
+          [ -n "$ASSET" ] || { echo "::error::latest.json wasn't uploaded"; exit 1; }
+          gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/$ASSET" > latest.json
           for p in windows-x86_64 darwin-aarch64 darwin-x86_64 linux-x86_64; do
             jq -e --arg p "$p" '.platforms[$p]' latest.json > /dev/null || { echo "::error::latest.json is missing $p"; exit 1; }
           done
-          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false -f make_latest=true --jq .html_url
