@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { Search, LoaderCircle, Check } from '@lucide/svelte';
   import Modal from './Modal.svelte';
-  import InstanceArt from './InstanceArt.svelte';
+  import LoaderIcon from './LoaderIcon.svelte';
+  import { scale } from 'svelte/transition';
   import { api } from '$lib/api';
   import { app, go, refreshInstances, toast, errorText } from '$lib/state.svelte';
   import { LOADERS, loaderLabel, type LoaderId, type LoaderVersion, type ManifestEntry } from '$lib/types';
@@ -89,12 +90,27 @@
       saving = false;
     }
   }
+
+  /** Each loader's brand colour, for the preview's glow. */
+  const TINTS: Record<string, string> = {
+    vanilla: '#5fa83c',
+    fabric: '#dbd0b4',
+    quilt: '#9c4bf5',
+    neoforge: '#e07a2b',
+    forge: '#dfa86a'
+  };
 </script>
 
 <Modal title="New instance" subtitle="Pick a version. Everything else is handled for you." width={640} onclose={() => (app.creating = false)}>
   <div class="layout">
     <div class="preview">
-      <div class="art"><InstanceArt seed={name || 'new'} /></div>
+      <div class="art" style:--tint={TINTS[loader] ?? TINTS.vanilla}>
+        {#key loader}
+          <div class="mark" in:scale={{ start: 0.8, duration: 200 }}>
+            <LoaderIcon {loader} size={88} />
+          </div>
+        {/key}
+      </div>
       <label class="field">
         <span class="label">Name</span>
         <input class="input" bind:value={name} oninput={() => (nameTouched = true)} placeholder="My world" maxlength="48" />
@@ -103,7 +119,10 @@
         <span class="label">Mod loader</span>
         <div class="loaders">
           {#each LOADERS as l (l.id)}
-            <button class="loader" class:active={l.id === loader} onclick={() => (loader = l.id)}>{l.label}</button>
+            <button class="loader" class:active={l.id === loader} onclick={() => (loader = l.id)}>
+              <LoaderIcon loader={l.id} size={16} />
+              {l.label}
+            </button>
           {/each}
         </div>
       </div>
@@ -177,6 +196,7 @@
     gap: 16px;
   }
   .art {
+    position: relative;
     aspect-ratio: 16 / 10;
     border-radius: 14px;
     overflow: hidden;
@@ -192,9 +212,28 @@
     flex-wrap: wrap;
     gap: 6px;
   }
+  .art {
+    display: grid;
+    place-items: center;
+    /* A soft glow in the loader's own colour behind its logo. */
+    background:
+      radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tint) 34%, transparent), transparent 62%),
+      linear-gradient(160deg, color-mix(in srgb, var(--tint) 14%, #101216), #0b0c0f);
+    transition: background 0.3s;
+  }
+  .mark {
+    grid-area: 1 / 1;
+    filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.45));
+  }
+  .mark :global(img) {
+    border-radius: 14px;
+  }
   .loader {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     height: 28px;
-    padding: 0 11px;
+    padding: 0 11px 0 7px;
     border-radius: 99px;
     font-size: 12.5px;
     font-weight: 550;
