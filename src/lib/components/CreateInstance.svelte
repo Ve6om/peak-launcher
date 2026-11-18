@@ -3,6 +3,8 @@
   import { Search, LoaderCircle, Check } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import InstanceArt from './InstanceArt.svelte';
+  import LoaderIcon from './LoaderIcon.svelte';
+  import { scale } from 'svelte/transition';
   import { api } from '$lib/api';
   import { app, go, refreshInstances, toast, errorText } from '$lib/state.svelte';
   import { LOADERS, loaderLabel, type LoaderId, type LoaderVersion, type ManifestEntry } from '$lib/types';
@@ -94,7 +96,15 @@
 <Modal title="New instance" subtitle="Pick a version. Everything else is handled for you." width={640} onclose={() => (app.creating = false)}>
   <div class="layout">
     <div class="preview">
-      <div class="art"><InstanceArt seed={name || 'new'} /></div>
+      <div class="art">
+        <InstanceArt seed={name || 'new'} />
+        {#key loader}
+          <div class="badge" in:scale={{ start: 0.85, duration: 180 }}>
+            <LoaderIcon {loader} size={30} />
+            <span>{loaderLabel(loader)}</span>
+          </div>
+        {/key}
+      </div>
       <label class="field">
         <span class="label">Name</span>
         <input class="input" bind:value={name} oninput={() => (nameTouched = true)} placeholder="My world" maxlength="48" />
@@ -103,7 +113,10 @@
         <span class="label">Mod loader</span>
         <div class="loaders">
           {#each LOADERS as l (l.id)}
-            <button class="loader" class:active={l.id === loader} onclick={() => (loader = l.id)}>{l.label}</button>
+            <button class="loader" class:active={l.id === loader} onclick={() => (loader = l.id)}>
+              <LoaderIcon loader={l.id} size={16} />
+              {l.label}
+            </button>
           {/each}
         </div>
       </div>
@@ -177,6 +190,7 @@
     gap: 16px;
   }
   .art {
+    position: relative;
     aspect-ratio: 16 / 10;
     border-radius: 14px;
     overflow: hidden;
@@ -192,9 +206,30 @@
     flex-wrap: wrap;
     gap: 6px;
   }
+  .badge {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 6px;
+    border-radius: 12px;
+    background: rgba(8, 9, 12, 0.62);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .badge :global(img) {
+    border-radius: 6px;
+  }
   .loader {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     height: 28px;
-    padding: 0 11px;
+    padding: 0 11px 0 7px;
     border-radius: 99px;
     font-size: 12.5px;
     font-weight: 550;
