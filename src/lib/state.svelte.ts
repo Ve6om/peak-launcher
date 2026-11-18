@@ -39,6 +39,8 @@ export const app = $state({
   importing: false,
   /** Instance being exported as a modpack. */
   exporting: null as Instance | null,
+  /** Instance being exported as a server pack. */
+  serverPack: null as Instance | null,
   /** Instance whose manual-download dialog is open. */
   manualFor: null as string | null,
   /** "Games are still running" prompt shown when closing the launcher. */

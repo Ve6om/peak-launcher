@@ -28,6 +28,10 @@ pub struct ModInfo {
     pub provides: HashSet<String>,
     /// Mod ids it can't run without.
     pub requires: HashSet<String>,
+    /// Side the mod says it runs on: "client", "server" or None (both or unsaid).
+    pub environment: Option<String>,
+    /// Where `environment` came from, for showing to the user.
+    pub environment_source: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,6 +78,10 @@ fn read_jar<R: Read + Seek>(zip: &mut zip::ZipArchive<R>, info: &mut ModInfo, de
         }
         if depth == 0 {
             info.name = info.name.take().or_else(|| v.get("name").and_then(Value::as_str).map(String::from));
+            if let Some(env @ ("client" | "server")) = v.get("environment").and_then(Value::as_str) {
+                info.environment = Some(env.to_string());
+                info.environment_source = Some("fabric.mod.json");
+            }
             if let Some(Value::Object(deps)) = v.get("depends") {
                 info.requires.extend(deps.keys().map(|k| norm(k)));
             }
@@ -84,6 +92,13 @@ fn read_jar<R: Read + Seek>(zip: &mut zip::ZipArchive<R>, info: &mut ModInfo, de
     }
 
     if let Some(v) = read_entry(zip, "quilt.mod.json").and_then(|b| serde_json::from_slice::<Value>(&b).ok()) {
+        if depth == 0 {
+            match v.pointer("/minecraft/environment").and_then(Value::as_str) {
+                Some("client") => (info.environment, info.environment_source) = (Some("client".into()), Some("quilt.mod.json")),
+                Some("dedicated_server") => (info.environment, info.environment_source) = (Some("server".into()), Some("quilt.mod.json")),
+                _ => {}
+            }
+        }
         if let Some(ql) = v.get("quilt_loader") {
             if let Some(id) = ql.get("id").and_then(Value::as_str) {
                 info.provides.insert(norm(id));
@@ -133,9 +148,18 @@ fn read_jar<R: Read + Seek>(zip: &mut zip::ZipArchive<R>, info: &mut ModInfo, de
                             (None, Some(m)) => m,
                             (None, None) => toml_name.contains("neoforge"),
                         };
+                        let dep_id = d.get("modId").and_then(|v| v.as_str()).map(norm);
+                        // A mod that only needs Minecraft on the client is client-only.
+                        if dep_id.as_deref() == Some("minecraft")
+                            && d.get("side").and_then(|v| v.as_str()).is_some_and(|s| s.eq_ignore_ascii_case("client"))
+                            && info.environment.is_none()
+                        {
+                            info.environment = Some("client".into());
+                            info.environment_source = Some("mods.toml");
+                        }
                         if required {
-                            if let Some(id) = d.get("modId").and_then(|v| v.as_str()) {
-                                info.requires.insert(norm(id));
+                            if let Some(id) = dep_id {
+                                info.requires.insert(id);
                             }
                         }
                     }
@@ -362,6 +386,7 @@ mod tests {
                 name: Some(name.into()),
                 provides: provides.iter().map(|s| s.to_string()).collect(),
                 requires: requires.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
             },
         }
     }

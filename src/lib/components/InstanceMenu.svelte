@@ -2,7 +2,7 @@
   // Right-click menu for an instance (cards, sidebar, hero).
   import { tick } from 'svelte';
   import { scale } from 'svelte/transition';
-  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen } from '@lucide/svelte';
+  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server } from '@lucide/svelte';
   import { api } from '$lib/api';
   import type { Instance } from '$lib/types';
   import { app, go, play, stop, isRunning, isBusy, duplicateInstance, repairInstance } from '$lib/state.svelte';
@@ -76,6 +76,7 @@
     <div class="sep"></div>
     <button role="menuitem" onclick={run((i) => duplicateInstance(i))}><Copy size={15} /> Duplicate</button>
     <button role="menuitem" onclick={run((i) => (app.exporting = i))}><PackageOpen size={15} /> Export as modpack…</button>
+    <button role="menuitem" onclick={run((i) => (app.serverPack = i))}><Server size={15} /> Export as server pack…</button>
     <button role="menuitem" disabled={busy || running} onclick={run((i) => repairInstance(i))}><Wrench size={15} /> Verify & repair</button>
     <div class="sep"></div>
     <button role="menuitem" class="danger" disabled={running} onclick={run((i) => (app.deleting = i))}><Trash2 size={15} /> Delete…</button>

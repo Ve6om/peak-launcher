@@ -10,6 +10,7 @@
   import DeleteDialog from '$lib/components/DeleteDialog.svelte';
   import ImportDialog from '$lib/components/ImportDialog.svelte';
   import ExportDialog from '$lib/components/ExportDialog.svelte';
+  import ServerPackDialog from '$lib/components/ServerPackDialog.svelte';
   import DependencyDialog from '$lib/components/DependencyDialog.svelte';
   import ManualDownloads from '$lib/components/ManualDownloads.svelte';
   import CloseDialog from '$lib/components/CloseDialog.svelte';
@@ -104,6 +105,9 @@
 {/if}
 {#if app.exporting}
   <ExportDialog inst={app.exporting} />
+{/if}
+{#if app.serverPack}
+  <ServerPackDialog inst={app.serverPack} />
 {/if}
 {#if pending.plan}
   <DependencyDialog />
