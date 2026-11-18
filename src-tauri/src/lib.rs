@@ -875,6 +875,7 @@ async fn set_active_account(state: State<'_, AppState>, id: String) -> Result<Ve
 async fn remove_account(state: State<'_, AppState>, id: String) -> Result<Vec<AccountInfo>> {
     let mut store = accounts::load(&state.paths).await?;
     store.accounts.retain(|a| a.id != id);
+    accounts::forget_session(&id);
     if store.active.as_deref() == Some(id.as_str()) {
         store.active = store.accounts.first().map(|a| a.id.clone());
     }
@@ -890,6 +891,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "version": env!("CARGO_PKG_VERSION"),
         "devBuild": cfg!(debug_assertions),
         "msConfigured": accounts::MS_CLIENT_ID.map(|s| !s.is_empty()).unwrap_or(false),
+        "tokensEncrypted": accounts::tokens_encrypted(),
         "os": std::env::consts::OS,
         "totalMemoryMb": sys.total_memory() / 1024 / 1024,
         "dataDir": state.paths.root.to_string_lossy(),

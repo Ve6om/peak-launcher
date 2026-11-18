@@ -91,6 +91,20 @@
     </div>
   {/if}
 
+  {#if app.info && !app.info.tokensEncrypted && app.accounts.some((a) => a.kind === 'microsoft')}
+    <div class="note glass">
+      <Info size={18} />
+      <div>
+        <b>Sign-in details aren't encrypted on this computer.</b>
+        <p>
+          Peak couldn't reach your system's password store (on Linux, GNOME Keyring or KWallet), so your sign-in is
+          saved in Peak's data folder without encryption. Installing or unlocking a password store fixes this the next
+          time Peak starts.
+        </p>
+      </div>
+    </div>
+  {/if}
+
   {#if app.info?.devBuild}
     <div class="dev glass">
       <div>
