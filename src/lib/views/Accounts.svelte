@@ -1,39 +1,50 @@
 <script lang="ts">
-  import { UserPlus, Check, LogOut, ExternalLink, Copy, LoaderCircle, Info, Clock } from '@lucide/svelte';
-  import Modal from '$lib/components/Modal.svelte';
+  import { UserPlus, Check, LogOut, Info, RefreshCw, ExternalLink } from '@lucide/svelte';
+  import MicrosoftSignIn from '$lib/components/MicrosoftSignIn.svelte';
+  import SkinHead from '$lib/components/SkinHead.svelte';
+  import SkinViewer from '$lib/components/SkinViewer.svelte';
+  import { skins, loadSkin } from '$lib/skins.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
-  import type { DeviceCode } from '$lib/types';
+  import type { LoginStart } from '$lib/types';
 
-  let code = $state<DeviceCode | null>(null);
+  let login = $state<LoginStart | null>(null);
   let signingIn = $state(false);
   let offlineName = $state('');
-  // Set when sign-in fails only because Mojang hasn't approved Peak's app yet.
-  let reviewPending = $state(false);
+  // Each attempt gets a number, so a cancelled one can't report back later.
+  let attempt = 0;
 
   async function signIn() {
     if (!app.info?.msConfigured) {
       toast('Microsoft sign-in needs a client ID first (see the note below).', 'info');
       return;
     }
+    const mine = ++attempt;
     signingIn = true;
     try {
-      code = await api.msLoginStart();
-      app.accounts = await api.msLoginFinish(code);
-      reviewPending = false;
+      const started = await api.msLoginStart();
+      if (mine !== attempt) return;
+      login = started;
+      const accounts = await api.msLoginFinish(started);
+      if (mine !== attempt) return;
+      app.accounts = accounts;
       toast('Signed in', 'success');
     } catch (e) {
-      const msg = errorText(e);
-      // The game auth step returns 403 until Mojang approves the app ID.
-      if (/mojang/i.test(msg) && /approv/i.test(msg)) {
-        reviewPending = true;
-      } else {
-        toast(msg, 'error');
-      }
+      if (mine === attempt) toast(errorText(e), 'error');
     } finally {
-      signingIn = false;
-      code = null;
+      if (mine === attempt) {
+        signingIn = false;
+        login = null;
+      }
     }
+  }
+
+  /** Close the sign-in window and stop waiting for Microsoft. */
+  function cancelSignIn() {
+    attempt++;
+    signingIn = false;
+    login = null;
+    api.msLoginCancel().catch(() => {});
   }
 
   async function addOffline() {
@@ -43,6 +54,17 @@
     } catch (e) {
       toast(errorText(e), 'error');
     }
+  }
+
+  const active = $derived(app.accounts.find((a) => a.active && a.kind === 'microsoft') ?? null);
+  const activeSkin = $derived(active ? skins[active.id] : undefined);
+  let refreshing = $state(false);
+
+  async function refreshSkin() {
+    if (!active) return;
+    refreshing = true;
+    await loadSkin(active.id, true);
+    refreshing = false;
   }
 
   async function activate(id: string) {
@@ -63,10 +85,39 @@
     <button class="btn primary" onclick={signIn} disabled={signingIn}><UserPlus size={17} /> Add Microsoft account</button>
   </header>
 
+  {#if active}
+    <section class="skin-card glass rise">
+      <div class="stage">
+        {#if activeSkin}
+          {#key active.id}
+            <SkinViewer png={activeSkin.png} model={activeSkin.model} width={200} height={260} />
+          {/key}
+        {:else if activeSkin === null}
+          <p class="no-skin">This account uses Minecraft's default skin.</p>
+        {:else}
+          <div class="skeleton"></div>
+        {/if}
+      </div>
+      <div class="skin-info">
+        <span class="label">Playing as</span>
+        <h2>{active.username}</h2>
+        {#if activeSkin}
+          <p>{activeSkin.model === 'slim' ? 'Slim arms (Alex style)' : 'Classic arms (Steve style)'} · drag the model to turn it</p>
+        {/if}
+        <div class="skin-actions">
+          <button class="btn" onclick={refreshSkin} disabled={refreshing}><RefreshCw size={15} class={refreshing ? 'spin' : ''} /> Refresh skin</button>
+          <button class="btn ghost" onclick={() => api.openUrl('https://www.minecraft.net/msaprofile/mygames/editskin')}>
+            <ExternalLink size={15} /> Change skin on minecraft.net
+          </button>
+        </div>
+      </div>
+    </section>
+  {/if}
+
   <div class="list">
     {#each app.accounts as a, i (a.id)}
       <div class="account glass rise" class:active={a.active} style:animation-delay="{i * 40}ms">
-        <span class="avatar">{a.username[0].toUpperCase()}</span>
+        <SkinHead accountId={a.id} name={a.username} size={44} />
         <div class="text">
           <b>{a.username}</b>
           <span>{a.kind === 'microsoft' ? 'Microsoft account' : 'Offline (dev only)'}</span>
@@ -86,20 +137,6 @@
       </div>
     {/each}
   </div>
-
-  {#if reviewPending}
-    <div class="note glass pending">
-      <Clock size={18} />
-      <div>
-        <b>Microsoft sign-in is being reviewed by Mojang.</b>
-        <p>
-          Every launcher needs Mojang to approve its sign-in before accounts work. Peak is in that queue. Once it's
-          approved, sign-in starts working on its own, with no update needed — so check back in a few days. Everything
-          else in Peak works in the meantime.
-        </p>
-      </div>
-    </div>
-  {/if}
 
   {#if app.info && !app.info.msConfigured}
     <div class="note glass">
@@ -142,19 +179,8 @@
   {/if}
 </div>
 
-{#if code}
-  <Modal title="Sign in with Microsoft" subtitle="Enter this code on the Microsoft page to link your account." width={460} onclose={() => (code = null)}>
-    <div class="code-box">
-      <div class="code">{code.userCode}</div>
-      <div class="code-actions">
-        <button class="btn" onclick={() => code && navigator.clipboard.writeText(code.userCode).then(() => toast('Code copied'))}>
-          <Copy size={15} /> Copy code
-        </button>
-        <button class="btn primary" onclick={() => code && api.openUrl(code.verificationUri)}><ExternalLink size={15} /> Open Microsoft</button>
-      </div>
-      <div class="waiting"><LoaderCircle size={15} class="spin" /> Waiting for you to finish signing in…</div>
-    </div>
-  </Modal>
+{#if login}
+  <MicrosoftSignIn start={login} oncancel={cancelSignIn} />
 {/if}
 
 <style>
@@ -179,6 +205,56 @@
     color: var(--muted);
     font-size: 13.5px;
   }
+  .skin-card {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 10px 28px 10px 14px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 50%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 45%),
+      var(--glass);
+  }
+  .stage {
+    width: 200px;
+    height: 260px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .skeleton {
+    width: 70px;
+    height: 180px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .no-skin {
+    margin: 0;
+    padding: 0 18px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .skin-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .skin-info h2 {
+    margin: 0;
+    font-size: 26px;
+  }
+  .skin-info p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .skin-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
   .list {
     display: flex;
     flex-direction: column;
@@ -193,17 +269,6 @@
   .account.active {
     border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), var(--glass));
-  }
-  .avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
-    display: grid;
-    place-items: center;
-    font-weight: 720;
-    font-size: 17px;
-    background: var(--gradient);
-    color: var(--on-accent);
   }
   .text {
     flex: 1;
@@ -250,11 +315,6 @@
     background: color-mix(in srgb, var(--accent-2) 6%, transparent);
     border-color: color-mix(in srgb, var(--accent-2) 22%, transparent);
   }
-  .note.pending {
-    color: #fcd34d;
-    background: color-mix(in srgb, #fcd34d 7%, transparent);
-    border-color: color-mix(in srgb, #fcd34d 24%, transparent);
-  }
   .note b {
     color: var(--text);
     font-size: 13.5px;
@@ -289,33 +349,5 @@
     display: flex;
     gap: 8px;
     width: 340px;
-  }
-  .code-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 18px;
-  }
-  .code {
-    font-family: 'JetBrains Mono', Consolas, monospace;
-    font-size: 34px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    padding: 16px 28px;
-    border-radius: 16px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--stroke-strong);
-    user-select: all;
-  }
-  .code-actions {
-    display: flex;
-    gap: 8px;
-  }
-  .waiting {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
-    color: var(--muted);
   }
 </style>

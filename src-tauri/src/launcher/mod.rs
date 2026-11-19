@@ -7,10 +7,12 @@ pub mod importer;
 pub mod install;
 pub mod instances;
 pub mod java;
+pub mod jvmflags;
 pub mod launch;
 pub mod loaders;
 pub mod manual;
 pub mod moddeps;
+pub mod msbrowser;
 pub mod modpacks;
 pub mod modrinth;
 pub mod net;
@@ -18,8 +20,10 @@ pub mod paths;
 pub mod technic;
 pub mod rules;
 pub mod secrets;
+pub mod servers;
 pub mod serverpack;
 pub mod settings;
+pub mod skins;
 pub mod versions;
 
 #[cfg(test)]

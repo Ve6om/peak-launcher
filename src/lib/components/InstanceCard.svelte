@@ -13,7 +13,7 @@
 <div class="card glass rise" style:animation-delay="{index * 40}ms" oncontextmenu={(e) => openInstanceMenu(e, inst)} role="group" aria-label={inst.name}>
   <button class="open" aria-label="Open {inst.name}" onclick={() => go('instance', inst.id)}></button>
   <div class="art">
-    <InstanceArt seed={inst.id} image={inst.pack?.bannerUrl} icon={inst.pack?.iconUrl} />
+    <InstanceArt loader={inst.loader} image={inst.pack?.bannerUrl} icon={inst.pack?.iconUrl} />
     <div class="badges">
       <span class="chip dark"><span class="peak">▲</span> {inst.gameVersion}</span>
       {#if running}<span class="chip live">● Playing</span>{/if}

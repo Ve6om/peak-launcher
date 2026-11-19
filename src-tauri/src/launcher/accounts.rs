@@ -1,6 +1,7 @@
 //! Accounts: Microsoft sign-in (device code flow -> Xbox Live -> XSTS ->
 //! Minecraft services) plus offline accounts in development builds.
 
+use super::msbrowser;
 use super::net::client;
 use super::paths::{self, Paths};
 use super::secrets::{self, SecretKey};
@@ -9,6 +10,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 /// Your Azure app's client ID. Set PEAK_MS_CLIENT_ID when building. Each
@@ -249,7 +251,16 @@ fn client_id() -> Result<&'static str> {
     })
 }
 
-pub async fn start_device_code() -> Result<DeviceCode> {
+/// Bumped whenever a sign-in starts or is cancelled; a waiting sign-in that
+/// sees a different number than it began with stops.
+static LOGIN_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Stop any sign-in that is waiting for the user.
+pub fn cancel_login() {
+    LOGIN_GEN.fetch_add(1, Ordering::SeqCst);
+}
+
+async fn start_device_code() -> Result<DeviceCode> {
     let resp = client()
         .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
         .form(&[("client_id", client_id()?), ("scope", SCOPE)])
@@ -257,6 +268,81 @@ pub async fn start_device_code() -> Result<DeviceCode> {
         .await?
         .error_for_status()?;
     Ok(resp.json().await?)
+}
+
+/// What the sign-in window needs: the code for another device, and the
+/// page for signing in with this computer's browser (when it can listen).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginStart {
+    pub device: DeviceCode,
+    #[serde(default)]
+    pub browser_url: Option<String>,
+}
+
+/// The browser sign-in waiting for its result, between start and finish.
+static PENDING: Mutex<Option<msbrowser::Pending>> = Mutex::new(None);
+
+/// Begin a sign-in both ways at once; whichever the user finishes first wins.
+pub async fn start_login() -> Result<LoginStart> {
+    // A new attempt replaces any older one that is still waiting.
+    cancel_login();
+    *PENDING.lock().unwrap() = None;
+    let device = start_device_code().await?;
+    let browser_url = match msbrowser::Pending::new().await {
+        Ok(pending) => {
+            let url = pending.authorize_url(client_id()?, SCOPE);
+            *PENDING.lock().unwrap() = Some(pending);
+            Some(url)
+        }
+        Err(e) => {
+            // The code still works without it.
+            eprintln!("Browser sign-in unavailable: {e}");
+            None
+        }
+    };
+    Ok(LoginStart { device, browser_url })
+}
+
+/// Wait for the user to finish, in the browser or with the code.
+pub async fn finish_login(start: &LoginStart) -> Result<Account> {
+    let pending = PENDING.lock().unwrap().take();
+    match pending {
+        Some(pending) => {
+            tokio::select! {
+                result = poll_device_code(&start.device) => result,
+                result = browser_login(pending) => result,
+            }
+        }
+        None => poll_device_code(&start.device).await,
+    }
+}
+
+/// Wait for the browser to come back, then swap the code for tokens.
+async fn browser_login(pending: msbrowser::Pending) -> Result<Account> {
+    let began = LOGIN_GEN.load(Ordering::SeqCst);
+    let code = pending.wait_for_code(|| LOGIN_GEN.load(Ordering::SeqCst) != began).await?;
+    let resp = client()
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", client_id()?),
+            ("code", code.as_str()),
+            ("redirect_uri", pending.redirect_uri.as_str()),
+            ("code_verifier", pending.verifier.as_str()),
+            ("scope", SCOPE),
+        ])
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        let body: serde_json::Value = resp.json().await.unwrap_or_default();
+        let why = body["error_description"].as_str().or_else(|| body["error"].as_str()).unwrap_or("unknown error");
+        // Microsoft adds trace IDs to the end of its messages; they're no use to the player.
+        let why = why.split(" Trace ID:").next().unwrap_or(why).lines().next().unwrap_or(why).trim();
+        return Err(Error::msg(format!("Microsoft didn't accept the browser sign-in: {why}")));
+    }
+    let tok: MsToken = resp.json().await?;
+    complete_login(&tok.access_token, tok.refresh_token).await
 }
 
 #[derive(Deserialize)]
@@ -275,8 +361,19 @@ struct MsError {
 pub async fn poll_device_code(code: &DeviceCode) -> Result<Account> {
     let deadline = Utc::now() + Duration::seconds(code.expires_in as i64);
     let mut interval = code.interval.max(1);
+    let started = LOGIN_GEN.load(Ordering::SeqCst);
+    let cancelled = || LOGIN_GEN.load(Ordering::SeqCst) != started;
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+        // Wait in short steps so Cancel takes effect straight away.
+        for _ in 0..interval * 4 {
+            if cancelled() {
+                return Err(Error::msg("Sign-in cancelled."));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        }
+        if cancelled() {
+            return Err(Error::msg("Sign-in cancelled."));
+        }
         if Utc::now() > deadline {
             return Err(Error::msg("The sign-in code expired. Please try again."));
         }
@@ -412,15 +509,12 @@ async fn complete_login(ms_access: &str, ms_refresh: String) -> Result<Account> 
         .json(&json!({ "identityToken": format!("XBL3.0 x={uhs};{}", xsts.token) }))
         .send()
         .await?;
-    // New Azure apps must be approved by Mojang before they can sign in. Both
-    // messages mention Mojang and "approve" so the UI can spot this case.
+    // A launcher's Azure app has to be on Mojang's allow list (aka.ms/mce-reviewappid)
+    // before this works. A fresh approval can take a few hours to reach everywhere.
     if resp.status().as_u16() == 403 {
-        let msg = if cfg!(debug_assertions) {
-            "Mojang hasn't approved this launcher's Microsoft app ID for Minecraft yet. Submit the client ID at aka.ms/mce-reviewappid and try again once it's approved."
-        } else {
-            "Microsoft sign-in is still being reviewed by Mojang and isn't switched on yet. It will start working automatically once they approve it \u{2014} you won't need to update Peak."
-        };
-        return Err(Error::msg(msg));
+        return Err(Error::msg(
+            "Minecraft refused this sign-in (error 403). If this app was only just approved by Mojang it can take a few hours to start working, so try again a little later.",
+        ));
     }
     let mc: McLogin = resp.error_for_status()?.json().await?;
 
@@ -521,5 +615,68 @@ mod storage_tests {
         let store = AccountStore { active: None, accounts: vec![offline_account("Alex_1").unwrap()] };
         let text = serde_json::to_string(&to_disk(&store, Some(&key))).unwrap();
         assert!(!text.contains("efreshToken"));
+    }
+}
+
+#[cfg(test)]
+mod login_tests {
+    use super::*;
+
+    /// A waiting sign-in must stop soon after Cancel, before it asks Microsoft anything.
+    #[tokio::test]
+    async fn cancel_stops_a_waiting_sign_in() {
+        let code = DeviceCode {
+            device_code: "unused".into(),
+            user_code: "ABCD1234".into(),
+            verification_uri: "https://www.microsoft.com/link".into(),
+            expires_in: 900,
+            interval: 5,
+        };
+        let waiting = tokio::spawn(async move { poll_device_code(&code).await });
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let began = std::time::Instant::now();
+        cancel_login();
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), waiting).await.expect("should stop quickly").unwrap();
+        assert_eq!(result.unwrap_err().to_string(), "Sign-in cancelled.");
+        assert!(began.elapsed() < std::time::Duration::from_secs(2));
+    }
+}
+
+#[cfg(test)]
+mod live_login {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Against Microsoft for real, without signing in: the sign-in link opens
+    /// Microsoft's page, and a made-up result is turned down with a readable error.
+    /// PEAK_MS_CLIENT_ID=<id> cargo test --lib -- --ignored --nocapture live_browser_login
+    #[tokio::test]
+    #[ignore]
+    async fn live_browser_login() {
+        let start = start_login().await.expect("start_login");
+        let url = start.browser_url.clone().expect("browser url");
+        println!("device code: {} | browser link: {}...", start.device.user_code, &url[..90]);
+
+        let page = client().get(&url).send().await.unwrap().text().await.unwrap();
+        assert!(page.contains("urlPost"), "Microsoft should serve its sign-in page");
+        assert!(!page.contains("unable to complete your request"), "...not Microsoft's error page for a rejected redirect address");
+        println!("sign-in page: served");
+
+        let q: std::collections::HashMap<_, _> = reqwest::Url::parse(&url).unwrap().query_pairs().into_owned().collect();
+        let port: u16 = q["redirect_uri"].rsplit(':').next().unwrap().parse().unwrap();
+        let state = q["state"].clone();
+
+        let finishing = tokio::spawn(async move { finish_login(&start).await });
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        s.write_all(format!("GET /?code=made-up-code&state={state} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes()).await.unwrap();
+        let mut reply = String::new();
+        s.read_to_string(&mut reply).await.unwrap();
+        assert!(reply.contains("signed in"));
+
+        let err = finishing.await.unwrap().unwrap_err().to_string();
+        println!("made-up code was turned down with: {err}");
+        assert!(err.starts_with("Microsoft didn't accept the browser sign-in:"));
+        cancel_login();
     }
 }

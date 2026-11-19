@@ -28,6 +28,7 @@ pub struct Effective {
     pub memory_mb: u32,
     pub metaspace_mb: u32,
     pub jvm_args: String,
+    pub jvm_preset: String,
     pub width: u32,
     pub height: u32,
     pub fullscreen: bool,
@@ -45,6 +46,7 @@ pub fn effective(inst: &Instance, s: &Settings) -> Effective {
         memory_mb: inst.memory_mb.unwrap_or(s.memory_mb).max(512),
         metaspace_mb: inst.metaspace_mb.unwrap_or(s.metaspace_mb),
         jvm_args: pick(&inst.jvm_args, &s.jvm_args),
+        jvm_preset: inst.jvm_preset.clone().filter(|p| super::jvmflags::is_known(p)).unwrap_or_else(|| s.jvm_preset.clone()),
         width: inst.window_width.unwrap_or(s.window_width),
         height: inst.window_height.unwrap_or(s.window_height),
         fullscreen: inst.fullscreen.unwrap_or(s.fullscreen),
@@ -236,6 +238,8 @@ pub async fn plan(
     if fx.metaspace_mb > 0 {
         args.push(format!("-XX:MetaspaceSize={}M", fx.metaspace_mb));
     }
+    // The preset's flags for the Java that will actually run, then the player's own.
+    args.extend(super::jvmflags::flags_for(&fx.jvm_preset, super::jvmflags::java_major(&java)));
     args.extend(fx.jvm_args.split_whitespace().map(String::from));
 
     if let Some(log) = version.logging.as_ref().and_then(|l| l.client.as_ref()) {
@@ -333,4 +337,49 @@ pub fn shell_command(command: &str, inst: &Instance, plan: &LaunchPlan, paths: &
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);
     cmd
+}
+
+#[cfg(test)]
+mod stop_live {
+    /// Start a Java program that hangs while shutting down, the way Peak starts
+    /// the game, then stop it the way Peak's Stop/Kill does:
+    /// PEAK_HANG_JAVA=<java.exe> PEAK_HANG_SRC=<Hang.java> cargo test --lib -- --ignored --nocapture stop_hung_game
+    #[tokio::test]
+    #[ignore]
+    async fn stop_hung_game() {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let java = std::env::var("PEAK_HANG_JAVA").unwrap();
+        let src = std::env::var("PEAK_HANG_SRC").unwrap();
+        let mut cmd = tokio::process::Command::new(&java);
+        cmd.arg(&src)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        #[cfg(windows)]
+        cmd.creation_flags(0x0800_0000);
+        let mut child = cmd.spawn().unwrap();
+        let pid = child.id().unwrap();
+        let out = child.stdout.take().unwrap();
+        tokio::spawn(async move {
+            let mut lines = BufReader::new(out).lines();
+            while let Ok(Some(l)) = lines.next_line().await {
+                println!("game: {l}");
+            }
+        });
+        let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
+        let waiter = tokio::spawn(async move {
+            tokio::select! {
+                status = child.wait() => format!("exited on its own: {status:?}"),
+                _ = kill_rx => { let r = child.kill().await; format!("kill result: {r:?}") }
+            }
+        });
+        tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+        assert!(!waiter.is_finished(), "should still be hung after 6s");
+        println!("pid {pid} still running after 6s (hung in shutdown), pressing Stop...");
+        let t = std::time::Instant::now();
+        kill_tx.send(()).unwrap();
+        let r = tokio::time::timeout(std::time::Duration::from_secs(10), waiter).await;
+        println!("stop took {:?}: {:?}", t.elapsed(), r.as_ref().map(|j| j.as_ref().map(|s| s.as_str()).unwrap_or("join error")));
+        assert!(r.is_ok(), "the hung game did not stop within 10s");
+    }
 }

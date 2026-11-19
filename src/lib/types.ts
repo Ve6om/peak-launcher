@@ -21,6 +21,8 @@ export interface Instance {
   memoryMb: number | null;
   metaspaceMb: number | null;
   jvmArgs: string | null;
+  /** Java flag preset for this instance; null = the global one. */
+  jvmPreset: string | null;
   javaPath: string | null;
   javaRuntime: string | null;
   accountId: string | null;
@@ -127,6 +129,44 @@ export interface DetectedJava {
   major: number;
 }
 
+/** A Java flag preset (see the launcher's jvmflags module). */
+export interface JvmPreset {
+  id: string;
+  name: string;
+  description: string;
+  flags: string;
+}
+
+/** A server in the Servers tab. */
+export interface SavedServer {
+  id: string;
+  name: string;
+  address: string;
+  /** Instance last used to join it. */
+  instanceId: string | null;
+}
+
+/** Live status straight from the server. */
+export interface ServerStatus {
+  online: boolean;
+  error: string | null;
+  version: string | null;
+  protocol: number | null;
+  playersOnline: number | null;
+  playersMax: number | null;
+  playersSample: string[];
+  /** Minecraft text: a string with § codes or a text component. */
+  motd: unknown;
+  favicon: string | null;
+  pingMs: number | null;
+}
+
+/** An account's skin, as a data: URL, and its arm model. */
+export interface Skin {
+  png: string;
+  model: 'slim' | 'classic';
+}
+
 export interface AccountInfo {
   id: string;
   username: string;
@@ -142,12 +182,20 @@ export interface DeviceCode {
   interval: number;
 }
 
+/** What the sign-in window needs: the code for another device, plus the page for this computer's browser. */
+export interface LoginStart {
+  device: DeviceCode;
+  browserUrl: string | null;
+}
+
 export interface Settings {
   accent: string;
   background: 'aurora' | 'contours' | 'both';
   memoryMb: number;
   metaspaceMb: number;
   jvmArgs: string;
+  /** Java flag preset: 'none' | 'balanced' | 'aikar' | 'zgc'. */
+  jvmPreset: string;
   useBundledJava: boolean;
   javaPath: string;
   windowWidth: number;
@@ -193,11 +241,11 @@ export interface AppInfo {
   os: string;
   totalMemoryMb: number;
   dataDir: string;
-  defaultJvmArgs: string;
+  jvmPresets: JvmPreset[];
   curseforgeBuiltIn: boolean;
 }
 
-export type View = 'home' | 'library' | 'instance' | 'browse' | 'accounts' | 'settings';
+export type View = 'home' | 'library' | 'instance' | 'browse' | 'servers' | 'accounts' | 'settings';
 
 export const LOADERS: { id: LoaderId; label: string }[] = [
   { id: 'vanilla', label: 'Vanilla' },

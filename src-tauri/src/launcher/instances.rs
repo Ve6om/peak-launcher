@@ -24,6 +24,9 @@ pub struct Instance {
     pub memory_mb: Option<u32>,
     #[serde(default)]
     pub jvm_args: Option<String>,
+    /// Java flag preset for this instance (None = use the global one).
+    #[serde(default)]
+    pub jvm_preset: Option<String>,
     #[serde(default)]
     pub installed: bool,
     /// Version profile used to launch (differs from game_version with a loader).
@@ -169,6 +172,7 @@ pub async fn create(paths: &Paths, name: &str, game_version: &str, loader: &str,
         playtime_secs: 0,
         memory_mb: None,
         jvm_args: None,
+        jvm_preset: None,
         installed: false,
         version_id: None,
         notes: String::new(),
@@ -262,6 +266,7 @@ pub fn apply_edit(current: &mut Instance, edit: Instance) {
     current.memory_mb = edit.memory_mb;
     current.metaspace_mb = edit.metaspace_mb;
     current.jvm_args = blank(edit.jvm_args);
+    current.jvm_preset = edit.jvm_preset.filter(|p| super::jvmflags::is_known(p));
     current.java_path = blank(edit.java_path);
     current.java_runtime = blank(edit.java_runtime);
     current.account_id = blank(edit.account_id);

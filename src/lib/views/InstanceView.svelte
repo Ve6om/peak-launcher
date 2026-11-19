@@ -39,7 +39,7 @@
     <button class="back btn ghost" onclick={() => go('library')}><ArrowLeft size={16} /> Library</button>
 
     <section class="banner glass rise" oncontextmenu={(e) => openInstanceMenu(e, inst)} aria-label={inst.name}>
-      <div class="art"><InstanceArt seed={inst.id} image={inst.pack?.bannerUrl} icon={inst.pack?.iconUrl} /></div>
+      <div class="art"><InstanceArt loader={inst.loader} image={inst.pack?.bannerUrl} icon={inst.pack?.iconUrl} /></div>
       <div class="shade"></div>
       <div class="content">
         <div class="title">

@@ -25,8 +25,12 @@ import type {
   Instance,
   InstallProgress,
   LinkedMod,
+  LoginStart,
   ModSide,
   ServerPackReport,
+  SavedServer,
+  ServerStatus,
+  Skin,
   LogLine,
   Settings,
   VersionManifest
@@ -139,14 +143,22 @@ export const api = {
   openFolder: (id: string) => call<void>('open_instance_folder', { id }),
   install: (id: string) => call<Instance>('install_instance', { id }),
   launch: (id: string) => call<void>('launch_instance', { id }),
+  serversList: () => call<SavedServer[]>('servers_list'),
+  serverSave: (server: SavedServer) => call<SavedServer[]>('server_save', { server }),
+  serverDelete: (id: string) => call<SavedServer[]>('server_delete', { id }),
+  serverPing: (address: string) => call<ServerStatus>('server_ping', { address }),
+  serversFromInstance: (instanceId: string) => call<[string, string][]>('servers_from_instance', { instanceId }),
+  serverJoin: (serverId: string, instanceId: string) => call<void>('server_join', { serverId, instanceId }),
   stop: (id: string) => call<void>('stop_instance', { id }),
   running: () => call<string[]>('running_instances'),
   gameLogs: (id: string) => call<LogLine[]>('game_logs', { id }),
   openConsoleWindow: (id: string) => call<void>('open_console_window', { id }),
   closeConsoleWindow: (id: string) => call<void>('close_console_window', { id }),
   accounts: () => call<AccountInfo[]>('list_accounts'),
-  msLoginStart: () => call<DeviceCode>('ms_login_start'),
-  msLoginFinish: (code: DeviceCode) => call<AccountInfo[]>('ms_login_finish', { code }),
+  msLoginStart: () => call<LoginStart>('ms_login_start'),
+  msLoginFinish: (start: LoginStart) => call<AccountInfo[]>('ms_login_finish', { start }),
+  msLoginCancel: () => call<void>('ms_login_cancel'),
+  accountSkin: (id: string, refresh = false) => call<Skin | null>('account_skin', { id, refresh }),
   addOffline: (username: string) => call<AccountInfo[]>('add_offline_account', { username }),
   setActiveAccount: (id: string) => call<AccountInfo[]>('set_active_account', { id }),
   removeAccount: (id: string) => call<AccountInfo[]>('remove_account', { id }),
@@ -184,7 +196,8 @@ const mock = (() => {
     background: 'aurora',
     memoryMb: 4096,
     metaspaceMb: 256,
-    jvmArgs: DEFAULT_ARGS,
+    jvmArgs: '',
+    jvmPreset: 'none',
     useBundledJava: true,
     javaPath: '',
     windowWidth: 1280,
@@ -233,6 +246,7 @@ const mock = (() => {
       memoryMb: null,
       metaspaceMb: null,
       jvmArgs: null,
+      jvmPreset: null,
       javaPath: null,
       javaRuntime: null,
       accountId: null,
@@ -320,6 +334,67 @@ const mock = (() => {
   };
   // A few mods on the first instance so the Content tab has something to show.
   const popouts: Record<string, Window | null> = {};
+
+  /** A simple made-up 64x64 skin for the preview (not a Minecraft asset). */
+  function sampleSkin(): string {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const box = (x: number, y: number, w: number, h: number, color: string) => ((g.fillStyle = color), g.fillRect(x, y, w, h));
+    // head (all six faces), skin tone with hair on top/back
+    box(0, 0, 32, 16, '#c9956b');
+    box(8, 0, 8, 8, '#3b2a20');
+    box(0, 8, 32, 3, '#3b2a20');
+    box(24, 8, 8, 8, '#3b2a20');
+    // face details on the front (8..16, 8..16)
+    box(9, 12, 2, 1, '#ffffff');
+    box(13, 12, 2, 1, '#ffffff');
+    box(10, 12, 1, 1, '#3d6fd6');
+    box(14, 12, 1, 1, '#3d6fd6');
+    box(11, 14, 2, 1, '#8b5a3c');
+    // body, arms, legs
+    box(16, 16, 24, 16, '#4b8fd6');
+    box(40, 16, 16, 16, '#c9956b');
+    box(32, 48, 16, 16, '#c9956b');
+    box(0, 16, 16, 16, '#2d3a66');
+    box(16, 48, 16, 16, '#2d3a66');
+    return c.toDataURL('image/png');
+  }
+  let loginCancelled = false;
+
+  // Preview servers (made-up names, so no real server is shown or contacted).
+  const NL = String.fromCharCode(10);
+  let mockServers: SavedServer[] = [
+    { id: 's1', name: 'Peak Survival', address: 'play.peak-example.net', instanceId: 'survival-sp' },
+    { id: 's2', name: 'Creative Plots', address: 'creative.example.org:25570', instanceId: null },
+    { id: 's3', name: 'Old LAN box', address: '192.168.1.40', instanceId: null }
+  ];
+  const mockStatus: Record<string, ServerStatus> = {
+    'play.peak-example.net': {
+      online: true,
+      error: null,
+      version: 'Paper 1.21.4',
+      protocol: 769,
+      playersOnline: 37,
+      playersMax: 100,
+      playersSample: ['Alex', 'Steve', 'Notch_fan'],
+      motd: { text: '', extra: [{ text: 'Peak Survival ', color: 'aqua', bold: true }, { text: '| ', color: 'dark_gray' }, { text: 'Season 4 is live!' + NL, color: 'gold' }, { text: 'Land claims, shops and weekly events', color: 'gray' }] },
+      favicon: null,
+      pingMs: 38
+    },
+    'creative.example.org:25570': {
+      online: true,
+      error: null,
+      version: '§aVelocity 1.20-1.21',
+      protocol: 767,
+      playersOnline: 4,
+      playersMax: 50,
+      playersSample: [],
+      motd: '§d§lCreative Plots§r' + NL + '§7Build anything, 200x200 plots',
+      favicon: null,
+      pingMs: 112
+    }
+  };
   const mockContent: Record<string, InstalledItem[]> = {
     'survival-spmod': [
       { fileName: 'fabric-api-0.110.0.jar', enabled: true, size: 2_400_000, sha1: 'fabric-api-0.110.0.jar', projectId: 'fabric-api-0.110.0.jar', versionId: 'v1', title: 'Fabric API', versionNumber: '0.110.0', iconUrl: null },
@@ -815,12 +890,51 @@ const mock = (() => {
       case 'list_accounts':
         return accounts;
       case 'ms_login_start':
-        return { deviceCode: 'x', userCode: 'PK7-Q2MX', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 };
+        loginCancelled = false;
+        return {
+          device: { deviceCode: 'x', userCode: '83Y72FXA', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 },
+          browserUrl: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=preview&response_type=code'
+        };
+      case 'servers_list':
+        return mockServers;
+      case 'server_save': {
+        const s = { ...(a.server as SavedServer) };
+        if (!s.address.trim()) throw new Error("Enter the server's address.");
+        if (!s.name.trim()) s.name = s.address;
+        if (!s.id) mockServers = [...mockServers, { ...s, id: 's' + Date.now() }];
+        else mockServers = mockServers.map((x) => (x.id === s.id ? s : x));
+        return mockServers;
+      }
+      case 'server_delete':
+        mockServers = mockServers.filter((x) => x.id !== a.id);
+        return mockServers;
+      case 'server_ping': {
+        await sleep(300 + Math.random() * 700);
+        const known = mockStatus[a.address as string];
+        if (known) return known;
+        return { online: false, error: 'Nothing is running at that address', version: null, protocol: null, playersOnline: null, playersMax: null, playersSample: [], motd: null, favicon: null, pingMs: null } satisfies ServerStatus;
+      }
+      case 'servers_from_instance':
+        return [
+          ['Friends SMP', 'smp.example.net'],
+          ['Local test', 'localhost:25566']
+        ];
+      case 'server_join': {
+        const inst = instances.find((i) => i.id === a.instanceId)!;
+        mockServers = mockServers.map((x) => (x.id === a.serverId ? { ...x, instanceId: a.instanceId } : x));
+        return call('launch_instance', { id: inst.id });
+      }
+      case 'account_skin':
+        // Preview: a made-up skin so heads and the 3D model have something to show.
+        return { png: sampleSkin(), model: 'classic' } satisfies Skin;
+      case 'ms_login_cancel':
+        loginCancelled = true;
+        return;
       case 'ms_login_finish':
-        await sleep(4000);
-        // Preview: add #demo-review to the URL to see the "awaiting Mojang" note.
-        if (typeof location !== 'undefined' && location.hash === '#demo-review') {
-          throw new Error("Microsoft sign-in is still being reviewed by Mojang and isn't switched on yet. It will start working automatically once they approve it.");
+        // Wait like the real thing (it needs the user), but stop if cancelled.
+        for (let i = 0; i < 100; i++) {
+          if (loginCancelled) throw new Error('Sign-in cancelled.');
+          await sleep(250);
         }
         accounts = [...accounts.map((x) => ({ ...x, active: false })), { id: 'a' + Date.now(), username: 'NewPlayer', kind: 'microsoft', active: true }];
         return accounts;
@@ -838,12 +952,17 @@ const mock = (() => {
         return {
           version: '0.1.0',
           devBuild: true,
-          msConfigured: false,
+          msConfigured: true,
           tokensEncrypted: true,
           os: 'windows',
           totalMemoryMb: 32768,
           dataDir: String.raw`C:\Users\you\AppData\Roaming\PeakLauncher`,
-          defaultJvmArgs: DEFAULT_ARGS,
+          jvmPresets: [
+            { id: 'none', name: 'None', description: "Java's own defaults. A good choice for most players and vanilla.", flags: '' },
+            { id: 'balanced', name: 'Smooth (G1)', description: 'Short garbage collection pauses for steadier frame times. Works on every Java version.', flags: DEFAULT_ARGS },
+            { id: 'aikar', name: "Aikar's flags", description: 'A popular G1 set for large modpacks with lots of memory. Works on every Java version.', flags: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 ...' },
+            { id: 'zgc', name: 'ZGC (low latency)', description: 'Very short pauses on newer Java (17+). Uses more memory; best with 8 GB or more. Older Minecraft on Java 8 falls back to Smooth (G1).', flags: '-XX:+UseZGC' }
+          ],
           curseforgeBuiltIn: false
         } satisfies AppInfo;
       case 'get_settings':

@@ -4,6 +4,8 @@ use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
 /// Recommended G1 garbage collector tuning for Minecraft.
+/// The flags Peak used by default before presets existed. Settings that still
+/// have exactly these are moved to the "balanced" preset, which is the same set.
 pub const DEFAULT_JVM_ARGS: &str = "-XX:+UnlockExperimentalVMOptions -XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,7 +19,10 @@ pub struct Settings {
     // Java & memory
     pub memory_mb: u32,
     pub metaspace_mb: u32,
+    /// Extra Java arguments of the player's own, added after the preset.
     pub jvm_args: String,
+    /// Java flag preset: "none" (default), "balanced", "aikar" or "zgc".
+    pub jvm_preset: String,
     /// Use the Java runtime Mojang provides for each version (recommended).
     pub use_bundled_java: bool,
     /// Used when `use_bundled_java` is off.
@@ -63,7 +68,8 @@ impl Default for Settings {
             background: "aurora".into(),
             memory_mb: 4096,
             metaspace_mb: 256,
-            jvm_args: DEFAULT_JVM_ARGS.into(),
+            jvm_args: String::new(),
+            jvm_preset: "none".into(),
             use_bundled_java: true,
             java_path: String::new(),
             window_width: 1280,
@@ -102,7 +108,55 @@ impl Settings {
 }
 
 pub async fn load(paths: &Paths) -> Result<Settings> {
-    Ok(paths::read_json(&paths.settings_file()).await?.unwrap_or_default())
+    let raw: Option<serde_json::Value> = paths::read_json(&paths.settings_file()).await?;
+    let Some(raw) = raw else { return Ok(Settings::default()) };
+    let had_preset = raw.get("jvmPreset").is_some();
+    let mut s: Settings = serde_json::from_value(raw)?;
+    migrate_jvm(&mut s, had_preset);
+    Ok(s)
+}
+
+/// Settings from before presets: the old default flags become the matching
+/// preset, so nothing changes for the player.
+fn migrate_jvm(s: &mut Settings, had_preset: bool) {
+    if !had_preset && s.jvm_args.trim() == DEFAULT_JVM_ARGS {
+        s.jvm_args.clear();
+        s.jvm_preset = "balanced".into();
+    }
+    if !super::jvmflags::is_known(&s.jvm_preset) {
+        s.jvm_preset = "none".into();
+    }
+}
+
+#[cfg(test)]
+mod jvm_migration_tests {
+    use super::*;
+
+    #[test]
+    fn old_default_flags_become_the_balanced_preset() {
+        let mut s = Settings { jvm_args: DEFAULT_JVM_ARGS.into(), jvm_preset: "none".into(), ..Settings::default() };
+        migrate_jvm(&mut s, false);
+        assert_eq!((s.jvm_args.as_str(), s.jvm_preset.as_str()), ("", "balanced"));
+    }
+
+    #[test]
+    fn custom_flags_and_chosen_presets_are_left_alone() {
+        let mut custom = Settings { jvm_args: "-XX:+UseG1GC -Dfoo=1".into(), jvm_preset: "none".into(), ..Settings::default() };
+        migrate_jvm(&mut custom, false);
+        assert_eq!((custom.jvm_args.as_str(), custom.jvm_preset.as_str()), ("-XX:+UseG1GC -Dfoo=1", "none"));
+        let mut chosen = Settings { jvm_args: DEFAULT_JVM_ARGS.into(), jvm_preset: "none".into(), ..Settings::default() };
+        migrate_jvm(&mut chosen, true);
+        assert_eq!(chosen.jvm_preset, "none", "a preset the player picked stays");
+        let mut odd = Settings { jvm_preset: "made-up".into(), ..Settings::default() };
+        migrate_jvm(&mut odd, true);
+        assert_eq!(odd.jvm_preset, "none");
+    }
+
+    #[test]
+    fn new_installs_use_no_preset() {
+        let s = Settings::default();
+        assert_eq!((s.jvm_args.as_str(), s.jvm_preset.as_str()), ("", "none"));
+    }
 }
 
 pub async fn save(paths: &Paths, s: &Settings) -> Result<()> {

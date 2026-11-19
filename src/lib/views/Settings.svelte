@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { RotateCcw, ExternalLink, RefreshCw } from '@lucide/svelte';
+  import { ExternalLink, RefreshCw } from '@lucide/svelte';
   import { updates, checkForUpdate } from '$lib/updates.svelte';
   import { api } from '$lib/api';
   import { app, ACCENTS, accentName, applyAccent, toast, errorText } from '$lib/state.svelte';
@@ -8,6 +8,7 @@
   import Row from '$lib/components/Row.svelte';
   import Switch from '$lib/components/Switch.svelte';
   import JavaPicker from '$lib/components/JavaPicker.svelte';
+  import JvmPresetPicker from '$lib/components/JvmPresetPicker.svelte';
   import type { Settings } from '$lib/types';
 
   let s = $state<Settings>(JSON.parse(JSON.stringify(app.settings)));
@@ -127,11 +128,11 @@
               <JavaPicker bind:value={s.javaPath} />
             </Row>
           {/if}
-          <Row title="Java arguments" desc="Extra JVM flags for every launch" wide>
-            <textarea class="input mono" rows="2" bind:value={s.jvmArgs}></textarea>
-            {#if app.info && s.jvmArgs !== app.info.defaultJvmArgs}
-              <button class="btn ghost reset" onclick={() => (s.jvmArgs = app.info!.defaultJvmArgs)}><RotateCcw size={14} /> Use recommended</button>
-            {/if}
+          <Row title="Performance flags" desc="Java tuning presets. None is fine for most players; the others can smooth out big modpacks." wide>
+            <JvmPresetPicker bind:value={s.jvmPreset} />
+          </Row>
+          <Row title="Extra Java arguments" desc="Your own flags, added after the preset" wide>
+            <textarea class="input mono" rows="2" bind:value={s.jvmArgs} placeholder="e.g. -Dfml.readTimeout=180"></textarea>
           </Row>
         </div>
       </section>
@@ -390,10 +391,6 @@
   }
   .key .input {
     flex: 1;
-  }
-  .reset {
-    align-self: flex-start;
-    color: var(--muted);
   }
   code {
     font-size: 11.5px;

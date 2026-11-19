@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { House, Library, Package, Users, Settings, Plus, ChevronRight } from '@lucide/svelte';
+  import { House, Library, Package, Server, Users, Settings, Plus, ChevronRight } from '@lucide/svelte';
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
   import type { View } from '$lib/types';
   import InstanceArt from './InstanceArt.svelte';
+  import SkinHead from './SkinHead.svelte';
 
   const nav: { view: View | 'browse'; label: string; icon: typeof House; soon?: boolean }[] = [
     { view: 'home', label: 'Home', icon: House },
     { view: 'library', label: 'Library', icon: Library },
     { view: 'browse', label: 'Modpacks', icon: Package },
+    { view: 'servers', label: 'Servers', icon: Server },
     { view: 'accounts', label: 'Accounts', icon: Users },
     { view: 'settings', label: 'Settings', icon: Settings }
   ];
@@ -46,7 +48,7 @@
           onclick={() => go('instance', inst.id)}
           oncontextmenu={(e) => openInstanceMenu(e, inst)}
         >
-          <span class="thumb"><InstanceArt seed={inst.id} image={inst.pack?.iconUrl ?? inst.pack?.bannerUrl} /></span>
+          <span class="thumb"><InstanceArt loader={inst.loader} image={inst.pack?.iconUrl ?? inst.pack?.bannerUrl} /></span>
           <span class="pin-text">
             <span class="pin-name">{inst.name}</span>
             <span class="pin-meta">{inst.gameVersion}</span>
@@ -60,7 +62,7 @@
   </div>
 
   <button class="account" onclick={() => go('accounts')}>
-    <span class="avatar">{account ? account.username[0].toUpperCase() : '?'}</span>
+    <SkinHead accountId={account?.id ?? null} name={account?.username ?? ''} size={34} />
     <span class="acc-text">
       <span class="acc-name">{account?.username ?? 'Add account'}</span>
       <span class="acc-meta">{account ? (account.kind === 'microsoft' ? 'Microsoft' : 'Offline') : 'Sign in to play'}</span>
@@ -184,7 +186,6 @@
     border-radius: 9px;
     overflow: hidden;
     flex-shrink: 0;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
   }
   .pin-text,
   .acc-text {
@@ -240,17 +241,6 @@
   }
   .account:hover {
     background: rgba(255, 255, 255, 0.07);
-  }
-  .avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    background: var(--accent);
-    color: var(--on-accent);
-    flex-shrink: 0;
   }
   .acc-name {
     color: var(--text);
