@@ -147,6 +147,7 @@ export const api = {
   accounts: () => call<AccountInfo[]>('list_accounts'),
   msLoginStart: () => call<DeviceCode>('ms_login_start'),
   msLoginFinish: (code: DeviceCode) => call<AccountInfo[]>('ms_login_finish', { code }),
+  msLoginCancel: () => call<void>('ms_login_cancel'),
   addOffline: (username: string) => call<AccountInfo[]>('add_offline_account', { username }),
   setActiveAccount: (id: string) => call<AccountInfo[]>('set_active_account', { id }),
   removeAccount: (id: string) => call<AccountInfo[]>('remove_account', { id }),
@@ -320,6 +321,7 @@ const mock = (() => {
   };
   // A few mods on the first instance so the Content tab has something to show.
   const popouts: Record<string, Window | null> = {};
+  let loginCancelled = false;
   const mockContent: Record<string, InstalledItem[]> = {
     'survival-spmod': [
       { fileName: 'fabric-api-0.110.0.jar', enabled: true, size: 2_400_000, sha1: 'fabric-api-0.110.0.jar', projectId: 'fabric-api-0.110.0.jar', versionId: 'v1', title: 'Fabric API', versionNumber: '0.110.0', iconUrl: null },
@@ -815,12 +817,16 @@ const mock = (() => {
       case 'list_accounts':
         return accounts;
       case 'ms_login_start':
-        return { deviceCode: 'x', userCode: 'PK7-Q2MX', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 };
+        loginCancelled = false;
+        return { deviceCode: 'x', userCode: '83Y72FXA', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 };
+      case 'ms_login_cancel':
+        loginCancelled = true;
+        return;
       case 'ms_login_finish':
-        await sleep(4000);
-        // Preview: add #demo-review to the URL to see the "awaiting Mojang" note.
-        if (typeof location !== 'undefined' && location.hash === '#demo-review') {
-          throw new Error("Microsoft sign-in is still being reviewed by Mojang and isn't switched on yet. It will start working automatically once they approve it.");
+        // Wait like the real thing (it needs the user), but stop if cancelled.
+        for (let i = 0; i < 100; i++) {
+          if (loginCancelled) throw new Error('Sign-in cancelled.');
+          await sleep(250);
         }
         accounts = [...accounts.map((x) => ({ ...x, active: false })), { id: 'a' + Date.now(), username: 'NewPlayer', kind: 'microsoft', active: true }];
         return accounts;
@@ -838,7 +844,7 @@ const mock = (() => {
         return {
           version: '0.1.0',
           devBuild: true,
-          msConfigured: false,
+          msConfigured: true,
           tokensEncrypted: true,
           os: 'windows',
           totalMemoryMb: 32768,

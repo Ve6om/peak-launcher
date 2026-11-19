@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { UserPlus, Check, LogOut, ExternalLink, Copy, LoaderCircle, Info, Clock } from '@lucide/svelte';
-  import Modal from '$lib/components/Modal.svelte';
+  import { UserPlus, Check, LogOut, Info } from '@lucide/svelte';
+  import MicrosoftSignIn from '$lib/components/MicrosoftSignIn.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
   import type { DeviceCode } from '$lib/types';
@@ -8,32 +8,40 @@
   let code = $state<DeviceCode | null>(null);
   let signingIn = $state(false);
   let offlineName = $state('');
-  // Set when sign-in fails only because Mojang hasn't approved Peak's app yet.
-  let reviewPending = $state(false);
+  // Each attempt gets a number, so a cancelled one can't report back later.
+  let attempt = 0;
 
   async function signIn() {
     if (!app.info?.msConfigured) {
       toast('Microsoft sign-in needs a client ID first (see the note below).', 'info');
       return;
     }
+    const mine = ++attempt;
     signingIn = true;
     try {
-      code = await api.msLoginStart();
-      app.accounts = await api.msLoginFinish(code);
-      reviewPending = false;
+      const started = await api.msLoginStart();
+      if (mine !== attempt) return;
+      code = started;
+      const accounts = await api.msLoginFinish(started);
+      if (mine !== attempt) return;
+      app.accounts = accounts;
       toast('Signed in', 'success');
     } catch (e) {
-      const msg = errorText(e);
-      // The game auth step returns 403 until Mojang approves the app ID.
-      if (/mojang/i.test(msg) && /approv/i.test(msg)) {
-        reviewPending = true;
-      } else {
-        toast(msg, 'error');
-      }
+      if (mine === attempt) toast(errorText(e), 'error');
     } finally {
-      signingIn = false;
-      code = null;
+      if (mine === attempt) {
+        signingIn = false;
+        code = null;
+      }
     }
+  }
+
+  /** Close the sign-in window and stop waiting for Microsoft. */
+  function cancelSignIn() {
+    attempt++;
+    signingIn = false;
+    code = null;
+    api.msLoginCancel().catch(() => {});
   }
 
   async function addOffline() {
@@ -87,20 +95,6 @@
     {/each}
   </div>
 
-  {#if reviewPending}
-    <div class="note glass pending">
-      <Clock size={18} />
-      <div>
-        <b>Microsoft sign-in is being reviewed by Mojang.</b>
-        <p>
-          Every launcher needs Mojang to approve its sign-in before accounts work. Peak is in that queue. Once it's
-          approved, sign-in starts working on its own, with no update needed — so check back in a few days. Everything
-          else in Peak works in the meantime.
-        </p>
-      </div>
-    </div>
-  {/if}
-
   {#if app.info && !app.info.msConfigured}
     <div class="note glass">
       <Info size={18} />
@@ -143,18 +137,7 @@
 </div>
 
 {#if code}
-  <Modal title="Sign in with Microsoft" subtitle="Enter this code on the Microsoft page to link your account." width={460} onclose={() => (code = null)}>
-    <div class="code-box">
-      <div class="code">{code.userCode}</div>
-      <div class="code-actions">
-        <button class="btn" onclick={() => code && navigator.clipboard.writeText(code.userCode).then(() => toast('Code copied'))}>
-          <Copy size={15} /> Copy code
-        </button>
-        <button class="btn primary" onclick={() => code && api.openUrl(code.verificationUri)}><ExternalLink size={15} /> Open Microsoft</button>
-      </div>
-      <div class="waiting"><LoaderCircle size={15} class="spin" /> Waiting for you to finish signing in…</div>
-    </div>
-  </Modal>
+  <MicrosoftSignIn {code} oncancel={cancelSignIn} />
 {/if}
 
 <style>
@@ -250,11 +233,6 @@
     background: color-mix(in srgb, var(--accent-2) 6%, transparent);
     border-color: color-mix(in srgb, var(--accent-2) 22%, transparent);
   }
-  .note.pending {
-    color: #fcd34d;
-    background: color-mix(in srgb, #fcd34d 7%, transparent);
-    border-color: color-mix(in srgb, #fcd34d 24%, transparent);
-  }
   .note b {
     color: var(--text);
     font-size: 13.5px;
@@ -289,33 +267,5 @@
     display: flex;
     gap: 8px;
     width: 340px;
-  }
-  .code-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 18px;
-  }
-  .code {
-    font-family: 'JetBrains Mono', Consolas, monospace;
-    font-size: 34px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    padding: 16px 28px;
-    border-radius: 16px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--stroke-strong);
-    user-select: all;
-  }
-  .code-actions {
-    display: flex;
-    gap: 8px;
-  }
-  .waiting {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
-    color: var(--muted);
   }
 </style>

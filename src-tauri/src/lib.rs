@@ -857,6 +857,12 @@ async fn ms_login_start() -> Result<DeviceCode> {
     accounts::start_device_code().await
 }
 
+/// Stop a sign-in that is waiting for the user (the sign-in window was closed).
+#[tauri::command]
+fn ms_login_cancel() {
+    accounts::cancel_login();
+}
+
 #[tauri::command]
 async fn ms_login_finish(state: State<'_, AppState>, code: DeviceCode) -> Result<Vec<AccountInfo>> {
     let account = accounts::poll_device_code(&code).await?;
@@ -1018,6 +1024,7 @@ pub fn run() {
             list_accounts,
             ms_login_start,
             ms_login_finish,
+            ms_login_cancel,
             add_offline_account,
             set_active_account,
             remove_account,

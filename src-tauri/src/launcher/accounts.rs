@@ -9,6 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 /// Your Azure app's client ID. Set PEAK_MS_CLIENT_ID when building. Each
@@ -249,7 +250,18 @@ fn client_id() -> Result<&'static str> {
     })
 }
 
+/// Bumped whenever a sign-in starts or is cancelled; a waiting sign-in that
+/// sees a different number than it began with stops.
+static LOGIN_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Stop any sign-in that is waiting for the user.
+pub fn cancel_login() {
+    LOGIN_GEN.fetch_add(1, Ordering::SeqCst);
+}
+
 pub async fn start_device_code() -> Result<DeviceCode> {
+    // A new attempt replaces any older one that is still waiting.
+    cancel_login();
     let resp = client()
         .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
         .form(&[("client_id", client_id()?), ("scope", SCOPE)])
@@ -275,8 +287,19 @@ struct MsError {
 pub async fn poll_device_code(code: &DeviceCode) -> Result<Account> {
     let deadline = Utc::now() + Duration::seconds(code.expires_in as i64);
     let mut interval = code.interval.max(1);
+    let started = LOGIN_GEN.load(Ordering::SeqCst);
+    let cancelled = || LOGIN_GEN.load(Ordering::SeqCst) != started;
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(interval)).await;
+        // Wait in short steps so Cancel takes effect straight away.
+        for _ in 0..interval * 4 {
+            if cancelled() {
+                return Err(Error::msg("Sign-in cancelled."));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        }
+        if cancelled() {
+            return Err(Error::msg("Sign-in cancelled."));
+        }
         if Utc::now() > deadline {
             return Err(Error::msg("The sign-in code expired. Please try again."));
         }
@@ -412,15 +435,12 @@ async fn complete_login(ms_access: &str, ms_refresh: String) -> Result<Account> 
         .json(&json!({ "identityToken": format!("XBL3.0 x={uhs};{}", xsts.token) }))
         .send()
         .await?;
-    // New Azure apps must be approved by Mojang before they can sign in. Both
-    // messages mention Mojang and "approve" so the UI can spot this case.
+    // A launcher's Azure app has to be on Mojang's allow list (aka.ms/mce-reviewappid)
+    // before this works. A fresh approval can take a few hours to reach everywhere.
     if resp.status().as_u16() == 403 {
-        let msg = if cfg!(debug_assertions) {
-            "Mojang hasn't approved this launcher's Microsoft app ID for Minecraft yet. Submit the client ID at aka.ms/mce-reviewappid and try again once it's approved."
-        } else {
-            "Microsoft sign-in is still being reviewed by Mojang and isn't switched on yet. It will start working automatically once they approve it \u{2014} you won't need to update Peak."
-        };
-        return Err(Error::msg(msg));
+        return Err(Error::msg(
+            "Minecraft refused this sign-in (error 403). If this app was only just approved by Mojang it can take a few hours to start working, so try again a little later.",
+        ));
     }
     let mc: McLogin = resp.error_for_status()?.json().await?;
 
@@ -521,5 +541,29 @@ mod storage_tests {
         let store = AccountStore { active: None, accounts: vec![offline_account("Alex_1").unwrap()] };
         let text = serde_json::to_string(&to_disk(&store, Some(&key))).unwrap();
         assert!(!text.contains("efreshToken"));
+    }
+}
+
+#[cfg(test)]
+mod login_tests {
+    use super::*;
+
+    /// A waiting sign-in must stop soon after Cancel, before it asks Microsoft anything.
+    #[tokio::test]
+    async fn cancel_stops_a_waiting_sign_in() {
+        let code = DeviceCode {
+            device_code: "unused".into(),
+            user_code: "ABCD1234".into(),
+            verification_uri: "https://www.microsoft.com/link".into(),
+            expires_in: 900,
+            interval: 5,
+        };
+        let waiting = tokio::spawn(async move { poll_device_code(&code).await });
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let began = std::time::Instant::now();
+        cancel_login();
+        let result = tokio::time::timeout(std::time::Duration::from_secs(3), waiting).await.expect("should stop quickly").unwrap();
+        assert_eq!(result.unwrap_err().to_string(), "Sign-in cancelled.");
+        assert!(began.elapsed() < std::time::Duration::from_secs(2));
     }
 }
