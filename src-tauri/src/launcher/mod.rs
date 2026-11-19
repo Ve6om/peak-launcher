@@ -11,6 +11,7 @@ pub mod launch;
 pub mod loaders;
 pub mod manual;
 pub mod moddeps;
+pub mod msbrowser;
 pub mod modpacks;
 pub mod modrinth;
 pub mod net;

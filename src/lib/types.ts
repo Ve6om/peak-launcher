@@ -142,6 +142,12 @@ export interface DeviceCode {
   interval: number;
 }
 
+/** What the sign-in window needs: the code for another device, plus the page for this computer's browser. */
+export interface LoginStart {
+  device: DeviceCode;
+  browserUrl: string | null;
+}
+
 export interface Settings {
   accent: string;
   background: 'aurora' | 'contours' | 'both';

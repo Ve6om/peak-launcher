@@ -3,9 +3,9 @@
   import MicrosoftSignIn from '$lib/components/MicrosoftSignIn.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
-  import type { DeviceCode } from '$lib/types';
+  import type { LoginStart } from '$lib/types';
 
-  let code = $state<DeviceCode | null>(null);
+  let login = $state<LoginStart | null>(null);
   let signingIn = $state(false);
   let offlineName = $state('');
   // Each attempt gets a number, so a cancelled one can't report back later.
@@ -21,7 +21,7 @@
     try {
       const started = await api.msLoginStart();
       if (mine !== attempt) return;
-      code = started;
+      login = started;
       const accounts = await api.msLoginFinish(started);
       if (mine !== attempt) return;
       app.accounts = accounts;
@@ -31,7 +31,7 @@
     } finally {
       if (mine === attempt) {
         signingIn = false;
-        code = null;
+        login = null;
       }
     }
   }
@@ -40,7 +40,7 @@
   function cancelSignIn() {
     attempt++;
     signingIn = false;
-    code = null;
+    login = null;
     api.msLoginCancel().catch(() => {});
   }
 
@@ -136,8 +136,8 @@
   {/if}
 </div>
 
-{#if code}
-  <MicrosoftSignIn {code} oncancel={cancelSignIn} />
+{#if login}
+  <MicrosoftSignIn start={login} oncancel={cancelSignIn} />
 {/if}
 
 <style>

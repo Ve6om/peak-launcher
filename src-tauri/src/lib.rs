@@ -3,7 +3,7 @@ mod launcher;
 mod window;
 
 use crate::error::{Error, Result};
-use crate::launcher::accounts::{self, AccountInfo, DeviceCode};
+use crate::launcher::accounts::{self, AccountInfo, LoginStart};
 use crate::launcher::install::{self, InstallProgress, ProgressFn};
 use crate::launcher::instances::{self, Instance};
 use crate::launcher::java::{self, DetectedJava, RuntimeOption};
@@ -853,8 +853,8 @@ async fn list_accounts(state: State<'_, AppState>) -> Result<Vec<AccountInfo>> {
 }
 
 #[tauri::command]
-async fn ms_login_start() -> Result<DeviceCode> {
-    accounts::start_device_code().await
+async fn ms_login_start() -> Result<LoginStart> {
+    accounts::start_login().await
 }
 
 /// Stop a sign-in that is waiting for the user (the sign-in window was closed).
@@ -864,8 +864,8 @@ fn ms_login_cancel() {
 }
 
 #[tauri::command]
-async fn ms_login_finish(state: State<'_, AppState>, code: DeviceCode) -> Result<Vec<AccountInfo>> {
-    let account = accounts::poll_device_code(&code).await?;
+async fn ms_login_finish(state: State<'_, AppState>, start: LoginStart) -> Result<Vec<AccountInfo>> {
+    let account = accounts::finish_login(&start).await?;
     accounts::upsert(&state.paths, account).await?;
     Ok(accounts::info(&accounts::load(&state.paths).await?))
 }

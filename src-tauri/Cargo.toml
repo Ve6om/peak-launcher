@@ -35,6 +35,7 @@ toml = { version = "0.8", default-features = false, features = ["parse"] }
 chacha20poly1305 = "0.10"
 base64 = "0.22"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+sha2 = "0.10"
 
 [profile.release]
 codegen-units = 1

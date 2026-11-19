@@ -25,6 +25,7 @@ import type {
   Instance,
   InstallProgress,
   LinkedMod,
+  LoginStart,
   ModSide,
   ServerPackReport,
   LogLine,
@@ -145,8 +146,8 @@ export const api = {
   openConsoleWindow: (id: string) => call<void>('open_console_window', { id }),
   closeConsoleWindow: (id: string) => call<void>('close_console_window', { id }),
   accounts: () => call<AccountInfo[]>('list_accounts'),
-  msLoginStart: () => call<DeviceCode>('ms_login_start'),
-  msLoginFinish: (code: DeviceCode) => call<AccountInfo[]>('ms_login_finish', { code }),
+  msLoginStart: () => call<LoginStart>('ms_login_start'),
+  msLoginFinish: (start: LoginStart) => call<AccountInfo[]>('ms_login_finish', { start }),
   msLoginCancel: () => call<void>('ms_login_cancel'),
   addOffline: (username: string) => call<AccountInfo[]>('add_offline_account', { username }),
   setActiveAccount: (id: string) => call<AccountInfo[]>('set_active_account', { id }),
@@ -818,7 +819,10 @@ const mock = (() => {
         return accounts;
       case 'ms_login_start':
         loginCancelled = false;
-        return { deviceCode: 'x', userCode: '83Y72FXA', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 };
+        return {
+          device: { deviceCode: 'x', userCode: '83Y72FXA', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 },
+          browserUrl: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=preview&response_type=code'
+        };
       case 'ms_login_cancel':
         loginCancelled = true;
         return;
