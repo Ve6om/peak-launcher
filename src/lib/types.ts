@@ -167,6 +167,56 @@ export interface Skin {
   model: 'slim' | 'classic';
 }
 
+/** Linux AppImage: whether Peak has an applications-menu entry. */
+export interface MenuStatus {
+  isAppImage: boolean;
+  installed: boolean;
+  /** The entry points at this AppImage (false after it was moved). */
+  upToDate: boolean;
+}
+
+/** A cape the account owns. */
+export interface Cape {
+  id: string;
+  name: string;
+  active: boolean;
+  png: string | null;
+}
+
+/** An account's current skin (null = Minecraft's default) and its capes. */
+/** A skin the account wore in Peak before (Peak keeps its own history). */
+export interface PastSkin {
+  id: string;
+  png: string;
+  model: 'slim' | 'classic';
+  usedAt: string;
+}
+
+/** Any player, looked up by name. */
+export interface Player {
+  id: string;
+  name: string;
+  skin: Skin | null;
+  cape: string | null;
+  /** Names used, newest first (from Crafty.gg). */
+  names: PastName[];
+  /** Skins worn, newest first (from Crafty.gg). */
+  pastSkins: Skin[];
+  /** False when Crafty.gg couldn't be reached. */
+  historyFound: boolean;
+}
+
+export interface PastName {
+  name: string;
+  /** When Crafty.gg recorded the change; null for the first name. */
+  changedAt: string | null;
+}
+
+export interface Wardrobe {
+  skin: Skin | null;
+  capes: Cape[];
+}
+
 export interface AccountInfo {
   id: string;
   username: string;
@@ -205,6 +255,8 @@ export interface Settings {
   openConsole: boolean;
   /** Look for a new version of Peak on start-up and every few hours. */
   autoUpdateCheck: boolean;
+  /** The AppImage "add to applications menu" offer was dismissed. */
+  appimageMenuDismissed: boolean;
   enableCommands: boolean;
   preLaunchCommand: string;
   postExitCommand: string;

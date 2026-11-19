@@ -1,5 +1,6 @@
 pub mod accounts;
 pub mod apicache;
+pub mod appimage;
 pub mod curseforge;
 pub mod export;
 pub mod ftb;

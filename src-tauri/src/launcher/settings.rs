@@ -37,6 +37,8 @@ pub struct Settings {
     pub open_console: bool,
     /// Look for a new version of Peak on start-up and every few hours.
     pub auto_update_check: bool,
+    /// The "add Peak to your applications menu" offer (AppImage) was dismissed.
+    pub appimage_menu_dismissed: bool,
 
     // Commands
     pub enable_commands: bool,
@@ -80,6 +82,7 @@ impl Default for Settings {
             after_launch: "open".into(),
             open_console: true,
             auto_update_check: true,
+            appimage_menu_dismissed: false,
             enable_commands: false,
             pre_launch_command: String::new(),
             post_exit_command: String::new(),

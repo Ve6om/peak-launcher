@@ -22,7 +22,19 @@
     }
   });
   const g = $derived(app.settings!);
-  const dirty = $derived(JSON.stringify(d) !== JSON.stringify(inst));
+  // Only the fields this page edits count as "unsaved changes": saving can also
+  // change bookkeeping fields (a new loader resets `installed`), and playtime
+  // or last-played can change while the page is open.
+  const NOT_EDITED = new Set(['id', 'createdAt', 'lastPlayed', 'playtimeSecs', 'installed', 'versionId', 'pack', 'importedFrom']);
+  function editable(i: Instance): string {
+    return JSON.stringify(i, (key, value) => {
+      if (NOT_EDITED.has(key)) return undefined;
+      // Blank text is saved as "not set", so treat the two as the same.
+      if (typeof value === 'string') return value.trim() || null;
+      return value;
+    });
+  }
+  const dirty = $derived(editable(d) !== editable(inst));
   const maxMem = $derived(Math.max(4096, Math.floor((app.info?.totalMemoryMb ?? 16384) / 512) * 512));
 
   // ---- data for pickers ----
@@ -80,14 +92,12 @@
 
   async function save() {
     try {
-      await api.updateInstance($state.snapshot(d) as Instance);
+      const versionChange = inst.loader !== d.loader || inst.gameVersion !== d.gameVersion || inst.loaderVersion !== d.loaderVersion;
+      const saved = await api.updateInstance($state.snapshot(d) as Instance);
       await refreshInstances();
-      toast(
-        inst.loader !== d.loader || inst.gameVersion !== d.gameVersion || inst.loaderVersion !== d.loaderVersion
-          ? 'Saved. Game files will update on next launch.'
-          : 'Saved',
-        'success'
-      );
+      // Carry on editing from exactly what was saved, so the bar goes away.
+      d = clone(saved);
+      toast(versionChange ? 'Saved. Game files will update on next launch.' : 'Saved', 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }

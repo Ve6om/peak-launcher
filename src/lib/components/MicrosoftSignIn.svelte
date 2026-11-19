@@ -1,8 +1,9 @@
 <script lang="ts">
   // The Microsoft sign-in window. Two ways in, and Peak finishes by itself
   // whichever one is used: sign in with this computer's browser, or use a
-  // code (and QR code) from any other device. microsoft.com/link fills the
-  // code in on its own when it's opened as ?otc=CODE.
+  // code (and QR code) from any other device. The code page is always opened
+  // plain: Microsoft rejects microsoft.com/link links with the code filled in
+  // (?otc=CODE) with a "first party application" error, so the user types it.
   import { onMount } from 'svelte';
   import { Copy, ExternalLink, Globe, Link2, LoaderCircle, Smartphone } from '@lucide/svelte';
   import { renderSVG } from 'uqr';
@@ -15,8 +16,8 @@
 
   const code = $derived(start.device);
   const page = $derived(code.verificationUri.replace(/^https?:\/\/(www\.)?/, ''));
-  /** The code page with the code already filled in. */
-  const link = $derived(`${code.verificationUri}?otc=${encodeURIComponent(code.userCode)}`);
+  /** Microsoft's code page, where the user types the code. */
+  const link = $derived(code.verificationUri);
   const qr = $derived(renderSVG(link, { ecc: 'M', border: 1, blackColor: '#101216', whiteColor: '#ffffff' }));
 
   let browserOpened = $state(false);
@@ -72,16 +73,16 @@
       <span class="label">On another device</span>
       <b>Use a code</b>
       <div class="qr-row">
-        <div class="tile" role="img" aria-label="QR code for the code sign-in page">{@html qr}</div>
+        <div class="tile" role="img" aria-label="QR code for Microsoft's code page">{@html qr}</div>
         <div class="code-side">
-          <span class="scan"><Smartphone size={13} /> Scan with a phone, or enter the code at <button class="linkish" onclick={() => api.openUrl(link)}>{page}</button></span>
+          <span class="scan"><Smartphone size={13} /> Scan to open <button class="linkish" onclick={() => api.openUrl(link)}>{page}</button> on your phone, then enter this code:</span>
           <div class="code">{code.userCode}</div>
         </div>
       </div>
       <button class="btn go" onclick={copyAndOpenPage}><ExternalLink size={15} /> Copy code &amp; open page</button>
       <div class="row">
         <button class="btn" onclick={() => copy(code.userCode, 'Code copied')}><Copy size={15} /> Copy code</button>
-        <button class="btn" onclick={() => copy(link, 'Sign-in link copied')}><Link2 size={15} /> Copy sign-in link</button>
+        <button class="btn" onclick={() => copy(link, 'Page link copied')}><Link2 size={15} /> Copy page link</button>
       </div>
     </section>
   </div>
