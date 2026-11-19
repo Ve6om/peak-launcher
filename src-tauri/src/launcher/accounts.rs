@@ -79,7 +79,14 @@ struct DiskAccount {
     /// Unencrypted: only without a password store, or from older versions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     refresh_token: Option<String>,
-    /// Older versions saved the Minecraft token too; read once, never written.
+    /// The day-long Minecraft token, encrypted like the refresh token, so
+    /// restarting Peak doesn't sign in to Minecraft again (Minecraft limits how
+    /// often that can happen). Only kept when there's a password store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sealed_access_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    access_expires_at: Option<DateTime<Utc>>,
+    /// Older versions saved the Minecraft token unencrypted; read once, never written.
     #[serde(default, skip_serializing)]
     access_token: Option<String>,
     #[serde(default, skip_serializing)]
@@ -112,6 +119,14 @@ fn from_disk(disk: DiskStore, key: Option<&SecretKey>) -> (AccountStore, bool) {
             if let (Some(tok), Some(exp)) = (d.access_token, d.expires_at) {
                 sessions.entry(d.id.clone()).or_insert((tok, exp));
             }
+            // The saved Minecraft token, if it's still good.
+            if let (Some(sealed), Some(exp), Some(k)) = (&d.sealed_access_token, d.access_expires_at, key) {
+                if exp > Utc::now() {
+                    if let Some(tok) = secrets::open(k, &mc_context(&d.id), sealed) {
+                        sessions.entry(d.id.clone()).or_insert((tok, exp));
+                    }
+                }
+            }
             let (access_token, expires_at) = match sessions.get(&d.id) {
                 Some((t, e)) => (Some(t.clone()), Some(*e)),
                 None => (None, None),
@@ -130,8 +145,13 @@ fn from_disk(disk: DiskStore, key: Option<&SecretKey>) -> (AccountStore, bool) {
     (AccountStore { active: disk.active, accounts }, rewrite)
 }
 
-/// What gets written: refresh tokens encrypted when possible, Minecraft
-/// tokens only remembered in memory.
+/// Encryption context for the Minecraft token, kept apart from the refresh token's.
+fn mc_context(id: &str) -> String {
+    format!("{id}:minecraft")
+}
+
+/// What gets written: tokens encrypted when there's a password store. Without
+/// one, only the refresh token is saved and the Minecraft token stays in memory.
 fn to_disk(store: &AccountStore, key: Option<&SecretKey>) -> DiskStore {
     let mut sessions = SESSIONS.lock().unwrap();
     let accounts = store
@@ -146,12 +166,18 @@ fn to_disk(store: &AccountStore, key: Option<&SecretKey>) -> DiskStore {
                 (Some(t), None) => (None, Some(t.clone())),
                 (None, _) => (a.unopened.clone(), None),
             };
+            let (sealed_access_token, access_expires_at) = match (&a.access_token, a.expires_at, key) {
+                (Some(t), Some(e), Some(k)) if e > Utc::now() => (Some(secrets::seal(k, &mc_context(&a.id), t)), Some(e)),
+                _ => (None, None),
+            };
             DiskAccount {
                 id: a.id.clone(),
                 username: a.username.clone(),
                 kind: a.kind.clone(),
                 sealed_refresh_token: sealed,
                 refresh_token: plain,
+                sealed_access_token,
+                access_expires_at,
                 access_token: None,
                 expires_at: None,
             }
@@ -411,24 +437,44 @@ pub async fn ensure_fresh(paths: &Paths, account: Account) -> Result<Account> {
         return Ok(account);
     }
     let refresh = account.refresh_token.clone().ok_or_else(|| Error::msg("Please sign in again."))?;
-    let resp = client()
-        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
-        .form(&[
-            ("grant_type", "refresh_token"),
-            ("client_id", client_id()?),
-            ("refresh_token", refresh.as_str()),
-            ("scope", SCOPE),
-        ])
-        .send()
-        .await?;
-    if !resp.status().is_success() {
-        return Err(Error::msg(format!("Your session for {} expired. Please sign in again.", account.username)));
+    let renewed = async {
+        let resp = client()
+            .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+            .form(&[
+                ("grant_type", "refresh_token"),
+                ("client_id", client_id()?),
+                ("refresh_token", refresh.as_str()),
+                ("scope", SCOPE),
+            ])
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            return Err(Error::msg(format!("Your session for {} expired. Please sign in again.", account.username)));
+        }
+        let tok: MsToken = resp.json().await?;
+        complete_login(&tok.access_token, tok.refresh_token).await
     }
-    let tok: MsToken = resp.json().await?;
-    let updated = complete_login(&tok.access_token, tok.refresh_token).await?;
-    upsert(paths, updated.clone()).await?;
-    Ok(updated)
+    .await;
+    match renewed {
+        Ok(updated) => {
+            upsert(paths, updated.clone()).await?;
+            Ok(updated)
+        }
+        // Couldn't renew (busy, offline): the current token still works for a while.
+        Err(e) if still_usable(&account) => {
+            eprintln!("Using the current Minecraft token for {}; renewing failed: {e}", account.username);
+            Ok(account)
+        }
+        Err(e) => Err(e),
+    }
 }
+
+/// A Minecraft token that's still valid for at least another minute.
+fn still_usable(account: &Account) -> bool {
+    account.access_token.is_some() && account.expires_at.is_some_and(|e| e > Utc::now() + Duration::minutes(1))
+}
+
+const RATE_LIMITED: &str = "Minecraft's sign-in service says there have been too many sign-ins in a short time. Wait a few minutes, then try again.";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -511,6 +557,9 @@ async fn complete_login(ms_access: &str, ms_refresh: String) -> Result<Account> 
         .await?;
     // A launcher's Azure app has to be on Mojang's allow list (aka.ms/mce-reviewappid)
     // before this works. A fresh approval can take a few hours to reach everywhere.
+    if resp.status().as_u16() == 429 {
+        return Err(Error::msg(RATE_LIMITED));
+    }
     if resp.status().as_u16() == 403 {
         return Err(Error::msg(
             "Minecraft refused this sign-in (error 403). If this app was only just approved by Mojang it can take a few hours to start working, so try again a little later.",
@@ -607,6 +656,59 @@ mod storage_tests {
         // A different key can't open it either.
         let (wrong, _) = from_disk(serde_json::from_str(&text).unwrap(), Some(&[9u8; 32]));
         assert_eq!(wrong.accounts[0].refresh_token, None);
+    }
+
+    fn signed_in(id: &str, expires_in_hours: i64) -> Account {
+        Account {
+            id: id.into(),
+            username: "Steve".into(),
+            kind: AccountKind::Microsoft,
+            access_token: Some(format!("mc-token-{id}")),
+            refresh_token: Some("ms-refresh".into()),
+            expires_at: Some(Utc::now() + Duration::hours(expires_in_hours)),
+            unopened: None,
+        }
+    }
+
+    #[test]
+    fn minecraft_token_survives_a_restart_encrypted() {
+        let key = [5u8; 32];
+        let store = AccountStore { active: None, accounts: vec![signed_in("acc-restart", 20)] };
+        let text = serde_json::to_string(&to_disk(&store, Some(&key))).unwrap();
+        assert!(!text.contains("mc-token-acc-restart"), "never written in the clear: {text}");
+        assert!(text.contains("sealedAccessToken"));
+        // A restart: nothing in memory any more.
+        forget_session("acc-restart");
+        let (again, _) = from_disk(serde_json::from_str(&text).unwrap(), Some(&key));
+        assert_eq!(again.accounts[0].access_token.as_deref(), Some("mc-token-acc-restart"));
+    }
+
+    #[test]
+    fn expired_or_unprotected_minecraft_tokens_are_not_kept() {
+        let key = [5u8; 32];
+        // Expired: not written.
+        let old = AccountStore { active: None, accounts: vec![signed_in("acc-old", -1)] };
+        assert!(!serde_json::to_string(&to_disk(&old, Some(&key))).unwrap().contains("sealedAccessToken"));
+        // No password store: the Minecraft token stays in memory only.
+        let plain = AccountStore { active: None, accounts: vec![signed_in("acc-plain", 20)] };
+        let text = serde_json::to_string(&to_disk(&plain, None)).unwrap();
+        assert!(!text.contains("mc-token-acc-plain") && !text.contains("sealedAccessToken"));
+        // Can't be moved onto another account.
+        let store = AccountStore { active: None, accounts: vec![signed_in("acc-a", 20)] };
+        let mut disk = to_disk(&store, Some(&key));
+        disk.accounts[0].id = "acc-b".into();
+        forget_session("acc-b");
+        let (moved, _) = from_disk(disk, Some(&key));
+        assert_eq!(moved.accounts[0].access_token, None);
+    }
+
+    #[test]
+    fn a_valid_token_is_usable_while_renewing_fails() {
+        assert!(still_usable(&signed_in("x", 2)));
+        assert!(!still_usable(&signed_in("x", -1)));
+        let mut no_token = signed_in("x", 2);
+        no_token.access_token = None;
+        assert!(!still_usable(&no_token));
     }
 
     #[test]

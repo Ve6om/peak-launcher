@@ -35,6 +35,8 @@ pub struct Settings {
     /// "open" | "minimize" | "hide" (hide, then come back when the game closes)
     pub after_launch: String,
     pub open_console: bool,
+    /// Look for a new version of Peak on start-up and every few hours.
+    pub auto_update_check: bool,
 
     // Commands
     pub enable_commands: bool,
@@ -77,6 +79,7 @@ impl Default for Settings {
             fullscreen: false,
             after_launch: "open".into(),
             open_console: true,
+            auto_update_check: true,
             enable_commands: false,
             pre_launch_command: String::new(),
             post_exit_command: String::new(),

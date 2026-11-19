@@ -203,6 +203,8 @@ export interface Settings {
   fullscreen: boolean;
   afterLaunch: 'open' | 'minimize' | 'hide' | 'close';
   openConsole: boolean;
+  /** Look for a new version of Peak on start-up and every few hours. */
+  autoUpdateCheck: boolean;
   enableCommands: boolean;
   preLaunchCommand: string;
   postExitCommand: string;

@@ -205,6 +205,7 @@ const mock = (() => {
     fullscreen: false,
     afterLaunch: 'open',
     openConsole: true,
+    autoUpdateCheck: true,
     enableCommands: false,
     preLaunchCommand: '',
     postExitCommand: '',

@@ -2,6 +2,7 @@
 // Peak checks for them, shows the version and patch notes, and installs the
 // update when the user agrees.
 import { isTauri } from './api';
+import { app } from './state.svelte';
 
 export interface AvailableUpdate {
   version: string;
@@ -133,6 +134,10 @@ export function snooze() {
 
 /** Check shortly after start-up, then every few hours, quietly. */
 export function startUpdateChecks() {
-  setTimeout(() => checkForUpdate(false), 3000);
-  setInterval(() => checkForUpdate(false), SIX_HOURS);
+  // Skipped when turned off in Settings; "Check for updates" in Settings still works.
+  const automatic = () => {
+    if (app.settings?.autoUpdateCheck !== false) checkForUpdate(false);
+  };
+  setTimeout(automatic, 3000);
+  setInterval(automatic, SIX_HOURS);
 }
