@@ -197,6 +197,9 @@
       <section id="sec-Network" class="panel glass">
         <h3>Network</h3>
         <div class="rows">
+          <Row title="Check for updates automatically" desc="Peak asks GitHub for a newer version when it starts and every few hours. Updates are only installed when you choose to.">
+            <Switch bind:checked={s.autoUpdateCheck} label="Check for updates automatically" />
+          </Row>
           <Row title="Parallel downloads" desc="Files downloaded at once. Lower this on slow connections.">
             <input type="range" min="1" max="64" bind:value={s.concurrentDownloads} />
             <span class="val">{s.concurrentDownloads}</span>

@@ -1,0 +1,17 @@
+Peak Launcher
+
+Peak Launcher is free and open-source software, released under the GNU General Public License, version 3 or later. Source code: https://github.com/Ve6om/peak-launcher
+
+PRIVACY
+
+Peak has no accounts on our servers, no analytics, no tracking, no ads and no crash reporting. Your settings, instances and sign-in stay on this computer, and your Microsoft sign-in is saved encrypted.
+
+To do its job, Peak connects to:
+- Microsoft, Xbox Live and Mojang: signing in, and downloading the game and Java.
+- Modrinth, CurseForge (through our proxy at api.peaklauncher.com), Feed The Beast and Technic: when you browse or install mods and modpacks.
+- GitHub: checking for a new version of Peak. You can turn this off in Settings, under Network.
+- Servers you add to the Servers tab: to show their status.
+
+Full privacy policy: https://peaklauncher.com/privacy/
+
+NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.
