@@ -34,6 +34,9 @@ use tokio::sync::oneshot;
 pub struct AppState {
     paths: Paths,
     running: Mutex<HashMap<String, oneshot::Sender<()>>>,
+    /// Process id of each running game, so Stop can still end it directly if
+    /// the normal stop signal has nowhere to go.
+    pids: Mutex<HashMap<String, u32>>,
     installing: Mutex<HashSet<String>>,
     /// Recent console output per instance, so a console window opened later
     /// can show what was already printed.
@@ -298,15 +301,24 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
         }
     }
 
+    // From here on the game is running: register it and start watching it
+    // straight away, and don't return early, or it would keep running with
+    // nothing able to stop it.
     let (kill_tx, kill_rx) = oneshot::channel();
     state.running.lock().unwrap().insert(id.clone(), kill_tx);
+    if let Some(pid) = pid {
+        state.pids.lock().unwrap().insert(id.clone(), pid);
+    }
     let _ = app.emit("game-state", StateEvent { instance_id: id.clone(), state: "running", exit_code: None });
 
     window::after_launch(app.clone(), id.clone(), settings.after_launch.clone(), pid, window_seen);
 
     let started = std::time::Instant::now();
     inst.last_played = Some(chrono::Utc::now());
-    instances::save(&paths, &inst).await?;
+    if let Err(e) = instances::save(&paths, &inst).await {
+        // Only the "last played" time is lost; the game itself is fine.
+        eprintln!("Couldn't save last played time for {id}: {e}");
+    }
 
     let app2 = app.clone();
     let after_launch = settings.after_launch.clone();
@@ -319,6 +331,7 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
             }
         };
         app2.state::<AppState>().running.lock().unwrap().remove(&id);
+        app2.state::<AppState>().pids.lock().unwrap().remove(&id);
         if let Ok(mut fresh) = instances::get(&paths, &id).await {
             fresh.playtime_secs += started.elapsed().as_secs();
             let _ = instances::save(&paths, &fresh).await;
@@ -333,11 +346,34 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
 }
 
 #[tauri::command]
-fn stop_instance(state: State<'_, AppState>, id: String) -> Result<()> {
-    if let Some(tx) = state.running.lock().unwrap().remove(&id) {
-        let _ = tx.send(());
+fn stop_instance(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<()> {
+    let tx = state.running.lock().unwrap().remove(&id);
+    // Normally the task watching the game ends it and reports "stopped".
+    if let Some(tx) = tx {
+        if tx.send(()).is_ok() {
+            return Ok(());
+        }
     }
+    // Nothing is listening for the stop signal: end the process directly.
+    let pid = state.pids.lock().unwrap().remove(&id);
+    if let Some(pid) = pid {
+        kill_java(pid);
+    }
+    let _ = app.emit("game-state", StateEvent { instance_id: id, state: "stopped", exit_code: None });
     Ok(())
+}
+
+/// End a game process by id, but only if it is still a Java process (a
+/// process id can be reused by an unrelated program once the game is gone).
+fn kill_java(pid: u32) -> bool {
+    use sysinfo::{Pid, ProcessesToUpdate, System};
+    let pid = Pid::from_u32(pid);
+    let mut sys = System::new();
+    sys.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    match sys.process(pid) {
+        Some(p) if p.name().to_string_lossy().to_lowercase().starts_with("java") => p.kill(),
+        _ => false,
+    }
 }
 
 #[tauri::command]
@@ -1025,6 +1061,7 @@ pub fn run() {
             app.manage(AppState {
                 paths,
                 running: Mutex::new(HashMap::new()),
+                pids: Mutex::new(HashMap::new()),
                 installing: Mutex::new(HashSet::new()),
                 logs: Mutex::new(HashMap::new()),
             });
@@ -1108,4 +1145,33 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Peak Launcher");
+}
+
+#[cfg(test)]
+mod stop_tests {
+    /// The safety net never ends a process that isn't Java (here: this test itself).
+    #[test]
+    fn only_java_processes_are_ended() {
+        assert!(!super::kill_java(std::process::id()), "must refuse a non-Java process");
+        assert!(!super::kill_java(u32::MAX - 7), "unknown ids do nothing");
+    }
+
+    /// Ends a real Java process that is stuck while shutting down, by id:
+    /// PEAK_HANG_JAVA=<java.exe> PEAK_HANG_SRC=<Hang.java> cargo test --lib -- --ignored --nocapture kill_hung_java_by_pid
+    #[test]
+    #[ignore]
+    fn kill_hung_java_by_pid() {
+        let java = std::env::var("PEAK_HANG_JAVA").unwrap();
+        let src = std::env::var("PEAK_HANG_SRC").unwrap();
+        let mut child = std::process::Command::new(java).arg(src).spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        assert!(child.try_wait().unwrap().is_none(), "should be stuck");
+        assert!(super::kill_java(child.id()), "should end it");
+        let t = std::time::Instant::now();
+        while child.try_wait().unwrap().is_none() {
+            assert!(t.elapsed() < std::time::Duration::from_secs(5), "still running after kill");
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        println!("ended in {:?}", t.elapsed());
+    }
 }
