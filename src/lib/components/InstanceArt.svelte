@@ -1,8 +1,8 @@
 <script lang="ts">
   // Instance cover art. Modpacks show their own artwork (a wide banner, or
   // their icon); everything else shows its mod loader's logo (the grass block
-  // for vanilla).
-  import { loaderIcon, PIXEL_ART } from '$lib/loaders';
+  // for vanilla) on a soft glow in its colour. Small thumbnails skip the glow.
+  import { loaderIcon, loaderTint, PIXEL_ART } from '$lib/loaders';
 
   let {
     loader = 'vanilla',
@@ -18,7 +18,7 @@
   const showIcon = $derived(!showImage && !!icon && !iconFailed);
 </script>
 
-<div class="art" class:rounded>
+<div class="art" class:rounded style:--tint={loaderTint(loader)}>
   {#if showImage}
     <img class="cover" src={image} alt="" loading="lazy" draggable="false" onerror={() => (imageFailed = true)} />
   {:else if showIcon}
@@ -59,6 +59,9 @@
     inset: 0;
     display: grid;
     place-items: center;
+    background:
+      radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tint) 30%, transparent), transparent 60%),
+      linear-gradient(160deg, color-mix(in srgb, var(--tint) 13%, #101216), #0b0c0f);
   }
   .mark img {
     /* Most of the box's shorter side, so it fills cards, banners and thumbnails alike. */
@@ -70,8 +73,11 @@
     filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
     transition: transform 0.6s var(--ease);
   }
-  /* Small thumbnails (sidebar): nearly edge to edge, no shadow. */
+  /* Small thumbnails (sidebar): just the logo, edge to edge, no glow or shadow. */
   @container (max-height: 64px) {
+    .mark {
+      background: none;
+    }
     .mark img {
       width: 100cqmin;
       height: 100cqmin;
