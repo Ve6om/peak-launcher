@@ -1072,6 +1072,7 @@ const mock = (() => {
             { png: sampleSkin('#16a085'), model: 'slim' },
             { png: sampleSkin('#2c3e50'), model: 'classic' }
           ],
+          capes: [],
           historyFound: true
         } satisfies Player;
       }
