@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { UserPlus, Check, LogOut, ExternalLink, Copy, LoaderCircle, Info } from '@lucide/svelte';
+  import { UserPlus, Check, LogOut, ExternalLink, Copy, LoaderCircle, Info, Clock } from '@lucide/svelte';
   import Modal from '$lib/components/Modal.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
@@ -8,6 +8,8 @@
   let code = $state<DeviceCode | null>(null);
   let signingIn = $state(false);
   let offlineName = $state('');
+  // Set when sign-in fails only because Mojang hasn't approved Peak's app yet.
+  let reviewPending = $state(false);
 
   async function signIn() {
     if (!app.info?.msConfigured) {
@@ -18,9 +20,16 @@
     try {
       code = await api.msLoginStart();
       app.accounts = await api.msLoginFinish(code);
+      reviewPending = false;
       toast('Signed in', 'success');
     } catch (e) {
-      toast(errorText(e), 'error');
+      const msg = errorText(e);
+      // The game auth step returns 403 until Mojang approves the app ID.
+      if (/mojang/i.test(msg) && /approv/i.test(msg)) {
+        reviewPending = true;
+      } else {
+        toast(msg, 'error');
+      }
     } finally {
       signingIn = false;
       code = null;
@@ -77,6 +86,20 @@
       </div>
     {/each}
   </div>
+
+  {#if reviewPending}
+    <div class="note glass pending">
+      <Clock size={18} />
+      <div>
+        <b>Microsoft sign-in is being reviewed by Mojang.</b>
+        <p>
+          Every launcher needs Mojang to approve its sign-in before accounts work. Peak is in that queue. Once it's
+          approved, sign-in starts working on its own, with no update needed — so check back in a few days. Everything
+          else in Peak works in the meantime.
+        </p>
+      </div>
+    </div>
+  {/if}
 
   {#if app.info && !app.info.msConfigured}
     <div class="note glass">
@@ -226,6 +249,11 @@
     color: var(--accent-2);
     background: color-mix(in srgb, var(--accent-2) 6%, transparent);
     border-color: color-mix(in srgb, var(--accent-2) 22%, transparent);
+  }
+  .note.pending {
+    color: #fcd34d;
+    background: color-mix(in srgb, #fcd34d 7%, transparent);
+    border-color: color-mix(in srgb, #fcd34d 24%, transparent);
   }
   .note b {
     color: var(--text);

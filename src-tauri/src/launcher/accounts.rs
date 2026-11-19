@@ -412,11 +412,15 @@ async fn complete_login(ms_access: &str, ms_refresh: String) -> Result<Account> 
         .json(&json!({ "identityToken": format!("XBL3.0 x={uhs};{}", xsts.token) }))
         .send()
         .await?;
-    // New Azure apps must be approved by Mojang before they can sign in.
+    // New Azure apps must be approved by Mojang before they can sign in. Both
+    // messages mention Mojang and "approve" so the UI can spot this case.
     if resp.status().as_u16() == 403 {
-        return Err(Error::msg(
-            "Mojang hasn't approved this launcher's Microsoft app ID for Minecraft yet. Submit the client ID at aka.ms/mce-reviewappid and try again once it's approved.",
-        ));
+        let msg = if cfg!(debug_assertions) {
+            "Mojang hasn't approved this launcher's Microsoft app ID for Minecraft yet. Submit the client ID at aka.ms/mce-reviewappid and try again once it's approved."
+        } else {
+            "Microsoft sign-in is still being reviewed by Mojang and isn't switched on yet. It will start working automatically once they approve it \u{2014} you won't need to update Peak."
+        };
+        return Err(Error::msg(msg));
     }
     let mc: McLogin = resp.error_for_status()?.json().await?;
 
