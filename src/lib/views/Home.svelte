@@ -31,7 +31,7 @@
         {#if heroImg}
           <img src="/hero.jpg" alt="" onerror={() => (heroImg = false)} />
         {:else}
-          <InstanceArt seed={hero.id} image={hero.pack?.bannerUrl} icon={hero.pack?.iconUrl} />
+          <InstanceArt loader={hero.loader} image={hero.pack?.bannerUrl} icon={hero.pack?.iconUrl} />
         {/if}
       </div>
       <div class="hero-shade"></div>

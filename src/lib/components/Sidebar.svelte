@@ -46,7 +46,7 @@
           onclick={() => go('instance', inst.id)}
           oncontextmenu={(e) => openInstanceMenu(e, inst)}
         >
-          <span class="thumb"><InstanceArt seed={inst.id} image={inst.pack?.iconUrl ?? inst.pack?.bannerUrl} /></span>
+          <span class="thumb"><InstanceArt loader={inst.loader} image={inst.pack?.iconUrl ?? inst.pack?.bannerUrl} /></span>
           <span class="pin-text">
             <span class="pin-name">{inst.name}</span>
             <span class="pin-meta">{inst.gameVersion}</span>

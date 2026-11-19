@@ -3,6 +3,7 @@
   import { Search, LoaderCircle, Check } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import LoaderIcon from './LoaderIcon.svelte';
+  import { loaderTint } from '$lib/loaders';
   import { scale } from 'svelte/transition';
   import { api } from '$lib/api';
   import { app, go, refreshInstances, toast, errorText } from '$lib/state.svelte';
@@ -91,20 +92,12 @@
     }
   }
 
-  /** Each loader's brand colour, for the preview's glow. */
-  const TINTS: Record<string, string> = {
-    vanilla: '#5fa83c',
-    fabric: '#dbd0b4',
-    quilt: '#9c4bf5',
-    neoforge: '#e07a2b',
-    forge: '#dfa86a'
-  };
 </script>
 
 <Modal title="New instance" subtitle="Pick a version. Everything else is handled for you." width={640} onclose={() => (app.creating = false)}>
   <div class="layout">
     <div class="preview">
-      <div class="art" style:--tint={TINTS[loader] ?? TINTS.vanilla}>
+      <div class="art" style:--tint={loaderTint(loader)}>
         {#key loader}
           <div class="mark" in:scale={{ start: 0.8, duration: 200 }}>
             <LoaderIcon {loader} size={88} />
