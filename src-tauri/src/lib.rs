@@ -954,6 +954,102 @@ async fn account_skin(state: State<'_, AppState>, id: String, refresh: Option<bo
     launcher::skins::get(&state.paths, &account.id, refresh.unwrap_or(false)).await
 }
 
+/// A signed-in Microsoft account with a usable Minecraft token, for skin changes.
+async fn skin_account(paths: &Paths, id: &str) -> Result<accounts::Account> {
+    let store = accounts::load(paths).await?;
+    let account = store.accounts.into_iter().find(|a| a.id == id).ok_or_else(|| Error::msg("That account isn't signed in any more."))?;
+    if account.kind != accounts::AccountKind::Microsoft {
+        return Err(Error::msg("Only Microsoft accounts have skins."));
+    }
+    accounts::ensure_fresh(paths, account).await
+}
+
+fn token(account: &accounts::Account) -> Result<&str> {
+    account.access_token.as_deref().ok_or_else(|| Error::msg("Sign in to this account again."))
+}
+
+/// The account's current skin and the capes it owns.
+#[tauri::command]
+async fn skin_wardrobe(state: State<'_, AppState>, id: String) -> Result<launcher::skins::Wardrobe> {
+    let a = skin_account(&state.paths, &id).await?;
+    launcher::skins::wardrobe(&state.paths, &a.id, token(&a)?).await
+}
+
+/// Check a skin file the player picked and return it for previewing.
+#[tauri::command]
+async fn skin_read_file(path: String) -> Result<String> {
+    launcher::skins::read_skin_file(std::path::Path::new(&path)).await
+}
+
+/// Upload a skin file ("classic" or "slim" arms).
+#[tauri::command]
+async fn skin_upload(state: State<'_, AppState>, id: String, path: String, model: String) -> Result<launcher::skins::Wardrobe> {
+    let png = tokio::fs::read(&path).await?;
+    let a = skin_account(&state.paths, &id).await?;
+    launcher::skins::upload(&state.paths, &a.id, token(&a)?, png, &model).await
+}
+
+#[tauri::command]
+async fn skin_set_model(state: State<'_, AppState>, id: String, model: String) -> Result<launcher::skins::Wardrobe> {
+    let a = skin_account(&state.paths, &id).await?;
+    launcher::skins::set_model(&state.paths, &a.id, token(&a)?, &model).await
+}
+
+#[tauri::command]
+async fn skin_reset(state: State<'_, AppState>, id: String) -> Result<launcher::skins::Wardrobe> {
+    let a = skin_account(&state.paths, &id).await?;
+    launcher::skins::reset(&state.paths, &a.id, token(&a)?).await
+}
+
+/// Skins this account has worn in Peak, newest first.
+#[tauri::command]
+async fn skin_history(state: State<'_, AppState>, id: String) -> Result<Vec<launcher::skins::PastSkin>> {
+    launcher::skins::history(&state.paths, &id).await
+}
+
+/// Wear a skin from the account's history again.
+#[tauri::command]
+async fn skin_use_saved(state: State<'_, AppState>, id: String, skin_id: String, model: String) -> Result<launcher::skins::Wardrobe> {
+    let png = launcher::skins::history_png(&state.paths, &id, &skin_id).await?;
+    let a = skin_account(&state.paths, &id).await?;
+    launcher::skins::upload(&state.paths, &a.id, token(&a)?, png, &model).await
+}
+
+#[tauri::command]
+async fn skin_history_remove(state: State<'_, AppState>, id: String, skin_id: String) -> Result<()> {
+    launcher::skins::history_remove(&state.paths, &id, &skin_id).await
+}
+
+/// Look up any player's id, skin and cape by name.
+#[tauri::command]
+async fn player_lookup(name: String) -> Result<launcher::skins::Player> {
+    launcher::skins::lookup(&name).await
+}
+
+/// Show one of the account's capes (None hides the cape).
+#[tauri::command]
+async fn skin_set_cape(state: State<'_, AppState>, id: String, cape_id: Option<String>) -> Result<launcher::skins::Wardrobe> {
+    let a = skin_account(&state.paths, &id).await?;
+    launcher::skins::set_cape(&state.paths, &a.id, token(&a)?, cape_id.as_deref()).await
+}
+
+/// Whether Peak runs as an AppImage and has a menu entry.
+#[tauri::command]
+fn appimage_menu_status() -> launcher::appimage::MenuStatus {
+    launcher::appimage::status()
+}
+
+/// Add (or update) the applications-menu entry for this AppImage.
+#[tauri::command]
+fn appimage_menu_install() -> Result<launcher::appimage::MenuStatus> {
+    launcher::appimage::install()
+}
+
+#[tauri::command]
+fn appimage_menu_remove() -> Result<launcher::appimage::MenuStatus> {
+    launcher::appimage::remove()
+}
+
 #[tauri::command]
 async fn ms_login_start() -> Result<LoginStart> {
     accounts::start_login().await
@@ -1136,6 +1232,19 @@ pub fn run() {
             ms_login_finish,
             ms_login_cancel,
             account_skin,
+            appimage_menu_status,
+            appimage_menu_install,
+            appimage_menu_remove,
+            skin_wardrobe,
+            skin_read_file,
+            skin_upload,
+            skin_set_model,
+            skin_reset,
+            skin_set_cape,
+            skin_history,
+            skin_use_saved,
+            skin_history_remove,
+            player_lookup,
             add_offline_account,
             set_active_account,
             remove_account,

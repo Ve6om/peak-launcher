@@ -2,6 +2,8 @@
   import { fly } from 'svelte/transition';
   import { ExternalLink, RefreshCw } from '@lucide/svelte';
   import { updates, checkForUpdate } from '$lib/updates.svelte';
+  import { menu, loadMenuStatus, addToMenu, removeFromMenu } from '$lib/menuEntry.svelte';
+  import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import { app, ACCENTS, accentName, applyAccent, toast, errorText } from '$lib/state.svelte';
   import Logo from '$lib/components/Logo.svelte';
@@ -15,6 +17,10 @@
   const dirty = $derived(JSON.stringify(s) !== JSON.stringify(app.settings));
   const maxMem = $derived(Math.max(4096, Math.floor((app.info?.totalMemoryMb ?? 16384) / 512) * 512));
   const linux = $derived(app.info?.os === 'linux');
+
+  onMount(() => {
+    if (!menu.status) loadMenuStatus();
+  });
 
   const afterLaunchHelp: Record<string, string> = {
     open: 'Peak stays where it is while you play.',
@@ -197,6 +203,15 @@
       <section id="sec-Network" class="panel glass">
         <h3>Network</h3>
         <div class="rows">
+          {#if menu.status?.isAppImage}
+            <Row title="Applications menu" desc={menu.status.installed && menu.status.upToDate ? 'Peak is in your applications menu.' : menu.status.installed ? 'Your menu entry points at an old location of this AppImage.' : 'Add Peak to your applications menu so you can open it like any other app.'}>
+              {#if menu.status.installed && menu.status.upToDate}
+                <button class="btn" onclick={() => removeFromMenu().catch((e) => toast(errorText(e), 'error'))} disabled={menu.busy}>Remove from menu</button>
+              {:else}
+                <button class="btn primary" onclick={() => addToMenu().catch((e) => toast(errorText(e), 'error'))} disabled={menu.busy}>{menu.status.installed ? 'Update entry' : 'Add to menu'}</button>
+              {/if}
+            </Row>
+          {/if}
           <Row title="Check for updates automatically" desc="Peak asks GitHub for a newer version when it starts and every few hours. Updates are only installed when you choose to.">
             <Switch bind:checked={s.autoUpdateCheck} label="Check for updates automatically" />
           </Row>

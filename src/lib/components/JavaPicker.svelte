@@ -1,9 +1,9 @@
 <script lang="ts">
-  // Choose a Java executable: browse detected installs or type a path, and
-  // check that it works.
-  import { Search, LoaderCircle, Check } from '@lucide/svelte';
+  // Choose a Java executable: browse for it, pick a detected install or type
+  // a path, and check that it works.
+  import { Search, LoaderCircle, Check, FolderOpen } from '@lucide/svelte';
   import { api } from '$lib/api';
-  import { toast, errorText } from '$lib/state.svelte';
+  import { app, toast, errorText } from '$lib/state.svelte';
   import type { DetectedJava } from '$lib/types';
 
   let { value = $bindable('') }: { value: string } = $props();
@@ -23,6 +23,13 @@
     }
   }
 
+  async function browse() {
+    const picked = await api.pickJava(app.info?.os);
+    if (!picked) return;
+    value = picked;
+    await test();
+  }
+
   async function test() {
     try {
       tested = await api.testJava(value);
@@ -37,6 +44,7 @@
 <div class="picker">
   <div class="line">
     <input class="input mono" bind:value placeholder="Path to java / javaw executable" />
+    <button class="btn" onclick={browse} title="Choose a Java executable"><FolderOpen size={15} /> Browse…</button>
     <button class="btn" onclick={test} disabled={!value.trim()} title="Test this Java"><Check size={15} /> Test</button>
     <button class="btn" onclick={scan} disabled={scanning} title="Find installed Java">
       {#if scanning}<LoaderCircle size={15} class="spin" />{:else}<Search size={15} />{/if} Detect

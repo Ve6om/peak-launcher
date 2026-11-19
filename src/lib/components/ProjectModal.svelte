@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Download, Heart, Check, LoaderCircle, ExternalLink, Code, Bug, BookOpen } from '@lucide/svelte';
+  import { Download, Heart, Check, LoaderCircle, ExternalLink, Code, Bug, BookOpen, Trash2 } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import Markdown from './Markdown.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
+  import LinkedModsDialog from './LinkedModsDialog.svelte';
   import { api } from '$lib/api';
   import { compact, ago, toast, errorText, installModpack, requestInstall } from '$lib/state.svelte';
-  import type { BrowseKind, ContentVersion, Project } from '$lib/types';
+  import type { BrowseKind, ContentVersion, LinkedMod, Project } from '$lib/types';
 
   let {
     projectId,
@@ -61,6 +62,52 @@
     if (await requestInstall(inst, k, pid, vid)) oninstalled();
   }
 
+  // ---- removing it from the instance ----
+  let removing = $state(false);
+  let confirmRemove = $state(false);
+  let linkPrompt = $state<null | { name: string; links: LinkedMod[]; resolve: (c: 'all' | 'only' | null) => void }>(null);
+
+  async function remove() {
+    if (kind === 'modpack') return;
+    if (!confirmRemove) {
+      confirmRemove = true;
+      setTimeout(() => (confirmRemove = false), 3000);
+      return;
+    }
+    confirmRemove = false;
+    removing = true;
+    try {
+      const k = kind;
+      const item = (await api.contentList(instanceId, k)).find((i) => i.projectId === projectId);
+      if (!item) {
+        toast("It's no longer installed in this instance.", 'info');
+        oninstalled();
+        onclose();
+        return;
+      }
+      // Mods other mods need: ask, like the Content tab does.
+      let alsoRemove: LinkedMod[] = [];
+      if (k === 'mod') {
+        const links = await api.contentLinked(instanceId, item.fileName, 'remove').catch(() => []);
+        if (links.length) {
+          const choice = await new Promise<'all' | 'only' | null>((resolve) => (linkPrompt = { name: item.title, links, resolve }));
+          linkPrompt = null;
+          if (choice === null) return;
+          if (choice === 'all') alsoRemove = links;
+        }
+      }
+      await api.contentRemove(instanceId, k, item.fileName);
+      for (const l of alsoRemove) await api.contentRemove(instanceId, k, l.fileName);
+      toast(alsoRemove.length ? `Removed ${item.title} and ${alsoRemove.length} more` : `Removed ${item.title}`);
+      oninstalled();
+      onclose();
+    } catch (e) {
+      toast(errorText(e), 'error');
+    } finally {
+      removing = false;
+    }
+  }
+
   const links = $derived(
     project
       ? ([
@@ -100,9 +147,14 @@
                 <option value={v.id}>{v.version_number}{v.version_type !== 'release' ? ` (${v.version_type})` : ''}</option>
               {/each}
             </select>
-            <button class="btn primary" disabled={installing || !versionId} onclick={install}>
+            <button class="btn primary" disabled={installing || removing || !versionId} onclick={install}>
               {#if installing}<LoaderCircle size={16} class="spin" /> Installing{:else if kind === 'modpack'}<Download size={16} /> Install as new instance{:else if installed}<Check size={16} /> Reinstall{:else}<Download size={16} /> Install{/if}
             </button>
+            {#if installed && kind !== 'modpack'}
+              <button class="btn remove" class:confirm={confirmRemove} disabled={installing || removing} onclick={remove}>
+                {#if removing}<LoaderCircle size={15} class="spin" /> Removing…{:else}<Trash2 size={15} /> {confirmRemove ? 'Click again to remove' : 'Remove'}{/if}
+              </button>
+            {/if}
           {:else}
             <span class="none">{kind === 'modpack' ? 'This modpack has no versions' : "No version for this instance's game version and loader"}</span>
           {/if}
@@ -132,6 +184,10 @@
 
 {#if image}
   <button class="lightbox" onclick={() => (image = null)} aria-label="Close image"><img src={image} alt="" /></button>
+{/if}
+
+{#if linkPrompt}
+  <LinkedModsDialog action="remove" name={linkPrompt.name} links={linkPrompt.links} onchoose={linkPrompt.resolve} />
 {/if}
 
 <style>
@@ -239,5 +295,15 @@
     max-width: 100%;
     max-height: 100%;
     border-radius: 12px;
+  }
+  .remove {
+    color: #fca5a5;
+    justify-content: center;
+  }
+  .remove:hover:not(:disabled),
+  .remove.confirm {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.5);
   }
 </style>

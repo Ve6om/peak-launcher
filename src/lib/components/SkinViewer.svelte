@@ -3,7 +3,13 @@
   // skinview3d (and three.js) load only when this first appears.
   import { onMount } from 'svelte';
 
-  let { png, model = 'classic', width = 220, height = 300 }: { png: string; model?: string; width?: number; height?: number } = $props();
+  let {
+    png,
+    model = 'classic',
+    cape = null,
+    width = 220,
+    height = 300
+  }: { png: string; model?: string; cape?: string | null; width?: number; height?: number } = $props();
 
   let canvas = $state<HTMLCanvasElement>();
   let failed = $state(false);
@@ -25,6 +31,7 @@
         viewer.animation = new sv.IdleAnimation();
         viewer.background = null;
         viewer.loadSkin(png, { model: model === 'slim' ? 'slim' : 'default' });
+        if (cape) viewer.loadCape(cape);
       })
       .catch(() => (failed = true));
     return () => {
@@ -39,6 +46,14 @@
     const src = png;
     const arms = model;
     viewer?.loadSkin(src, { model: arms === 'slim' ? 'slim' : 'default' });
+  });
+
+  // Show or hide the cape when it changes.
+  $effect(() => {
+    const c = cape;
+    if (!viewer) return;
+    if (c) viewer.loadCape(c);
+    else viewer.resetCape();
   });
 </script>
 

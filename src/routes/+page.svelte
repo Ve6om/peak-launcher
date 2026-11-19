@@ -15,6 +15,7 @@
   import ManualDownloads from '$lib/components/ManualDownloads.svelte';
   import CloseDialog from '$lib/components/CloseDialog.svelte';
   import UpdateDialog from '$lib/components/UpdateDialog.svelte';
+  import MenuEntryOffer from '$lib/components/MenuEntryOffer.svelte';
   import { updates, startUpdateChecks } from '$lib/updates.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Home from '$lib/views/Home.svelte';
@@ -125,6 +126,9 @@
   {#key app.manualFor}
     <ManualDownloads instanceId={app.manualFor} />
   {/key}
+{/if}
+{#if app.ready}
+  <MenuEntryOffer />
 {/if}
 <Toasts />
 {/if}

@@ -31,6 +31,10 @@ import type {
   SavedServer,
   ServerStatus,
   Skin,
+  Wardrobe,
+  PastSkin,
+  Player,
+  MenuStatus,
   LogLine,
   Settings,
   VersionManifest
@@ -123,6 +127,19 @@ export const api = {
     const picked = await open({ directory: true, multiple: false, title });
     return typeof picked === 'string' ? picked : null;
   },
+  /** Ask the user for a Java executable. Returns null if cancelled. */
+  pickJava: async (os: string | undefined): Promise<string | null> => {
+    if (!isTauri) return 'C:/Program Files/Eclipse Adoptium/jdk-21/bin/javaw.exe';
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({
+      multiple: false,
+      directory: false,
+      title: 'Choose a Java executable',
+      // Windows Java is java.exe / javaw.exe; on macOS and Linux it has no extension.
+      filters: os === 'windows' ? [{ name: 'Java (java.exe, javaw.exe)', extensions: ['exe'] }] : undefined
+    });
+    return typeof picked === 'string' ? picked : null;
+  },
   /** Ask the user for a .mrpack file. Returns null if cancelled. */
   pickModpackFile: async (): Promise<string | null> => {
     if (!isTauri) return 'C:/Users/you/Downloads/Example Pack 1.0.mrpack';
@@ -159,6 +176,26 @@ export const api = {
   msLoginFinish: (start: LoginStart) => call<AccountInfo[]>('ms_login_finish', { start }),
   msLoginCancel: () => call<void>('ms_login_cancel'),
   accountSkin: (id: string, refresh = false) => call<Skin | null>('account_skin', { id, refresh }),
+  skinWardrobe: (id: string) => call<Wardrobe>('skin_wardrobe', { id }),
+  appimageMenuStatus: () => call<MenuStatus>('appimage_menu_status'),
+  appimageMenuInstall: () => call<MenuStatus>('appimage_menu_install'),
+  appimageMenuRemove: () => call<MenuStatus>('appimage_menu_remove'),
+  skinReadFile: (path: string) => call<string>('skin_read_file', { path }),
+  skinUpload: (id: string, path: string, model: 'classic' | 'slim') => call<Wardrobe>('skin_upload', { id, path, model }),
+  skinSetModel: (id: string, model: 'classic' | 'slim') => call<Wardrobe>('skin_set_model', { id, model }),
+  skinReset: (id: string) => call<Wardrobe>('skin_reset', { id }),
+  skinSetCape: (id: string, capeId: string | null) => call<Wardrobe>('skin_set_cape', { id, capeId }),
+  skinHistory: (id: string) => call<PastSkin[]>('skin_history', { id }),
+  skinUseSaved: (id: string, skinId: string, model: 'classic' | 'slim') => call<Wardrobe>('skin_use_saved', { id, skinId, model }),
+  skinHistoryRemove: (id: string, skinId: string) => call<void>('skin_history_remove', { id, skinId }),
+  playerLookup: (name: string) => call<Player>('player_lookup', { name }),
+  /** Ask the user for a skin PNG. Returns null if cancelled. */
+  pickSkinFile: async (): Promise<string | null> => {
+    if (!isTauri) return 'C:/Users/you/Downloads/my-skin.png';
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({ multiple: false, directory: false, title: 'Choose a skin', filters: [{ name: 'Minecraft skin (PNG)', extensions: ['png'] }] });
+    return typeof picked === 'string' ? picked : null;
+  },
   addOffline: (username: string) => call<AccountInfo[]>('add_offline_account', { username }),
   setActiveAccount: (id: string) => call<AccountInfo[]>('set_active_account', { id }),
   removeAccount: (id: string) => call<AccountInfo[]>('remove_account', { id }),
@@ -206,6 +243,7 @@ const mock = (() => {
     afterLaunch: 'open',
     openConsole: true,
     autoUpdateCheck: true,
+    appimageMenuDismissed: false,
     enableCommands: false,
     preLaunchCommand: '',
     postExitCommand: '',
@@ -337,7 +375,7 @@ const mock = (() => {
   const popouts: Record<string, Window | null> = {};
 
   /** A simple made-up 64x64 skin for the preview (not a Minecraft asset). */
-  function sampleSkin(): string {
+  function sampleSkin(shirt = '#4b8fd6'): string {
     const c = document.createElement('canvas');
     c.width = c.height = 64;
     const g = c.getContext('2d')!;
@@ -354,7 +392,7 @@ const mock = (() => {
     box(14, 12, 1, 1, '#3d6fd6');
     box(11, 14, 2, 1, '#8b5a3c');
     // body, arms, legs
-    box(16, 16, 24, 16, '#4b8fd6');
+    box(16, 16, 24, 16, shirt);
     box(40, 16, 16, 16, '#c9956b');
     box(32, 48, 16, 16, '#c9956b');
     box(0, 16, 16, 16, '#2d3a66');
@@ -362,6 +400,7 @@ const mock = (() => {
     return c.toDataURL('image/png');
   }
   let loginCancelled = false;
+  let mockMenu = false;
 
   // Preview servers (made-up names, so no real server is shown or contacted).
   const NL = String.fromCharCode(10);
@@ -924,6 +963,65 @@ const mock = (() => {
         const inst = instances.find((i) => i.id === a.instanceId)!;
         mockServers = mockServers.map((x) => (x.id === a.serverId ? { ...x, instanceId: a.instanceId } : x));
         return call('launch_instance', { id: inst.id });
+      }
+      case 'appimage_menu_status':
+        // Preview: add #demo-appimage to the URL to act like the Linux AppImage.
+        return { isAppImage: location.hash === '#demo-appimage', installed: mockMenu, upToDate: mockMenu } satisfies MenuStatus;
+      case 'appimage_menu_install':
+        mockMenu = true;
+        return { isAppImage: true, installed: true, upToDate: true } satisfies MenuStatus;
+      case 'appimage_menu_remove':
+        mockMenu = false;
+        return { isAppImage: true, installed: false, upToDate: false } satisfies MenuStatus;
+      case 'skin_wardrobe':
+        await sleep(400);
+        return { skin: { png: sampleSkin(), model: 'classic' }, capes: [{ id: 'c1', name: 'Migrator', active: false, png: null }] } satisfies Wardrobe;
+      case 'skin_read_file':
+        return sampleSkin('#c0392b');
+      case 'skin_upload':
+        await sleep(800);
+        return { skin: { png: sampleSkin('#c0392b'), model: a.model }, capes: [{ id: 'c1', name: 'Migrator', active: false, png: null }] } satisfies Wardrobe;
+      case 'skin_set_model':
+        await sleep(500);
+        return { skin: { png: sampleSkin(), model: a.model }, capes: [{ id: 'c1', name: 'Migrator', active: false, png: null }] } satisfies Wardrobe;
+      case 'skin_reset':
+        await sleep(500);
+        return { skin: null, capes: [{ id: 'c1', name: 'Migrator', active: false, png: null }] } satisfies Wardrobe;
+      case 'skin_set_cape':
+        await sleep(500);
+        return { skin: { png: sampleSkin(), model: 'classic' }, capes: [{ id: 'c1', name: 'Migrator', active: a.capeId === 'c1', png: null }] } satisfies Wardrobe;
+      case 'skin_history': {
+        await sleep(200);
+        const shirts: [string, 'classic' | 'slim'][] = [['#4b8fd6', 'classic'], ['#c0392b', 'slim'], ['#27ae60', 'classic'], ['#8e44ad', 'classic']];
+        return shirts.map(([shirt, model], i) => ({ id: String(i).repeat(64), png: sampleSkin(shirt), model, usedAt: new Date(Date.now() - i * 86400000 * 3).toISOString() })) satisfies PastSkin[];
+      }
+      case 'skin_use_saved':
+        await sleep(700);
+        return { skin: { png: sampleSkin('#27ae60'), model: a.model }, capes: [{ id: 'c1', name: 'Migrator', active: false, png: null }] } satisfies Wardrobe;
+      case 'skin_history_remove':
+        return null;
+      case 'player_lookup': {
+        await sleep(500);
+        const name = String(a.name ?? '').trim();
+        if (!/^\w{1,16}$/.test(name)) throw new Error('Minecraft names are up to 16 letters, numbers and underscores.');
+        if (name.toLowerCase() === 'nobody') throw new Error(`No Minecraft player is called "${name}".`);
+        return {
+          id: '853c80ef-3c37-49fd-aa49-938b674adae6',
+          name,
+          skin: { png: sampleSkin('#e67e22'), model: 'classic' },
+          cape: null,
+          names: [
+            { name, changedAt: '2023-08-06T23:31:18+02:00' },
+            { name: 'OldName_2019', changedAt: '2019-03-02T10:00:00+01:00' },
+            { name: 'FirstName', changedAt: null }
+          ],
+          pastSkins: [
+            { png: sampleSkin('#e67e22'), model: 'classic' },
+            { png: sampleSkin('#16a085'), model: 'slim' },
+            { png: sampleSkin('#2c3e50'), model: 'classic' }
+          ],
+          historyFound: true
+        } satisfies Player;
       }
       case 'account_skin':
         // Preview: a made-up skin so heads and the 3D model have something to show.

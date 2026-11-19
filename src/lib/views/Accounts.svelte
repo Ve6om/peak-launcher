@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { UserPlus, Check, LogOut, Info, RefreshCw, ExternalLink } from '@lucide/svelte';
+  import { UserPlus, Check, LogOut, Info, RefreshCw, Shirt, Copy } from '@lucide/svelte';
   import MicrosoftSignIn from '$lib/components/MicrosoftSignIn.svelte';
   import SkinHead from '$lib/components/SkinHead.svelte';
   import SkinViewer from '$lib/components/SkinViewer.svelte';
+  import SkinEditor from '$lib/components/SkinEditor.svelte';
+  import PlayerLookup from '$lib/components/PlayerLookup.svelte';
   import { skins, loadSkin } from '$lib/skins.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
@@ -59,12 +61,29 @@
   const active = $derived(app.accounts.find((a) => a.active && a.kind === 'microsoft') ?? null);
   const activeSkin = $derived(active ? skins[active.id] : undefined);
   let refreshing = $state(false);
+  let editingSkin = $state(false);
 
   async function refreshSkin() {
     if (!active) return;
     refreshing = true;
     await loadSkin(active.id, true);
     refreshing = false;
+  }
+
+  /** Profile ids with dashes, the way they're usually shown. */
+  function dashed(id: string): string {
+    const h = id.replace(/-/g, '');
+    return /^[0-9a-f]{32}$/i.test(h) ? `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}` : id;
+  }
+
+  async function copyUuid() {
+    if (!active) return;
+    try {
+      await navigator.clipboard.writeText(dashed(active.id));
+      toast('UUID copied', 'success');
+    } catch {
+      toast("Couldn't copy to the clipboard", 'error');
+    }
   }
 
   async function activate(id: string) {
@@ -101,14 +120,17 @@
       <div class="skin-info">
         <span class="label">Playing as</span>
         <h2>{active.username}</h2>
+        <button class="uuid" title="Copy UUID" onclick={copyUuid}>
+          <span>UUID</span>
+          <code>{dashed(active.id)}</code>
+          <Copy size={12} />
+        </button>
         {#if activeSkin}
           <p>{activeSkin.model === 'slim' ? 'Slim arms (Alex style)' : 'Classic arms (Steve style)'} · drag the model to turn it</p>
         {/if}
         <div class="skin-actions">
-          <button class="btn" onclick={refreshSkin} disabled={refreshing}><RefreshCw size={15} class={refreshing ? 'spin' : ''} /> Refresh skin</button>
-          <button class="btn ghost" onclick={() => api.openUrl('https://www.minecraft.net/msaprofile/mygames/editskin')}>
-            <ExternalLink size={15} /> Change skin on minecraft.net
-          </button>
+          <button class="btn primary" onclick={() => (editingSkin = true)}><Shirt size={15} /> Change skin</button>
+          <button class="btn" onclick={refreshSkin} disabled={refreshing}><RefreshCw size={15} class={refreshing ? 'spin' : ''} /> Refresh</button>
         </div>
       </div>
     </section>
@@ -137,6 +159,8 @@
       </div>
     {/each}
   </div>
+
+  <PlayerLookup />
 
   {#if app.info && !app.info.msConfigured}
     <div class="note glass">
@@ -178,6 +202,10 @@
     </div>
   {/if}
 </div>
+
+{#if editingSkin && active}
+  <SkinEditor account={active} onclose={() => (editingSkin = false)} />
+{/if}
 
 {#if login}
   <MicrosoftSignIn start={login} oncancel={cancelSignIn} />
@@ -248,6 +276,36 @@
     margin: 0;
     font-size: 13px;
     color: var(--muted);
+  }
+  .uuid {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: 7px;
+    border: 1px solid var(--stroke);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--faint);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .uuid:hover {
+    color: var(--muted);
+    border-color: var(--stroke-strong);
+  }
+  .uuid span {
+    font-weight: 650;
+    letter-spacing: 0.04em;
+  }
+  .uuid code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .skin-actions {
     display: flex;

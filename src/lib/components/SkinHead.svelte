@@ -3,7 +3,12 @@
   // top, kept pixel-sharp. Falls back to the first letter of the name.
   import { skins, loadSkin } from '$lib/skins.svelte';
 
-  let { accountId, name, size = 34 }: { accountId: string | null; name: string; size?: number } = $props();
+  let {
+    accountId,
+    name,
+    size = 34,
+    png: given = null
+  }: { accountId: string | null; name: string; size?: number; /** A skin image to use instead of the account's. */ png?: string | null } = $props();
 
   let canvas = $state<HTMLCanvasElement>();
   let drawn = $state(false);
@@ -12,11 +17,11 @@
 
   // Load whenever the account changes (e.g. switching the active account).
   $effect(() => {
-    if (accountId) loadSkin(accountId);
+    if (accountId && !given) loadSkin(accountId);
   });
 
   $effect(() => {
-    const png = skin?.png;
+    const png = given ?? skin?.png;
     drawn = false;
     if (!png || !canvas) return;
     const img = new Image();
