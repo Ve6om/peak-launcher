@@ -733,6 +733,7 @@ pub async fn fetch_modpack(cf: &Client, paths: &Paths, id: &str, file_id: Option
             banner_url: m.screenshots.first().map(|s| s.url.clone()),
             description: Some(m.summary.clone()).filter(|d| !d.is_empty()),
             icon_url: m.logo.and_then(|l| l.thumbnail_url),
+            ..Default::default()
         },
     ))
 }
@@ -769,6 +770,7 @@ pub async fn prepare_modpack(paths: &Paths, zip_path: &Path, pack: Option<PackIn
         icon_url: None,
         banner_url: None,
         description: None,
+        ..Default::default()
     }));
     instances::save(paths, &inst).await?;
     Ok((inst, manifest))

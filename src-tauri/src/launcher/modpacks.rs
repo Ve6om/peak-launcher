@@ -102,6 +102,7 @@ pub async fn fetch(paths: &Paths, project_id: &str, version_id: Option<&str>) ->
             banner_url: project.gallery.iter().find(|g| g.featured).or(project.gallery.first()).map(|g| g.url.clone()),
             description: Some(project.description.clone()).filter(|d| !d.is_empty()),
             icon_url: project.icon_url,
+            ..Default::default()
         },
     ))
 }
@@ -144,6 +145,7 @@ pub async fn prepare(paths: &Paths, mrpack: &Path, pack: Option<PackInfo>) -> Re
         icon_url: None,
         banner_url: None,
         description: None,
+        ..Default::default()
     }));
     if let Some(p) = inst.pack.as_mut() {
         if p.version_number.is_empty() {

@@ -17,6 +17,7 @@ pub mod msbrowser;
 pub mod modpacks;
 pub mod modrinth;
 pub mod net;
+pub mod packupdate;
 pub mod paths;
 pub mod technic;
 pub mod rules;

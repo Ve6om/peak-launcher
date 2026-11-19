@@ -218,6 +218,7 @@ pub async fn fetch(paths: &Paths, id: &str, version_id: Option<&str>) -> Result<
         icon_url: v["icon"]["url"].as_str().map(String::from),
         banner_url: v["background"]["url"].as_str().map(String::from),
         description: v["description"].as_str().and_then(|d| d.lines().map(str::trim).find(|l| !l.is_empty())).map(String::from),
+        ..Default::default()
     };
     match solder_base(&v) {
         Some(base) => {
