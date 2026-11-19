@@ -5,6 +5,7 @@
   import Row from './Row.svelte';
   import Switch from './Switch.svelte';
   import JavaPicker from './JavaPicker.svelte';
+  import JvmPresetPicker from './JvmPresetPicker.svelte';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
   import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption } from '$lib/types';
@@ -186,8 +187,17 @@
         </Row>
       {/if}
       <Row
-        title="Java arguments"
-        desc="Extra JVM flags"
+        title="Performance flags"
+        desc="Java tuning preset for this instance"
+        override={d.jvmPreset !== null}
+        onoverride={(on) => (d.jvmPreset = on ? g.jvmPreset : null)}
+        wide
+      >
+        <JvmPresetPicker bind:value={() => d.jvmPreset ?? g.jvmPreset, (v) => (d.jvmPreset = v)} disabled={d.jvmPreset === null} />
+      </Row>
+      <Row
+        title="Extra Java arguments"
+        desc="Your own flags, added after the preset"
         override={d.jvmArgs !== null}
         onoverride={(on) => (d.jvmArgs = on ? g.jvmArgs : null)}
         wide

@@ -28,6 +28,7 @@ pub struct Effective {
     pub memory_mb: u32,
     pub metaspace_mb: u32,
     pub jvm_args: String,
+    pub jvm_preset: String,
     pub width: u32,
     pub height: u32,
     pub fullscreen: bool,
@@ -45,6 +46,7 @@ pub fn effective(inst: &Instance, s: &Settings) -> Effective {
         memory_mb: inst.memory_mb.unwrap_or(s.memory_mb).max(512),
         metaspace_mb: inst.metaspace_mb.unwrap_or(s.metaspace_mb),
         jvm_args: pick(&inst.jvm_args, &s.jvm_args),
+        jvm_preset: inst.jvm_preset.clone().filter(|p| super::jvmflags::is_known(p)).unwrap_or_else(|| s.jvm_preset.clone()),
         width: inst.window_width.unwrap_or(s.window_width),
         height: inst.window_height.unwrap_or(s.window_height),
         fullscreen: inst.fullscreen.unwrap_or(s.fullscreen),
@@ -236,6 +238,8 @@ pub async fn plan(
     if fx.metaspace_mb > 0 {
         args.push(format!("-XX:MetaspaceSize={}M", fx.metaspace_mb));
     }
+    // The preset's flags for the Java that will actually run, then the player's own.
+    args.extend(super::jvmflags::flags_for(&fx.jvm_preset, super::jvmflags::java_major(&java)));
     args.extend(fx.jvm_args.split_whitespace().map(String::from));
 
     if let Some(log) = version.logging.as_ref().and_then(|l| l.client.as_ref()) {

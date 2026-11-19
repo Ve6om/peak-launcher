@@ -21,6 +21,8 @@ export interface Instance {
   memoryMb: number | null;
   metaspaceMb: number | null;
   jvmArgs: string | null;
+  /** Java flag preset for this instance; null = the global one. */
+  jvmPreset: string | null;
   javaPath: string | null;
   javaRuntime: string | null;
   accountId: string | null;
@@ -127,6 +129,14 @@ export interface DetectedJava {
   major: number;
 }
 
+/** A Java flag preset (see the launcher's jvmflags module). */
+export interface JvmPreset {
+  id: string;
+  name: string;
+  description: string;
+  flags: string;
+}
+
 /** A server in the Servers tab. */
 export interface SavedServer {
   id: string;
@@ -184,6 +194,8 @@ export interface Settings {
   memoryMb: number;
   metaspaceMb: number;
   jvmArgs: string;
+  /** Java flag preset: 'none' | 'balanced' | 'aikar' | 'zgc'. */
+  jvmPreset: string;
   useBundledJava: boolean;
   javaPath: string;
   windowWidth: number;
@@ -229,7 +241,7 @@ export interface AppInfo {
   os: string;
   totalMemoryMb: number;
   dataDir: string;
-  defaultJvmArgs: string;
+  jvmPresets: JvmPreset[];
   curseforgeBuiltIn: boolean;
 }
 

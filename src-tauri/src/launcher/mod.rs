@@ -7,6 +7,7 @@ pub mod importer;
 pub mod install;
 pub mod instances;
 pub mod java;
+pub mod jvmflags;
 pub mod launch;
 pub mod loaders;
 pub mod manual;

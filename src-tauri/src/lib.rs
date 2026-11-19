@@ -980,7 +980,7 @@ fn app_info(state: State<'_, AppState>) -> serde_json::Value {
         "os": std::env::consts::OS,
         "totalMemoryMb": sys.total_memory() / 1024 / 1024,
         "dataDir": state.paths.root.to_string_lossy(),
-        "defaultJvmArgs": settings::DEFAULT_JVM_ARGS,
+        "jvmPresets": launcher::jvmflags::presets(),
         "curseforgeBuiltIn": curseforge::works_without_user_key(),
     })
 }

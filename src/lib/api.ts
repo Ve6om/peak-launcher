@@ -196,7 +196,8 @@ const mock = (() => {
     background: 'aurora',
     memoryMb: 4096,
     metaspaceMb: 256,
-    jvmArgs: DEFAULT_ARGS,
+    jvmArgs: '',
+    jvmPreset: 'none',
     useBundledJava: true,
     javaPath: '',
     windowWidth: 1280,
@@ -245,6 +246,7 @@ const mock = (() => {
       memoryMb: null,
       metaspaceMb: null,
       jvmArgs: null,
+      jvmPreset: null,
       javaPath: null,
       javaRuntime: null,
       accountId: null,
@@ -955,7 +957,12 @@ const mock = (() => {
           os: 'windows',
           totalMemoryMb: 32768,
           dataDir: String.raw`C:\Users\you\AppData\Roaming\PeakLauncher`,
-          defaultJvmArgs: DEFAULT_ARGS,
+          jvmPresets: [
+            { id: 'none', name: 'None', description: "Java's own defaults. A good choice for most players and vanilla.", flags: '' },
+            { id: 'balanced', name: 'Smooth (G1)', description: 'Short garbage collection pauses for steadier frame times. Works on every Java version.', flags: DEFAULT_ARGS },
+            { id: 'aikar', name: "Aikar's flags", description: 'A popular G1 set for large modpacks with lots of memory. Works on every Java version.', flags: '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 ...' },
+            { id: 'zgc', name: 'ZGC (low latency)', description: 'Very short pauses on newer Java (17+). Uses more memory; best with 8 GB or more. Older Minecraft on Java 8 falls back to Smooth (G1).', flags: '-XX:+UseZGC' }
+          ],
           curseforgeBuiltIn: false
         } satisfies AppInfo;
       case 'get_settings':
