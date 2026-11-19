@@ -186,7 +186,6 @@
     border-radius: 9px;
     overflow: hidden;
     flex-shrink: 0;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
   }
   .pin-text,
   .acc-text {
