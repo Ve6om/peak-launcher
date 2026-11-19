@@ -19,6 +19,7 @@ pub mod paths;
 pub mod technic;
 pub mod rules;
 pub mod secrets;
+pub mod servers;
 pub mod serverpack;
 pub mod settings;
 pub mod skins;

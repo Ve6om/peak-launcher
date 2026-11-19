@@ -28,6 +28,8 @@ import type {
   LoginStart,
   ModSide,
   ServerPackReport,
+  SavedServer,
+  ServerStatus,
   Skin,
   LogLine,
   Settings,
@@ -141,6 +143,12 @@ export const api = {
   openFolder: (id: string) => call<void>('open_instance_folder', { id }),
   install: (id: string) => call<Instance>('install_instance', { id }),
   launch: (id: string) => call<void>('launch_instance', { id }),
+  serversList: () => call<SavedServer[]>('servers_list'),
+  serverSave: (server: SavedServer) => call<SavedServer[]>('server_save', { server }),
+  serverDelete: (id: string) => call<SavedServer[]>('server_delete', { id }),
+  serverPing: (address: string) => call<ServerStatus>('server_ping', { address }),
+  serversFromInstance: (instanceId: string) => call<[string, string][]>('servers_from_instance', { instanceId }),
+  serverJoin: (serverId: string, instanceId: string) => call<void>('server_join', { serverId, instanceId }),
   stop: (id: string) => call<void>('stop_instance', { id }),
   running: () => call<string[]>('running_instances'),
   gameLogs: (id: string) => call<LogLine[]>('game_logs', { id }),
@@ -351,6 +359,40 @@ const mock = (() => {
     return c.toDataURL('image/png');
   }
   let loginCancelled = false;
+
+  // Preview servers (made-up names, so no real server is shown or contacted).
+  const NL = String.fromCharCode(10);
+  let mockServers: SavedServer[] = [
+    { id: 's1', name: 'Peak Survival', address: 'play.peak-example.net', instanceId: 'survival-sp' },
+    { id: 's2', name: 'Creative Plots', address: 'creative.example.org:25570', instanceId: null },
+    { id: 's3', name: 'Old LAN box', address: '192.168.1.40', instanceId: null }
+  ];
+  const mockStatus: Record<string, ServerStatus> = {
+    'play.peak-example.net': {
+      online: true,
+      error: null,
+      version: 'Paper 1.21.4',
+      protocol: 769,
+      playersOnline: 37,
+      playersMax: 100,
+      playersSample: ['Alex', 'Steve', 'Notch_fan'],
+      motd: { text: '', extra: [{ text: 'Peak Survival ', color: 'aqua', bold: true }, { text: '| ', color: 'dark_gray' }, { text: 'Season 4 is live!' + NL, color: 'gold' }, { text: 'Land claims, shops and weekly events', color: 'gray' }] },
+      favicon: null,
+      pingMs: 38
+    },
+    'creative.example.org:25570': {
+      online: true,
+      error: null,
+      version: '§aVelocity 1.20-1.21',
+      protocol: 767,
+      playersOnline: 4,
+      playersMax: 50,
+      playersSample: [],
+      motd: '§d§lCreative Plots§r' + NL + '§7Build anything, 200x200 plots',
+      favicon: null,
+      pingMs: 112
+    }
+  };
   const mockContent: Record<string, InstalledItem[]> = {
     'survival-spmod': [
       { fileName: 'fabric-api-0.110.0.jar', enabled: true, size: 2_400_000, sha1: 'fabric-api-0.110.0.jar', projectId: 'fabric-api-0.110.0.jar', versionId: 'v1', title: 'Fabric API', versionNumber: '0.110.0', iconUrl: null },
@@ -851,6 +893,35 @@ const mock = (() => {
           device: { deviceCode: 'x', userCode: '83Y72FXA', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 },
           browserUrl: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=preview&response_type=code'
         };
+      case 'servers_list':
+        return mockServers;
+      case 'server_save': {
+        const s = { ...(a.server as SavedServer) };
+        if (!s.address.trim()) throw new Error("Enter the server's address.");
+        if (!s.name.trim()) s.name = s.address;
+        if (!s.id) mockServers = [...mockServers, { ...s, id: 's' + Date.now() }];
+        else mockServers = mockServers.map((x) => (x.id === s.id ? s : x));
+        return mockServers;
+      }
+      case 'server_delete':
+        mockServers = mockServers.filter((x) => x.id !== a.id);
+        return mockServers;
+      case 'server_ping': {
+        await sleep(300 + Math.random() * 700);
+        const known = mockStatus[a.address as string];
+        if (known) return known;
+        return { online: false, error: 'Nothing is running at that address', version: null, protocol: null, playersOnline: null, playersMax: null, playersSample: [], motd: null, favicon: null, pingMs: null } satisfies ServerStatus;
+      }
+      case 'servers_from_instance':
+        return [
+          ['Friends SMP', 'smp.example.net'],
+          ['Local test', 'localhost:25566']
+        ];
+      case 'server_join': {
+        const inst = instances.find((i) => i.id === a.instanceId)!;
+        mockServers = mockServers.map((x) => (x.id === a.serverId ? { ...x, instanceId: a.instanceId } : x));
+        return call('launch_instance', { id: inst.id });
+      }
       case 'account_skin':
         // Preview: a made-up skin so heads and the 3D model have something to show.
         return { png: sampleSkin(), model: 'classic' } satisfies Skin;

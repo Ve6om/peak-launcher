@@ -12,6 +12,7 @@ use crate::launcher::loaders::{self, Loader, LoaderVersion};
 use crate::launcher::curseforge;
 use crate::launcher::export;
 use crate::launcher::serverpack;
+use crate::launcher::servers;
 use crate::launcher::ftb;
 use crate::launcher::technic;
 use crate::launcher::importer;
@@ -207,7 +208,7 @@ async fn install_instance(app: AppHandle, state: State<'_, AppState>, id: String
 // ---------------- launching ----------------
 
 #[tauri::command]
-async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<()> {
+async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String, server: Option<String>) -> Result<()> {
     if state.running.lock().unwrap().contains_key(&id) {
         return Err(Error::msg("This instance is already running."));
     }
@@ -234,7 +235,14 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String)
     }
     let version_id = inst.version_id.clone().unwrap_or_else(|| inst.game_version.clone());
     let version = versions::resolve(&paths, &version_id).await?;
-    let plan = launch::plan(&paths, &inst, &version, &account, &settings).await?;
+    // Joining from the Servers tab: go straight into that server this time
+    // only (the instance's own quick play setting is left as it was).
+    let mut launch_inst = inst.clone();
+    if let Some(address) = server.as_deref().map(str::trim).filter(|a| !a.is_empty()) {
+        servers::parse_address(address)?;
+        launch_inst.quick_play = instances::QuickPlay { mode: "server".into(), value: address.to_string() };
+    }
+    let plan = launch::plan(&paths, &launch_inst, &version, &account, &settings).await?;
 
     state.logs.lock().unwrap().remove(&id);
     let _ = app.emit("game-log-reset", serde_json::json!({ "instanceId": id }));
@@ -767,6 +775,52 @@ async fn serverpack_export(state: State<'_, AppState>, instance_id: String, opti
     serverpack::export(&state.paths, &instance_id, &options).await
 }
 
+// ---------------- servers ----------------
+
+#[tauri::command]
+async fn servers_list(state: State<'_, AppState>) -> Result<Vec<servers::Server>> {
+    servers::list(&state.paths).await
+}
+
+#[tauri::command]
+async fn server_save(state: State<'_, AppState>, server: servers::Server) -> Result<Vec<servers::Server>> {
+    servers::save(&state.paths, server).await
+}
+
+#[tauri::command]
+async fn server_delete(state: State<'_, AppState>, id: String) -> Result<Vec<servers::Server>> {
+    servers::delete(&state.paths, &id).await
+}
+
+#[tauri::command]
+async fn servers_reorder(state: State<'_, AppState>, ids: Vec<String>) -> Result<Vec<servers::Server>> {
+    servers::reorder(&state.paths, &ids).await
+}
+
+/// Live status of one server, straight from the server.
+#[tauri::command]
+async fn server_ping(address: String) -> Result<servers::Status> {
+    Ok(servers::ping(&address).await)
+}
+
+/// The servers in an instance's own multiplayer list, for importing.
+#[tauri::command]
+async fn servers_from_instance(state: State<'_, AppState>, instance_id: String) -> Result<Vec<(String, String)>> {
+    servers::from_instance(&state.paths, &instance_id).await
+}
+
+/// Launch an instance straight into a server, and remember it for next time.
+#[tauri::command]
+async fn server_join(app: AppHandle, state: State<'_, AppState>, server_id: String, instance_id: String) -> Result<()> {
+    let server = servers::list(&state.paths)
+        .await?
+        .into_iter()
+        .find(|s| s.id == server_id)
+        .ok_or_else(|| Error::msg("That server isn't in the list any more."))?;
+    servers::remember_instance(&state.paths, &server_id, &instance_id).await?;
+    launch_instance(app, state, instance_id, Some(server.address)).await
+}
+
 // ---------------- modpack artwork ----------------
 
 /// Fill in icon/banner artwork for a modpack instance installed before Peak
@@ -990,6 +1044,13 @@ pub fn run() {
             game_logs,
             content_linked,
             serverpack_analyze,
+            servers_list,
+            server_save,
+            server_delete,
+            servers_reorder,
+            server_ping,
+            servers_from_instance,
+            server_join,
             serverpack_export,
             open_console_window,
             close_console_window,

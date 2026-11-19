@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { House, Library, Package, Users, Settings, Plus, ChevronRight } from '@lucide/svelte';
+  import { House, Library, Package, Server, Users, Settings, Plus, ChevronRight } from '@lucide/svelte';
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
   import type { View } from '$lib/types';
   import InstanceArt from './InstanceArt.svelte';
@@ -9,6 +9,7 @@
     { view: 'home', label: 'Home', icon: House },
     { view: 'library', label: 'Library', icon: Library },
     { view: 'browse', label: 'Modpacks', icon: Package },
+    { view: 'servers', label: 'Servers', icon: Server },
     { view: 'accounts', label: 'Accounts', icon: Users },
     { view: 'settings', label: 'Settings', icon: Settings }
   ];

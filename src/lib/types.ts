@@ -127,6 +127,30 @@ export interface DetectedJava {
   major: number;
 }
 
+/** A server in the Servers tab. */
+export interface SavedServer {
+  id: string;
+  name: string;
+  address: string;
+  /** Instance last used to join it. */
+  instanceId: string | null;
+}
+
+/** Live status straight from the server. */
+export interface ServerStatus {
+  online: boolean;
+  error: string | null;
+  version: string | null;
+  protocol: number | null;
+  playersOnline: number | null;
+  playersMax: number | null;
+  playersSample: string[];
+  /** Minecraft text: a string with § codes or a text component. */
+  motd: unknown;
+  favicon: string | null;
+  pingMs: number | null;
+}
+
 /** An account's skin, as a data: URL, and its arm model. */
 export interface Skin {
   png: string;
@@ -209,7 +233,7 @@ export interface AppInfo {
   curseforgeBuiltIn: boolean;
 }
 
-export type View = 'home' | 'library' | 'instance' | 'browse' | 'accounts' | 'settings';
+export type View = 'home' | 'library' | 'instance' | 'browse' | 'servers' | 'accounts' | 'settings';
 
 export const LOADERS: { id: LoaderId; label: string }[] = [
   { id: 'vanilla', label: 'Vanilla' },

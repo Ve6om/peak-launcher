@@ -21,6 +21,7 @@
   import Library from '$lib/views/Library.svelte';
   import InstanceView from '$lib/views/InstanceView.svelte';
   import Accounts from '$lib/views/Accounts.svelte';
+  import Servers from '$lib/views/Servers.svelte';
   import Browse from '$lib/views/Browse.svelte';
   import Settings from '$lib/views/Settings.svelte';
   import ConsoleWindow from '$lib/views/ConsoleWindow.svelte';
@@ -81,6 +82,8 @@
               <InstanceView />
             {:else if app.view === 'browse'}
               <Browse />
+            {:else if app.view === 'servers'}
+              <Servers />
             {:else if app.view === 'accounts'}
               <Accounts />
             {:else if app.view === 'settings'}
