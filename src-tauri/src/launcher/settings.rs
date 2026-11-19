@@ -39,6 +39,8 @@ pub struct Settings {
     pub auto_update_check: bool,
     /// The "add Peak to your applications menu" offer (AppImage) was dismissed.
     pub appimage_menu_dismissed: bool,
+    /// Tell the player when a modpack they installed has a new version.
+    pub modpack_update_check: bool,
 
     // Commands
     pub enable_commands: bool,
@@ -83,6 +85,7 @@ impl Default for Settings {
             open_console: true,
             auto_update_check: true,
             appimage_menu_dismissed: false,
+            modpack_update_check: true,
             enable_commands: false,
             pre_launch_command: String::new(),
             post_exit_command: String::new(),
@@ -162,6 +165,30 @@ mod jvm_migration_tests {
     fn new_installs_use_no_preset() {
         let s = Settings::default();
         assert_eq!((s.jvm_args.as_str(), s.jvm_preset.as_str()), ("", "none"));
+    }
+}
+
+/// Everything back to the defaults, except what the player would have to go
+/// and find again: their own CurseForge key.
+pub fn defaults_keeping(current: &Settings) -> Settings {
+    Settings {
+        curseforge_api_key: current.curseforge_api_key.clone(),
+        appimage_menu_dismissed: current.appimage_menu_dismissed,
+        ..Settings::default()
+    }
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+
+    #[test]
+    fn reset_keeps_only_the_key() {
+        let mine = Settings { memory_mb: 12000, accent: "ember".into(), curseforge_api_key: "abc".into(), ..Settings::default() };
+        let reset = defaults_keeping(&mine);
+        assert_eq!(reset.memory_mb, Settings::default().memory_mb);
+        assert_eq!(reset.accent, "glacier");
+        assert_eq!(reset.curseforge_api_key, "abc");
     }
 }
 

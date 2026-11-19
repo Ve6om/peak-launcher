@@ -33,6 +33,7 @@ import type {
   Skin,
   Wardrobe,
   PastSkin,
+  PackUpdate,
   Player,
   MenuStatus,
   LogLine,
@@ -89,6 +90,12 @@ export const api = {
   modpackSearch: (source: Source, query: string, sort: string, offset: number) =>
     call<SearchResult>('modpack_search', { source, query, sort, offset }),
   modpackVersions: (projectId: string) => call<ContentVersion[]>('modpack_versions', { projectId }),
+  modpackUpdates: () => call<PackUpdate[]>('modpack_updates'),
+  modpackSkipUpdate: (id: string, versionId: string) => call<Instance>('modpack_skip_update', { id, versionId }),
+  modpackMuteUpdates: (id: string, muted: boolean) => call<Instance>('modpack_mute_updates', { id, muted }),
+  /** Switch a modpack instance to another version of its pack (installs in the background). */
+  modpackChangeVersion: (id: string, versionId: string) => call<Instance>('modpack_change_version', { id, versionId }),
+  resetSettings: () => call<Settings>('reset_settings'),
   modpackInstall: (opts: { projectId?: string; versionId?: string | null; filePath?: string }) =>
     call<Instance>('modpack_install', {
       projectId: opts.projectId ?? null,
@@ -244,6 +251,7 @@ const mock = (() => {
     openConsole: true,
     autoUpdateCheck: true,
     appimageMenuDismissed: false,
+    modpackUpdateCheck: true,
     enableCommands: false,
     preLaunchCommand: '',
     postExitCommand: '',
@@ -258,6 +266,16 @@ const mock = (() => {
     proxyHost: '',
     proxyPort: 8080,
     curseforgeApiKey: ''
+  };
+  const defaultSettings: Settings = JSON.parse(JSON.stringify(settings));
+  // Preview: one instance is a modpack a version behind.
+  instances[2].pack = {
+    name: 'Skyblock Hardcore',
+    versionNumber: '12.0.0',
+    projectId: 'mock-pack',
+    versionId: 'mv2',
+    iconUrl: null,
+    bannerUrl: '/hero.jpg'
   };
   const running = new Set<string>();
 
@@ -702,6 +720,40 @@ const mock = (() => {
           game_versions: ['1.21.4'],
           loaders: ['fabric']
         }));
+      case 'modpack_updates': {
+        await sleep(600);
+        if (!settings.modpackUpdateCheck) return [];
+        return instances
+          .filter((i) => i.pack?.projectId && !i.pack.noUpdatePrompts && i.pack.versionId !== 'mv0' && i.pack.skippedVersion !== 'mv0')
+          .map((i) => ({
+            instanceId: i.id,
+            instanceName: i.name,
+            packName: i.pack!.name,
+            current: i.pack!.versionNumber,
+            latestId: 'mv0',
+            latest: '14.0.0',
+            iconUrl: i.pack!.iconUrl
+          })) satisfies PackUpdate[];
+      }
+      case 'modpack_skip_update':
+      case 'modpack_mute_updates': {
+        const inst = instances.find((i) => i.id === a.id)!;
+        if (cmd === 'modpack_skip_update') inst.pack!.skippedVersion = a.versionId;
+        else inst.pack!.noUpdatePrompts = a.muted;
+        return inst;
+      }
+      case 'modpack_change_version': {
+        await sleep(500);
+        const inst = instances.find((i) => i.id === a.id)!;
+        const n = Number(String(a.versionId).slice(2));
+        inst.pack = { ...inst.pack!, versionId: a.versionId, versionNumber: `${14 - n}.0.0`, skippedVersion: null };
+        inst.installed = false;
+        setTimeout(() => fakeInstall(inst.id), 100);
+        return inst;
+      }
+      case 'reset_settings':
+        settings = { ...JSON.parse(JSON.stringify(defaultSettings)), curseforgeApiKey: settings.curseforgeApiKey };
+        return settings;
       case 'modpack_install': {
         const t = a.projectId ? (String(a.projectId).startsWith('technic:') ? (['Tekkit 2', '', ''] as [string, string, string]) : String(a.projectId).startsWith('ftb:') ? ftbMock(a.projectId) : findMock(a.projectId)) : undefined;
         const name = t ? t[0] : String(a.filePath).split(/[\\/]/).pop()!.replace(/\.mrpack$/, '');

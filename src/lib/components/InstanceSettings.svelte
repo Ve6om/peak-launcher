@@ -6,6 +6,7 @@
   import Switch from './Switch.svelte';
   import JavaPicker from './JavaPicker.svelte';
   import JvmPresetPicker from './JvmPresetPicker.svelte';
+  import PackVersionPanel from './PackVersionPanel.svelte';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
   import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption } from '$lib/types';
@@ -119,6 +120,10 @@
       </Row>
     </div>
   </section>
+
+  {#if inst.pack}
+    <PackVersionPanel {inst} onchanged={(i) => (d = clone(i))} />
+  {/if}
 
   <section class="panel glass">
     <h3>Game & mod loader</h3>

@@ -89,6 +89,21 @@ export interface PackInfo {
   iconUrl: string | null;
   bannerUrl: string | null;
   description?: string | null;
+  /** An update the player chose to skip (its version id). */
+  skippedVersion?: string | null;
+  /** The player asked not to hear about updates to this pack. */
+  noUpdatePrompts?: boolean;
+}
+
+/** A modpack instance with a newer version available. */
+export interface PackUpdate {
+  instanceId: string;
+  instanceName: string;
+  packName: string;
+  current: string;
+  latestId: string;
+  latest: string;
+  iconUrl: string | null;
 }
 
 /** Pack version without the file extension or a repeated pack name. */
@@ -257,6 +272,8 @@ export interface Settings {
   autoUpdateCheck: boolean;
   /** The AppImage "add to applications menu" offer was dismissed. */
   appimageMenuDismissed: boolean;
+  /** Tell the player when an installed modpack has a new version. */
+  modpackUpdateCheck: boolean;
   enableCommands: boolean;
   preLaunchCommand: string;
   postExitCommand: string;

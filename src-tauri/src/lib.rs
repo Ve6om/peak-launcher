@@ -5,7 +5,7 @@ mod window;
 use crate::error::{Error, Result};
 use crate::launcher::accounts::{self, AccountInfo, LoginStart};
 use crate::launcher::install::{self, InstallProgress, ProgressFn};
-use crate::launcher::instances::{self, Instance};
+use crate::launcher::instances::{self, Instance, PackInfo};
 use crate::launcher::java::{self, DetectedJava, RuntimeOption};
 use crate::launcher::launch;
 use crate::launcher::loaders::{self, Loader, LoaderVersion};
@@ -601,16 +601,147 @@ async fn modpack_search(state: State<'_, AppState>, source: String, query: Strin
 
 #[tauri::command]
 async fn modpack_versions(state: State<'_, AppState>, project_id: String) -> Result<Vec<modrinth::Version>> {
-    if ftb::is_ftb(&project_id) {
-        return ftb::versions(&project_id).await;
+    pack_versions(&state.paths, &project_id).await
+}
+
+async fn pack_versions(paths: &Paths, project_id: &str) -> Result<Vec<modrinth::Version>> {
+    if ftb::is_ftb(project_id) {
+        return ftb::versions(project_id).await;
     }
-    if technic::is_technic(&project_id) {
-        return technic::versions(&project_id).await;
+    if technic::is_technic(project_id) {
+        return technic::versions(project_id).await;
     }
-    if curseforge::is_cf(&project_id) {
-        return curseforge::modpack_versions(&cf_client(&state.paths).await?, &project_id).await;
+    if curseforge::is_cf(project_id) {
+        return curseforge::modpack_versions(&cf_client(paths).await?, project_id).await;
     }
-    modpacks::versions(&project_id).await
+    modpacks::versions(project_id).await
+}
+
+/// Modpack instances with a newer version, leaving out skipped updates and
+/// packs the player muted. Empty when update checks are off in Settings.
+#[tauri::command]
+async fn modpack_updates(state: State<'_, AppState>) -> Result<Vec<launcher::packupdate::PackUpdate>> {
+    use futures::StreamExt;
+    if !settings::load(&state.paths).await.map(|s| s.modpack_update_check).unwrap_or(true) {
+        return Ok(Vec::new());
+    }
+    let paths = state.paths.clone();
+    let packs: Vec<(Instance, PackInfo, String)> = instances::list(&paths)
+        .await?
+        .into_iter()
+        .filter_map(|i| {
+            let p = i.pack.clone()?;
+            let pid = p.project_id.clone()?;
+            (!p.no_update_prompts && p.version_id.is_some()).then_some((i, p, pid))
+        })
+        .collect();
+    let found: Vec<Option<launcher::packupdate::PackUpdate>> = futures::stream::iter(packs)
+        .map(|(inst, pack, pid)| {
+            let paths = paths.clone();
+            async move {
+                // A pack that can't be checked (offline, removed) is just skipped.
+                let versions = pack_versions(&paths, &pid).await.ok()?;
+                let next = launcher::packupdate::newer(&versions, &pack)?;
+                Some(launcher::packupdate::PackUpdate {
+                    instance_id: inst.id.clone(),
+                    instance_name: inst.name.clone(),
+                    pack_name: pack.name.clone(),
+                    current: pack.version_number.clone(),
+                    latest_id: next.id.clone(),
+                    latest: next.version_number.clone(),
+                    icon_url: pack.icon_url.clone(),
+                })
+            }
+        })
+        .buffer_unordered(4)
+        .collect()
+        .await;
+    Ok(found.into_iter().flatten().collect())
+}
+
+/// Don't offer this update again (a later one still shows).
+#[tauri::command]
+async fn modpack_skip_update(state: State<'_, AppState>, id: String, version_id: String) -> Result<Instance> {
+    let mut inst = instances::get(&state.paths, &id).await?;
+    let pack = inst.pack.as_mut().ok_or_else(|| Error::msg("This instance isn't a modpack."))?;
+    pack.skipped_version = Some(version_id);
+    instances::save(&state.paths, &inst).await?;
+    Ok(inst)
+}
+
+/// Turn update prompts for one modpack off or back on.
+#[tauri::command]
+async fn modpack_mute_updates(state: State<'_, AppState>, id: String, muted: bool) -> Result<Instance> {
+    let mut inst = instances::get(&state.paths, &id).await?;
+    let pack = inst.pack.as_mut().ok_or_else(|| Error::msg("This instance isn't a modpack."))?;
+    pack.no_update_prompts = muted;
+    instances::save(&state.paths, &inst).await?;
+    Ok(inst)
+}
+
+/// Switch a modpack instance to another version of its pack, newer or older,
+/// without making a new instance. Worlds, settings, screenshots and playtime
+/// stay; the old mods folder is moved to a backup first (so mods the player
+/// added aren't lost), then the chosen version installs in the background.
+#[tauri::command]
+async fn modpack_change_version(app: AppHandle, state: State<'_, AppState>, id: String, version_id: String) -> Result<Instance> {
+    if state.running.lock().unwrap().contains_key(&id) {
+        return Err(Error::msg("Close the game before changing the modpack version."));
+    }
+    if state.installing.lock().unwrap().contains(&id) {
+        return Err(Error::msg("Wait for the current install to finish first."));
+    }
+    let paths = state.paths.clone();
+    let mut inst = instances::get(&paths, &id).await?;
+    let old = inst.pack.clone().ok_or_else(|| Error::msg("This instance isn't a modpack."))?;
+    let pid = old
+        .project_id
+        .clone()
+        .ok_or_else(|| Error::msg("This modpack was installed from a file, so Peak can't fetch other versions of it."))?;
+    if old.version_id.as_deref() == Some(version_id.as_str()) {
+        return Err(Error::msg("That version is already installed."));
+    }
+    let cf = cf_client(&paths).await.ok();
+
+    // Read the chosen version the same way a new install does (into a
+    // throwaway instance), then copy what it needs onto this one.
+    let (temp, kind, archive) = if ftb::is_ftb(&pid) {
+        let (manifest, info) = ftb::fetch(&pid, Some(&version_id)).await?;
+        let t = ftb::prepare(&paths, &manifest, info).await?;
+        (t, PackKind::Ftb(manifest), std::path::PathBuf::new())
+    } else if technic::is_technic(&pid) {
+        let (plan, info) = technic::fetch(&paths, &pid, Some(&version_id)).await?;
+        let t = technic::prepare(&paths, &plan, info).await?;
+        (t, PackKind::Technic(plan), std::path::PathBuf::new())
+    } else if curseforge::is_cf(&pid) {
+        let client = cf.as_ref().ok_or_else(|| Error::msg(NEED_CF_KEY))?;
+        let (path, info) = curseforge::fetch_modpack(client, &paths, &pid, Some(&version_id)).await?;
+        let (t, manifest) = curseforge::prepare_modpack(&paths, &path, Some(info)).await?;
+        (t, PackKind::CurseForge(manifest), path)
+    } else {
+        let (path, info) = modpacks::fetch(&paths, &pid, Some(&version_id)).await?;
+        let (t, index) = modpacks::prepare(&paths, &path, Some(info)).await?;
+        (t, PackKind::Modrinth(index), path)
+    };
+    let _ = instances::delete(&paths, &temp.id).await;
+
+    let mut pack = temp.pack.clone().unwrap_or_default();
+    pack.icon_url = pack.icon_url.or(old.icon_url.clone());
+    pack.banner_url = pack.banner_url.or(old.banner_url.clone());
+    pack.description = pack.description.or(old.description.clone());
+    pack.no_update_prompts = old.no_update_prompts;
+    pack.skipped_version = None;
+    inst.game_version = temp.game_version.clone();
+    inst.loader = temp.loader.clone();
+    inst.loader_version = temp.loader_version.clone();
+    inst.pack = Some(pack);
+    inst.installed = false;
+    inst.version_id = None;
+
+    launcher::packupdate::back_up_mods(&paths, &id, &old.version_number).await?;
+    instances::save(&paths, &inst).await?;
+    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf);
+    Ok(inst)
 }
 
 enum PackKind {
@@ -1135,6 +1266,15 @@ async fn save_settings(state: State<'_, AppState>, settings: Settings) -> Result
     Ok(settings)
 }
 
+/// Put every setting back to its default (keeps your own CurseForge key).
+#[tauri::command]
+async fn reset_settings(state: State<'_, AppState>) -> Result<Settings> {
+    let current = settings::load(&state.paths).await.unwrap_or_default();
+    let fresh = settings::defaults_keeping(&current);
+    settings::save(&state.paths, &fresh).await?;
+    Ok(fresh)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1208,6 +1348,11 @@ pub fn run() {
             modpack_search,
             modpack_versions,
             modpack_install,
+            modpack_updates,
+            modpack_skip_update,
+            modpack_mute_updates,
+            modpack_change_version,
+            reset_settings,
             content_search,
             content_project,
             content_versions,

@@ -74,7 +74,7 @@ pub struct Instance {
     pub imported_from: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackInfo {
     pub name: String,
@@ -93,6 +93,12 @@ pub struct PackInfo {
     /// Short description of the pack.
     #[serde(default)]
     pub description: Option<String>,
+    /// An update the player chose to skip (its version id).
+    #[serde(default)]
+    pub skipped_version: Option<String>,
+    /// The player asked not to be told about updates to this pack.
+    #[serde(default)]
+    pub no_update_prompts: bool,
 }
 
 /// Join a world, server or realm straight from the launcher.

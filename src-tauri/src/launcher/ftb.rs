@@ -227,6 +227,7 @@ pub async fn fetch(id: &str, version_id: Option<&str>) -> Result<(Manifest, Pack
             icon_url: art(&v, "square").into_iter().next(),
             banner_url: art(&v, "splash").into_iter().next().or_else(|| art(&v, "screenshot").into_iter().next()),
             description: v["synopsis"].as_str().map(String::from).filter(|d| !d.is_empty()),
+            ..Default::default()
         },
     ))
 }
