@@ -818,6 +818,10 @@ const mock = (() => {
         return { deviceCode: 'x', userCode: 'PK7-Q2MX', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 };
       case 'ms_login_finish':
         await sleep(4000);
+        // Preview: add #demo-review to the URL to see the "awaiting Mojang" note.
+        if (typeof location !== 'undefined' && location.hash === '#demo-review') {
+          throw new Error("Microsoft sign-in is still being reviewed by Mojang and isn't switched on yet. It will start working automatically once they approve it.");
+        }
         accounts = [...accounts.map((x) => ({ ...x, active: false })), { id: 'a' + Date.now(), username: 'NewPlayer', kind: 'microsoft', active: true }];
         return accounts;
       case 'add_offline_account':
