@@ -586,9 +586,9 @@ mod tests {
 
     #[tokio::test]
     async fn reports_unreachable_servers_as_offline() {
-        // Grab a free port, then close it so nothing is listening.
-        let port = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap().port();
-        let s = ping(&format!("127.0.0.1:{port}")).await;
+        // Port 1 is reserved and nothing listens there. (A freed random port
+        // could be picked up again by another test running at the same time.)
+        let s = ping("127.0.0.1:1").await;
         assert!(!s.online);
         assert!(s.error.is_some());
     }
