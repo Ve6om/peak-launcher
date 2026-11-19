@@ -28,6 +28,7 @@ import type {
   LoginStart,
   ModSide,
   ServerPackReport,
+  Skin,
   LogLine,
   Settings,
   VersionManifest
@@ -149,6 +150,7 @@ export const api = {
   msLoginStart: () => call<LoginStart>('ms_login_start'),
   msLoginFinish: (start: LoginStart) => call<AccountInfo[]>('ms_login_finish', { start }),
   msLoginCancel: () => call<void>('ms_login_cancel'),
+  accountSkin: (id: string, refresh = false) => call<Skin | null>('account_skin', { id, refresh }),
   addOffline: (username: string) => call<AccountInfo[]>('add_offline_account', { username }),
   setActiveAccount: (id: string) => call<AccountInfo[]>('set_active_account', { id }),
   removeAccount: (id: string) => call<AccountInfo[]>('remove_account', { id }),
@@ -322,6 +324,32 @@ const mock = (() => {
   };
   // A few mods on the first instance so the Content tab has something to show.
   const popouts: Record<string, Window | null> = {};
+
+  /** A simple made-up 64x64 skin for the preview (not a Minecraft asset). */
+  function sampleSkin(): string {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    const box = (x: number, y: number, w: number, h: number, color: string) => ((g.fillStyle = color), g.fillRect(x, y, w, h));
+    // head (all six faces), skin tone with hair on top/back
+    box(0, 0, 32, 16, '#c9956b');
+    box(8, 0, 8, 8, '#3b2a20');
+    box(0, 8, 32, 3, '#3b2a20');
+    box(24, 8, 8, 8, '#3b2a20');
+    // face details on the front (8..16, 8..16)
+    box(9, 12, 2, 1, '#ffffff');
+    box(13, 12, 2, 1, '#ffffff');
+    box(10, 12, 1, 1, '#3d6fd6');
+    box(14, 12, 1, 1, '#3d6fd6');
+    box(11, 14, 2, 1, '#8b5a3c');
+    // body, arms, legs
+    box(16, 16, 24, 16, '#4b8fd6');
+    box(40, 16, 16, 16, '#c9956b');
+    box(32, 48, 16, 16, '#c9956b');
+    box(0, 16, 16, 16, '#2d3a66');
+    box(16, 48, 16, 16, '#2d3a66');
+    return c.toDataURL('image/png');
+  }
   let loginCancelled = false;
   const mockContent: Record<string, InstalledItem[]> = {
     'survival-spmod': [
@@ -823,6 +851,9 @@ const mock = (() => {
           device: { deviceCode: 'x', userCode: '83Y72FXA', verificationUri: 'https://www.microsoft.com/link', expiresIn: 900, interval: 5 },
           browserUrl: 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=preview&response_type=code'
         };
+      case 'account_skin':
+        // Preview: a made-up skin so heads and the 3D model have something to show.
+        return { png: sampleSkin(), model: 'classic' } satisfies Skin;
       case 'ms_login_cancel':
         loginCancelled = true;
         return;

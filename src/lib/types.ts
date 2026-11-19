@@ -127,6 +127,12 @@ export interface DetectedJava {
   major: number;
 }
 
+/** An account's skin, as a data: URL, and its arm model. */
+export interface Skin {
+  png: string;
+  model: 'slim' | 'classic';
+}
+
 export interface AccountInfo {
   id: string;
   username: string;

@@ -3,6 +3,7 @@
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
   import type { View } from '$lib/types';
   import InstanceArt from './InstanceArt.svelte';
+  import SkinHead from './SkinHead.svelte';
 
   const nav: { view: View | 'browse'; label: string; icon: typeof House; soon?: boolean }[] = [
     { view: 'home', label: 'Home', icon: House },
@@ -60,7 +61,7 @@
   </div>
 
   <button class="account" onclick={() => go('accounts')}>
-    <span class="avatar">{account ? account.username[0].toUpperCase() : '?'}</span>
+    <SkinHead accountId={account?.id ?? null} name={account?.username ?? ''} size={34} />
     <span class="acc-text">
       <span class="acc-name">{account?.username ?? 'Add account'}</span>
       <span class="acc-meta">{account ? (account.kind === 'microsoft' ? 'Microsoft' : 'Offline') : 'Sign in to play'}</span>
@@ -240,17 +241,6 @@
   }
   .account:hover {
     background: rgba(255, 255, 255, 0.07);
-  }
-  .avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    background: var(--accent);
-    color: var(--on-accent);
-    flex-shrink: 0;
   }
   .acc-name {
     color: var(--text);

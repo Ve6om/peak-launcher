@@ -852,6 +852,18 @@ async fn list_accounts(state: State<'_, AppState>) -> Result<Vec<AccountInfo>> {
     Ok(accounts::info(&accounts::load(&state.paths).await?))
 }
 
+/// An account's skin (cached for an hour). None for offline accounts and
+/// accounts without a custom skin.
+#[tauri::command]
+async fn account_skin(state: State<'_, AppState>, id: String, refresh: Option<bool>) -> Result<Option<launcher::skins::Skin>> {
+    let store = accounts::load(&state.paths).await?;
+    let Some(account) = store.accounts.iter().find(|a| a.id == id) else { return Ok(None) };
+    if account.kind != accounts::AccountKind::Microsoft {
+        return Ok(None);
+    }
+    launcher::skins::get(&state.paths, &account.id, refresh.unwrap_or(false)).await
+}
+
 #[tauri::command]
 async fn ms_login_start() -> Result<LoginStart> {
     accounts::start_login().await
@@ -1025,6 +1037,7 @@ pub fn run() {
             ms_login_start,
             ms_login_finish,
             ms_login_cancel,
+            account_skin,
             add_offline_account,
             set_active_account,
             remove_account,

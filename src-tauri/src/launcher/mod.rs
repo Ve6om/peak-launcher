@@ -21,6 +21,7 @@ pub mod rules;
 pub mod secrets;
 pub mod serverpack;
 pub mod settings;
+pub mod skins;
 pub mod versions;
 
 #[cfg(test)]

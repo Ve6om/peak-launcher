@@ -1,6 +1,9 @@
 <script lang="ts">
-  import { UserPlus, Check, LogOut, Info } from '@lucide/svelte';
+  import { UserPlus, Check, LogOut, Info, RefreshCw, ExternalLink } from '@lucide/svelte';
   import MicrosoftSignIn from '$lib/components/MicrosoftSignIn.svelte';
+  import SkinHead from '$lib/components/SkinHead.svelte';
+  import SkinViewer from '$lib/components/SkinViewer.svelte';
+  import { skins, loadSkin } from '$lib/skins.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
   import type { LoginStart } from '$lib/types';
@@ -53,6 +56,17 @@
     }
   }
 
+  const active = $derived(app.accounts.find((a) => a.active && a.kind === 'microsoft') ?? null);
+  const activeSkin = $derived(active ? skins[active.id] : undefined);
+  let refreshing = $state(false);
+
+  async function refreshSkin() {
+    if (!active) return;
+    refreshing = true;
+    await loadSkin(active.id, true);
+    refreshing = false;
+  }
+
   async function activate(id: string) {
     app.accounts = await api.setActiveAccount(id);
   }
@@ -71,10 +85,39 @@
     <button class="btn primary" onclick={signIn} disabled={signingIn}><UserPlus size={17} /> Add Microsoft account</button>
   </header>
 
+  {#if active}
+    <section class="skin-card glass rise">
+      <div class="stage">
+        {#if activeSkin}
+          {#key active.id}
+            <SkinViewer png={activeSkin.png} model={activeSkin.model} width={200} height={260} />
+          {/key}
+        {:else if activeSkin === null}
+          <p class="no-skin">This account uses Minecraft's default skin.</p>
+        {:else}
+          <div class="skeleton"></div>
+        {/if}
+      </div>
+      <div class="skin-info">
+        <span class="label">Playing as</span>
+        <h2>{active.username}</h2>
+        {#if activeSkin}
+          <p>{activeSkin.model === 'slim' ? 'Slim arms (Alex style)' : 'Classic arms (Steve style)'} · drag the model to turn it</p>
+        {/if}
+        <div class="skin-actions">
+          <button class="btn" onclick={refreshSkin} disabled={refreshing}><RefreshCw size={15} class={refreshing ? 'spin' : ''} /> Refresh skin</button>
+          <button class="btn ghost" onclick={() => api.openUrl('https://www.minecraft.net/msaprofile/mygames/editskin')}>
+            <ExternalLink size={15} /> Change skin on minecraft.net
+          </button>
+        </div>
+      </div>
+    </section>
+  {/if}
+
   <div class="list">
     {#each app.accounts as a, i (a.id)}
       <div class="account glass rise" class:active={a.active} style:animation-delay="{i * 40}ms">
-        <span class="avatar">{a.username[0].toUpperCase()}</span>
+        <SkinHead accountId={a.id} name={a.username} size={44} />
         <div class="text">
           <b>{a.username}</b>
           <span>{a.kind === 'microsoft' ? 'Microsoft account' : 'Offline (dev only)'}</span>
@@ -162,6 +205,56 @@
     color: var(--muted);
     font-size: 13.5px;
   }
+  .skin-card {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    padding: 10px 28px 10px 14px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 50%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 45%),
+      var(--glass);
+  }
+  .stage {
+    width: 200px;
+    height: 260px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .skeleton {
+    width: 70px;
+    height: 180px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .no-skin {
+    margin: 0;
+    padding: 0 18px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .skin-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .skin-info h2 {
+    margin: 0;
+    font-size: 26px;
+  }
+  .skin-info p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .skin-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
   .list {
     display: flex;
     flex-direction: column;
@@ -176,17 +269,6 @@
   .account.active {
     border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), var(--glass));
-  }
-  .avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
-    display: grid;
-    place-items: center;
-    font-weight: 720;
-    font-size: 17px;
-    background: var(--gradient);
-    color: var(--on-accent);
   }
   .text {
     flex: 1;
