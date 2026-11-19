@@ -16,7 +16,10 @@
   let error = $state<string | null>(null);
   // A past skin picked to view on the model (null shows the current one).
   let viewing = $state<Skin | null>(null);
+  // A cape picked to view on the model (null shows the one they wear).
+  let viewingCape = $state<string | null>(null);
   const shown = $derived(viewing ?? player?.skin ?? null);
+  const shownCape = $derived(viewingCape ?? (viewing ? null : (player?.cape ?? null)));
 
   const valid = $derived(/^\w{1,16}$/.test(query.trim()));
 
@@ -27,6 +30,7 @@
     try {
       player = await api.playerLookup(query.trim());
       viewing = null;
+      viewingCape = null;
     } catch (e) {
       player = null;
       error = errorText(e);
@@ -85,13 +89,13 @@
       <div class="stage">
         {#if shown}
           {#key shown.png}
-            <SkinViewer png={shown.png} model={shown.model} cape={viewing ? null : player.cape} width={170} height={220} />
+            <SkinViewer png={shown.png} model={shown.model} cape={shownCape} width={170} height={220} />
           {/key}
         {:else}
           <p class="muted">Uses Minecraft's default skin.</p>
         {/if}
-        {#if viewing}
-          <button class="back btn ghost" onclick={() => (viewing = null)}>Back to current skin</button>
+        {#if viewing || viewingCape}
+          <button class="back btn ghost" onclick={() => ((viewing = null), (viewingCape = null))}>Back to current look</button>
         {/if}
       </div>
       <div class="info">
@@ -130,6 +134,25 @@
                     onclick={() => (viewing = current ? null : s)}
                   >
                     <SkinHead accountId={null} name={player.name} png={s.png} size={34} />
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          {#if player.capes.length}
+            <div class="section">
+              <span class="label">Capes · click one to see it</span>
+              <div class="capes">
+                {#each player.capes as c, i (i)}
+                  <button
+                    class="cape"
+                    class:selected={viewingCape ? viewingCape === c.png : c.current && !viewing}
+                    title={c.current ? `${c.name} (wearing now)` : c.name}
+                    onclick={() => (viewingCape = c.current && !viewing ? null : c.png)}
+                  >
+                    <span class="cape-art" style:background-image="url({c.png})"></span>
+                    <span class="cape-name">{c.name}</span>
+                    {#if c.current}<span class="worn">Wearing</span>{/if}
                   </button>
                 {/each}
               </div>
@@ -260,6 +283,48 @@
   .past-pick.selected {
     border-color: color-mix(in srgb, var(--accent) 60%, transparent);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .capes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cape {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: 70px;
+    padding: 6px 4px;
+    border-radius: 10px;
+    border: 1px solid var(--stroke);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .cape.selected {
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--text);
+  }
+  .cape-art {
+    width: 26px;
+    height: 42px;
+    /* The cape's back panel sits at x 1-10, y 1-16 of its 64x32 texture. */
+    background-size: 640% 300%;
+    background-position: 1.85% 3.2%;
+    image-rendering: pixelated;
+  }
+  .cape-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .worn {
+    font-size: 10px;
+    color: var(--accent);
   }
   .links {
     display: flex;

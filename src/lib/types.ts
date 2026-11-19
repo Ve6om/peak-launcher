@@ -217,8 +217,16 @@ export interface Player {
   names: PastName[];
   /** Skins worn, newest first (from Crafty.gg). */
   pastSkins: Skin[];
+  /** Capes the player has, the worn one first (from Crafty.gg). */
+  capes: PastCape[];
   /** False when Crafty.gg couldn't be reached. */
   historyFound: boolean;
+}
+
+export interface PastCape {
+  name: string;
+  png: string;
+  current: boolean;
 }
 
 export interface PastName {

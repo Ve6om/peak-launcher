@@ -391,6 +391,8 @@ pub struct Player {
     pub names: Vec<PastName>,
     /// Skins the player has worn, newest first (from Crafty.gg).
     pub past_skins: Vec<Skin>,
+    /// Capes the player has, the one they wear first (from Crafty.gg).
+    pub capes: Vec<PastCape>,
     /// False when Crafty.gg couldn't be reached, so the history is unknown.
     pub history_found: bool,
 }
@@ -402,6 +404,25 @@ pub struct PastName {
     /// When Crafty.gg recorded the change (can be later than the real one);
     /// None for the first name.
     pub changed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PastCape {
+    /// The cape's name, e.g. "Migrator".
+    pub name: String,
+    /// The cape image as a data: URL.
+    pub png: String,
+    /// The one the player wears now.
+    pub current: bool,
+}
+
+/// What Crafty.gg knows about a player's past.
+#[derive(Debug, Default)]
+struct History {
+    names: Vec<PastName>,
+    skins: Vec<Skin>,
+    capes: Vec<PastCape>,
 }
 
 // ---------------------------------------------------------------- Crafty.gg history
@@ -434,16 +455,37 @@ struct CraftySkin {
 }
 
 #[derive(Debug, Default, Deserialize)]
+struct CraftyCape {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    texture: Option<String>,
+    #[serde(default)]
+    current: bool,
+    #[serde(default)]
+    hidden: bool,
+    #[serde(default)]
+    removed: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
 struct CraftyPlayer {
     #[serde(default)]
     usernames: Vec<CraftyName>,
     #[serde(default)]
     skins: Vec<CraftySkin>,
+    #[serde(default)]
+    capes: Vec<CraftyCape>,
 }
 
-/// Turn Crafty's answer into names (newest first) and skins, leaving out
-/// anything the player chose to hide and anything that isn't a skin image.
-fn read_crafty(player: CraftyPlayer) -> (Vec<PastName>, Vec<Skin>) {
+/// A cape image: a PNG of a sensible size (capes are 64x32, some HD ones larger).
+fn is_cape_png(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"\x89PNG\r\n\x1a\n") && bytes.len() >= 24 && &bytes[12..16] == b"IHDR" && bytes.len() <= 256 * 1024
+}
+
+/// Turn Crafty's answer into names (newest first), skins and capes, leaving
+/// out anything the player chose to hide and anything that isn't an image.
+fn read_crafty(player: CraftyPlayer) -> History {
     let mut names: Vec<CraftyName> = player.usernames.into_iter().filter(|n| !n.hidden && valid_name(&n.username)).collect();
     // ISO dates sort as text; the original name (oldest) goes last.
     names.sort_by(|a, b| b.changed_at.cmp(&a.changed_at));
@@ -465,12 +507,27 @@ fn read_crafty(player: CraftyPlayer) -> (Vec<PastName>, Vec<Skin>) {
         })
         .take(PAST_SKINS_LIMIT)
         .collect();
-    (names, skins)
+    let mut capes: Vec<PastCape> = player
+        .capes
+        .into_iter()
+        .filter(|c| !c.hidden && !c.removed)
+        .filter_map(|c| {
+            let bytes = B64.decode(c.texture?.trim()).ok()?;
+            is_cape_png(&bytes).then(|| PastCape {
+                name: c.name.filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "Cape".into()),
+                png: format!("data:image/png;base64,{}", B64.encode(&bytes)),
+                current: c.current,
+            })
+        })
+        .collect();
+    // The one being worn first.
+    capes.sort_by_key(|c| !c.current);
+    History { names, skins, capes }
 }
 
 /// The player's past names and skins from Crafty.gg, or None if it couldn't
 /// be reached or doesn't know the player.
-async fn crafty_history(id: &str) -> Option<(Vec<PastName>, Vec<Skin>)> {
+async fn crafty_history(id: &str) -> Option<History> {
     #[derive(Deserialize)]
     struct Answer {
         data: CraftyPlayer,
@@ -560,24 +617,25 @@ pub async fn lookup(query: &str) -> Result<Player> {
         };
         let ((skin, cape), history) = tokio::join!(textures, crafty_history(&id));
         let history_found = history.is_some();
-        let (mut names, past_skins) = history.unwrap_or_default();
+        let History { mut names, skins: past_skins, capes } = history.unwrap_or_default();
         if names.is_empty() {
             names.push(PastName { name: name.clone(), changed_at: None });
         }
-        Player { id: dashed(&id), name, skin, cape, names, past_skins, history_found }
+        Player { id: dashed(&id), name, skin, cape, names, past_skins, capes, history_found }
     } else if matches!(code, 204 | 400 | 404) {
         return Err(lookup_error(code, "No Minecraft player has that id.".into()));
     } else {
         // Mojang only allows looking up the same player about once a minute.
         // Crafty.gg's copy of the current skin is the next best thing.
         match crafty_history(&id).await {
-            Some((names, past_skins)) if !names.is_empty() => Player {
+            Some(History { names, skins: past_skins, capes }) if !names.is_empty() => Player {
                 id: dashed(&id),
                 name: names[0].name.clone(),
                 skin: past_skins.first().cloned(),
-                cape: None,
+                cape: capes.iter().find(|c| c.current).map(|c| c.png.clone()),
                 names,
                 past_skins,
+                capes,
                 history_found: true,
             },
             _ => return Err(lookup_error(code, "No Minecraft player has that id.".into())),
@@ -675,10 +733,19 @@ mod history_tests {
                 { "texture": "bm90IGEgcG5n", "slim": false },
                 { "texture": png, "slim": false, "hidden": true }
             ],
+            "capes": [
+                { "name": "Mojang", "texture": png, "current": false },
+                { "name": "Mojang Studios", "texture": png, "current": true },
+                { "name": "Hidden one", "texture": png, "hidden": true },
+                { "name": "Broken", "texture": "bm90IGEgcG5n" }
+            ],
             "something_else": 1
         }))
         .unwrap();
-        let (names, skins) = read_crafty(p);
+        let History { names, skins, capes } = read_crafty(p);
+        let cape_names: Vec<_> = capes.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(cape_names, ["Mojang Studios", "Mojang"], "worn cape first, hidden and broken left out");
+        assert!(capes[0].current);
         let list: Vec<_> = names.iter().map(|n| n.name.as_str()).collect();
         assert_eq!(list, ["Dream", "DeltaNinja"], "newest first, hidden left out");
         assert!(names[0].changed_at.is_some());
@@ -699,6 +766,9 @@ mod history_tests {
         let dream = lookup("Dream").await.unwrap();
         println!("names={:?} past_skins={} history_found={}", dream.names.iter().map(|n| (&n.name, &n.changed_at)).collect::<Vec<_>>(), dream.past_skins.len(), dream.history_found);
         assert!(dream.names.iter().any(|n| n.name == "DeltaNinja"), "Crafty knows Dream's first name");
+        let jeb = lookup("jeb_").await.unwrap();
+        println!("jeb capes={:?}", jeb.capes.iter().map(|c| (&c.name, c.current)).collect::<Vec<_>>());
+        assert!(jeb.capes.len() >= 2);
     }
 }
 
