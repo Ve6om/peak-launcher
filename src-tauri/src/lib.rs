@@ -1,5 +1,6 @@
 mod error;
 mod launcher;
+mod links;
 mod window;
 
 use crate::error::{Error, Result};
@@ -976,6 +977,19 @@ async fn servers_from_instance(state: State<'_, AppState>, instance_id: String) 
     servers::from_instance(&state.paths, &instance_id).await
 }
 
+/// The public server list from peaklauncher.com.
+#[tauri::command]
+async fn discover_list() -> Result<Vec<launcher::discover::Listing>> {
+    launcher::discover::list().await
+}
+
+/// Launch an instance straight into a server from the list.
+#[tauri::command]
+async fn discover_join(app: AppHandle, state: State<'_, AppState>, instance_id: String, address: String) -> Result<()> {
+    servers::parse_address(&address)?;
+    launch_instance(app, state, instance_id, Some(address)).await
+}
+
 /// Launch an instance straight into a server, and remember it for next time.
 #[tauri::command]
 async fn server_join(app: AppHandle, state: State<'_, AppState>, server_id: String, instance_id: String) -> Result<()> {
@@ -1278,6 +1292,13 @@ async fn reset_settings(state: State<'_, AppState>) -> Result<Settings> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First: a second copy of Peak (e.g. opened by a peak:// link) hands
+        // its link to this one and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            window::show_main(app);
+            links::handle(app, argv);
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -1293,6 +1314,23 @@ pub fn run() {
             }
             if let Err(e) = window::setup_tray(app) {
                 eprintln!("Tray icon unavailable: {e}");
+            }
+            app.manage(links::PendingLink::default());
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                // Installers register peak:// already; this also covers a
+                // portable copy or a build run straight from its folder.
+                #[cfg(any(windows, target_os = "linux"))]
+                if let Err(e) = app.deep_link().register_all() {
+                    eprintln!("Couldn't register peak:// links: {e}");
+                }
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    links::handle(&handle, event.urls().iter().map(|u| u.to_string()));
+                });
+                if let Ok(Some(urls)) = app.deep_link().get_current() {
+                    links::handle(app.handle(), urls.iter().map(|u| u.to_string()));
+                }
             }
             app.manage(AppState {
                 paths,
@@ -1353,6 +1391,9 @@ pub fn run() {
             modpack_mute_updates,
             modpack_change_version,
             reset_settings,
+            discover_list,
+            links::take_pending_link,
+            discover_join,
             content_search,
             content_project,
             content_versions,

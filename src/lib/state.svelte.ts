@@ -265,6 +265,17 @@ export async function init() {
   Object.assign(app, { instances, accounts, settings, info, running });
   applyAccent(settings.accent);
 
+  // peak:// links from the website's "Play in Peak" buttons.
+  const { openServerLink } = await import('./discover.svelte');
+  await on<string>('open-server-link', (id) => {
+    api.takePendingLink().catch(() => {});
+    openServerLink(id);
+  });
+  api
+    .takePendingLink()
+    .then((id) => id && openServerLink(id))
+    .catch(() => {});
+
   await on<{ instanceId: string; name: string; files: BlockedFile[] }>('install-blocked', (e) => {
     app.blocked[e.instanceId] = e.files;
     // Ask the user to fetch them right away, like ATLauncher does.

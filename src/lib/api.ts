@@ -34,6 +34,7 @@ import type {
   Wardrobe,
   PastSkin,
   PackUpdate,
+  Listing,
   Player,
   MenuStatus,
   LogLine,
@@ -173,6 +174,11 @@ export const api = {
   serverPing: (address: string) => call<ServerStatus>('server_ping', { address }),
   serversFromInstance: (instanceId: string) => call<[string, string][]>('servers_from_instance', { instanceId }),
   serverJoin: (serverId: string, instanceId: string) => call<void>('server_join', { serverId, instanceId }),
+  discoverList: () => call<Listing[]>('discover_list'),
+  /** A peak:// server link Peak was opened with, if any (only returned once). */
+  takePendingLink: () => call<string | null>('take_pending_link'),
+  /** Launch an instance straight into a server from the Discover list. */
+  discoverJoin: (instanceId: string, address: string) => call<void>('discover_join', { instanceId, address }),
   stop: (id: string) => call<void>('stop_instance', { id }),
   running: () => call<string[]>('running_instances'),
   gameLogs: (id: string) => call<LogLine[]>('game_logs', { id }),
@@ -426,6 +432,30 @@ const mock = (() => {
     { id: 's1', name: 'Peak Survival', address: 'play.peak-example.net', instanceId: 'survival-sp' },
     { id: 's2', name: 'Creative Plots', address: 'creative.example.org:25570', instanceId: null },
     { id: 's3', name: 'Old LAN box', address: '192.168.1.40', instanceId: null }
+  ];
+  // Preview Discover list (made-up servers).
+  const listing = (l: Partial<Listing> & Pick<Listing, 'id' | 'name' | 'address'>): Listing => ({
+    tagline: '',
+    description: '',
+    tags: [],
+    region: 'Europe',
+    language: 'English',
+    gameVersion: '1.21.4',
+    loader: 'vanilla',
+    pack: null,
+    votes: 0,
+    featured: false,
+    verified: false,
+    website: null,
+    discord: null,
+    pageUrl: 'https://www.peaklauncher.com/servers/',
+    ...l
+  });
+  const mockListings: Listing[] = [
+    listing({ id: 'l1', name: 'Peak Survival', address: 'play.peak-example.net', bannerUrl: '/hero.jpg', tagline: 'Land claims, shops and weekly events', description: 'A friendly survival server with land claims, player shops and a new season every few months.', tags: ['Survival', 'SMP', 'Economy'], votes: 1240, featured: true, verified: true, region: 'North America' }),
+    listing({ id: 'l2', name: 'Creative Plots', address: 'creative.example.org:25570', tagline: 'Build anything on your own plot', description: 'Claim a plot and build without limits. Weekly build contests.', tags: ['Creative', 'Building'], votes: 610 }),
+    listing({ id: 'l3', name: 'Cobble Valley', address: 'cobble.example.invalid', tagline: 'Catch, battle and build with Cobblemon', description: 'A sample modded server. Play installs the pack, then joins.', tags: ['Cobblemon', 'Survival'], gameVersion: '1.21.1', loader: 'fabric', votes: 862, featured: true, pack: { projectId: 'cobble', name: 'Cobblemon Official Modpack', iconUrl: null } }),
+    listing({ id: 'l4', name: 'Brass & Steam', address: 'brass.example.invalid', tagline: 'Build factories with Create', description: 'A sample modded server running Create.', tags: ['Create', 'Tech'], gameVersion: '1.21.1', loader: 'neoforge', votes: 540, region: 'Oceania', pack: { projectId: 'create', name: 'Create+', iconUrl: null } })
   ];
   const mockStatus: Record<string, ServerStatus> = {
     'play.peak-example.net': {
@@ -1005,6 +1035,16 @@ const mock = (() => {
         const known = mockStatus[a.address as string];
         if (known) return known;
         return { online: false, error: 'Nothing is running at that address', version: null, protocol: null, playersOnline: null, playersMax: null, playersSample: [], motd: null, favicon: null, pingMs: null } satisfies ServerStatus;
+      }
+      case 'take_pending_link':
+        // Preview: add #demo-link to the URL to act as if opened from a peak:// link.
+        return location.hash === '#demo-link' ? 'l3' : null;
+      case 'discover_list':
+        await sleep(300);
+        return mockListings;
+      case 'discover_join': {
+        const inst = instances.find((i) => i.id === a.instanceId)!;
+        return call('launch_instance', { id: inst.id });
       }
       case 'servers_from_instance':
         return [
