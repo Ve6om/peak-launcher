@@ -60,6 +60,17 @@
 
   const active = $derived(app.accounts.find((a) => a.active && a.kind === 'microsoft') ?? null);
   const activeSkin = $derived(active ? skins[active.id] : undefined);
+  // The cape the account wears, shown on the model (saved with the skin).
+  let activeCape = $state<string | null>(null);
+  $effect(() => {
+    const id = active?.id;
+    const skin = activeSkin;
+    activeCape = null;
+    if (!id || !skin) return;
+    api.accountCape(id).then((c) => {
+      if (active?.id === id) activeCape = c;
+    }).catch(() => {});
+  });
   let refreshing = $state(false);
   let editingSkin = $state(false);
 
@@ -109,7 +120,7 @@
       <div class="stage">
         {#if activeSkin}
           {#key active.id}
-            <SkinViewer png={activeSkin.png} model={activeSkin.model} width={200} height={260} />
+            <SkinViewer png={activeSkin.png} model={activeSkin.model} cape={activeCape} width={200} height={260} />
           {/key}
         {:else if activeSkin === null}
           <p class="no-skin">This account uses Minecraft's default skin.</p>

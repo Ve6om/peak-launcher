@@ -28,6 +28,9 @@ pub struct Server {
     /// The instance last used to join this server, offered first next time.
     #[serde(default)]
     pub instance_id: Option<String>,
+    /// Starred: shown at the top of the list.
+    #[serde(default)]
+    pub favorite: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

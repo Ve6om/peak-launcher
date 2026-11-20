@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Play, Clock, LoaderCircle } from '@lucide/svelte';
   import InstanceArt from './InstanceArt.svelte';
+  import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { app, go, play, ago, isRunning, isBusy, openInstanceMenu } from '$lib/state.svelte';
   import { loaderLabel, packVersion, type Instance } from '$lib/types';
 
@@ -13,7 +14,7 @@
 <div class="card glass rise" style:animation-delay="{index * 40}ms" oncontextmenu={(e) => openInstanceMenu(e, inst)} role="group" aria-label={inst.name}>
   <button class="open" aria-label="Open {inst.name}" onclick={() => go('instance', inst.id)}></button>
   <div class="art">
-    <InstanceArt loader={inst.loader} image={inst.pack?.bannerUrl} icon={inst.pack?.iconUrl} />
+    <InstanceArt loader={inst.loader} image={instanceBanner(inst)} icon={instanceIcon(inst)} prefer="logo" />
     <div class="badges">
       <span class="chip dark"><span class="peak">▲</span> {inst.gameVersion}</span>
       {#if running}<span class="chip live">● Playing</span>{/if}

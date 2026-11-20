@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
+  import InstanceServers from '$lib/components/InstanceServers.svelte';
   import ConsolePanel from '$lib/components/ConsolePanel.svelte';
   import { Puzzle } from '@lucide/svelte';
   import { loaderLabel, packVersion } from '$lib/types';
   import InstanceArt from '$lib/components/InstanceArt.svelte';
+  import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import PlayButton from '$lib/components/PlayButton.svelte';
   import Progress from '$lib/components/Progress.svelte';
   import { api } from '$lib/api';
@@ -39,7 +41,7 @@
     <button class="back btn ghost" onclick={() => go('library')}><ArrowLeft size={16} /> Library</button>
 
     <section class="banner glass rise" oncontextmenu={(e) => openInstanceMenu(e, inst)} aria-label={inst.name}>
-      <div class="art"><InstanceArt loader={inst.loader} image={inst.pack?.bannerUrl} icon={inst.pack?.iconUrl} /></div>
+      <div class="art"><InstanceArt loader={inst.loader} image={instanceBanner(inst)} icon={instanceIcon(inst)} /></div>
       <div class="shade"></div>
       <div class="content">
         <div class="title">
@@ -66,6 +68,7 @@
     <div class="tabs">
       <button class:active={app.instanceTab === 'overview'} onclick={() => (app.instanceTab = 'overview')}><LayoutGrid size={15} /> Overview</button>
       <button class:active={app.instanceTab === 'content'} onclick={() => (app.instanceTab = 'content')}><Puzzle size={15} /> Content</button>
+      <button class:active={app.instanceTab === 'servers'} onclick={() => (app.instanceTab = 'servers')}><ServerIcon size={15} /> Servers</button>
       <button class:active={app.instanceTab === 'settings'} onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> Settings</button>
       <button class:active={app.instanceTab === 'console'} onclick={() => (app.instanceTab = 'console')}>
         <Terminal size={15} /> Console {#if logs.length}<span class="count">{logs.length}</span>{/if}
@@ -114,6 +117,8 @@
       </div>
     {:else if app.instanceTab === 'content'}
       <InstanceContent {inst} />
+    {:else if app.instanceTab === 'servers'}
+      {#key inst.id}<InstanceServers {inst} />{/key}
     {:else if app.instanceTab === 'settings'}
       <InstanceSettings {inst} />
     {:else}

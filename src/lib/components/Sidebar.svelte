@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { House, Library, Package, Server, Users, Settings, Plus, ChevronRight } from '@lucide/svelte';
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
   import type { View } from '$lib/types';
@@ -48,7 +49,7 @@
           onclick={() => go('instance', inst.id)}
           oncontextmenu={(e) => openInstanceMenu(e, inst)}
         >
-          <span class="thumb"><InstanceArt loader={inst.loader} image={inst.pack?.iconUrl ?? inst.pack?.bannerUrl} /></span>
+          <span class="thumb"><InstanceArt loader={inst.loader} image={instanceIcon(inst) ?? instanceBanner(inst)} /></span>
           <span class="pin-text">
             <span class="pin-name">{inst.name}</span>
             <span class="pin-meta">{inst.gameVersion}</span>

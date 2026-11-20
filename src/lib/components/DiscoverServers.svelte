@@ -26,7 +26,7 @@
   import { api } from '$lib/api';
   import { app, toast, errorText, isBusy, isRunning } from '$lib/state.svelte';
   import { motdLines, plain } from '$lib/motd';
-  import { pendingJoins, watchPendingJoins, vanillaChoices, packInstance, playListing, serverLink } from '$lib/discover.svelte';
+  import { pendingJoins, watchPendingJoins, vanillaChoices, packInstance, playListing, serverLink, planFor, installAndJoin, switchAndJoin, type PlayPlan } from '$lib/discover.svelte';
   import { loaderLabel, type Listing, type ServerStatus } from '$lib/types';
 
   let listings = $state<Listing[]>([]);
@@ -146,7 +146,40 @@
     toast('Address copied');
   }
 
+  // Pressing Play on a modded server asks first (it can be a big download),
+  // then reacts straight away while the pack is fetched.
+  let confirm = $state<{ l: Listing; plan: PlayPlan } | null>(null);
+  let preparing = $state<Record<string, boolean>>({});
+
+  function pressPlay(l: Listing) {
+    const plan = planFor(l);
+    if (plan.kind === 'join') {
+      playListing(l, l.pack ? null : chosen(l));
+      return;
+    }
+    open = null;
+    confirm = { l, plan };
+  }
+
+  async function confirmed(switchVersion = true) {
+    if (!confirm) return;
+    const { l, plan } = confirm;
+    confirm = null;
+    if (plan.kind === 'install') {
+      preparing[l.id] = true;
+      try {
+        await installAndJoin(l);
+      } finally {
+        preparing[l.id] = false;
+      }
+    } else if (plan.kind === 'switch') {
+      if (switchVersion) await switchAndJoin(l, plan.inst);
+      else playListing(l, null);
+    }
+  }
+
   function playLabel(l: Listing): string {
+    if (preparing[l.id]) return 'Getting the pack…';
     const inst = packInstance(l);
     if (inst && pendingJoins[inst.id]) return 'Installing…';
     if (l.pack && !inst) return 'Install & play';
@@ -154,6 +187,7 @@
   }
 
   const busyFor = (l: Listing) => {
+    if (preparing[l.id]) return true;
     const inst = l.pack ? packInstance(l) : app.instances.find((i) => i.id === chosen(l));
     return !!inst && (isRunning(inst.id) || isBusy(inst.id) || !!pendingJoins[inst.id]);
   };
@@ -245,7 +279,10 @@
               <span class="tagline">{l.tagline}</span>
               <div class="tags">
                 {#if l.pack}
-                  <span class="chip pack"><LoaderIcon loader={l.loader} size={12} /> {l.pack.name}</span>
+                  <span class="chip pack">
+                    {#if l.pack.iconUrl}<img class="chip-icon" src={l.pack.iconUrl} alt="" />{:else}<LoaderIcon loader={l.loader} size={12} />{/if}
+                    {l.pack.name}
+                  </span>
                 {:else}
                   <span class="chip">Vanilla {l.gameVersion}</span>
                 {/if}
@@ -277,8 +314,8 @@
                 <option value="new">New {l.gameVersion} instance</option>
               </select>
             {/if}
-            <button class="btn primary" onclick={() => playListing(l, l.pack ? null : chosen(l))} disabled={busyFor(l)}>
-              <Play size={15} /> {playLabel(l)}
+            <button class="btn primary" onclick={() => pressPlay(l)} disabled={busyFor(l)}>
+              {#if preparing[l.id]}<LoaderCircle size={15} class="spin" />{:else}<Play size={15} />{/if} {playLabel(l)}
             </button>
           </div>
         </article>
@@ -358,11 +395,44 @@
             <option value="new">New {l.gameVersion} instance</option>
           </select>
         {/if}
-        <button class="btn primary" onclick={() => (playListing(l, l.pack ? null : chosen(l)), (open = null))} disabled={busyFor(l)}>
-          <Play size={15} /> {playLabel(l)}
+        <button class="btn primary" onclick={() => { const plan = planFor(l); if (plan.kind === 'join') open = null; pressPlay(l); }} disabled={busyFor(l)}>
+          {#if preparing[l.id]}<LoaderCircle size={15} class="spin" />{:else}<Play size={15} />{/if} {playLabel(l)}
         </button>
       </div>
     </div>
+  </Modal>
+{/if}
+
+{#if confirm}
+  {@const l = confirm.l}
+  {@const plan = confirm.plan}
+  <Modal
+    title={plan.kind === 'install' ? `Install ${l.pack?.name} and join?` : 'Switch to the server\u2019s version?'}
+    subtitle={l.name}
+    width={480}
+    onclose={() => (confirm = null)}
+  >
+    <div class="confirm-body">
+      {#if l.pack?.iconUrl}<img class="confirm-icon" src={l.pack.iconUrl} alt="" />{/if}
+      {#if plan.kind === 'install'}
+        <p>
+          {l.name} runs <b>{l.pack?.name}</b>{l.pack?.versionName ? ` ${l.pack.versionName}` : ''}. Peak installs it as a new
+          instance, shows you the progress, and joins the server as soon as it's ready. Modpacks can be a big download.
+        </p>
+      {:else if plan.kind === 'switch'}
+        <p>
+          {l.name} runs <b>{plan.to}</b>, but your <b>{plan.inst.name}</b> instance has <b>{plan.from}</b>. Switch it to the
+          server's version, then join? Your worlds stay; the current mods folder is backed up first.
+        </p>
+      {/if}
+    </div>
+    <footer class="confirm-actions">
+      <button class="btn ghost" onclick={() => (confirm = null)}>Cancel</button>
+      {#if plan.kind === 'switch'}<button class="btn" onclick={() => confirmed(false)}>Join anyway</button>{/if}
+      <button class="btn primary" onclick={() => confirmed(true)}>
+        <Play size={15} /> {plan.kind === 'install' ? 'Install & play' : 'Switch & play'}
+      </button>
+    </footer>
   </Modal>
 {/if}
 
@@ -589,6 +659,12 @@
     flex-wrap: wrap;
     margin-top: 2px;
   }
+  .chip-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    object-fit: cover;
+  }
   .chip.pack {
     color: var(--accent-2);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -677,6 +753,32 @@
     color: #ff9a9d;
   }
 
+  .confirm-body {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .confirm-body p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .confirm-body b {
+    color: var(--text);
+  }
+  .confirm-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+  }
   /* ---- detail ---- */
   .detail {
     display: flex;

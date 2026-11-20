@@ -52,7 +52,7 @@ export const app = $state({
   /** Instance waiting for delete confirmation. */
   deleting: null as Instance | null,
   /** Tab to show when an instance page opens. */
-  instanceTab: 'overview' as 'overview' | 'content' | 'settings' | 'console',
+  instanceTab: 'overview' as 'overview' | 'content' | 'servers' | 'settings' | 'console',
   /** Browse page target. */
   browse: { instanceId: null as string | null, kind: 'mod' as BrowseKind, source: 'modrinth' as Source },
   /** Modpack files whose authors block launcher downloads, per instance. */
@@ -311,6 +311,7 @@ export async function init() {
       if (!app.running.includes(s.instanceId)) app.running.push(s.instanceId);
     } else {
       app.running = app.running.filter((r) => r !== s.instanceId);
+      import('./presence.svelte').then((m) => delete m.playingOn[s.instanceId]).catch(() => {});
       if (s.exitCode && s.exitCode !== 0) {
         toast(`Game exited with code ${s.exitCode}. Check the console for details.`, 'error');
         // Show what went wrong (the pop-out window, if open, already does).
@@ -321,9 +322,10 @@ export async function init() {
   });
   app.ready = true;
   guardWindowClose().catch(() => {});
+  import('./presence.svelte').then((m) => m.startPresence()).catch(() => {});
 
   // Modpacks installed before Peak saved their artwork: fetch it once, quietly.
-  for (const inst of app.instances.filter((i) => i.pack?.projectId && ((!i.pack.iconUrl && !i.pack.bannerUrl) || !i.pack.description))) {
+  for (const inst of app.instances.filter((i) => i.pack?.projectId && (!i.pack.iconUrl || !i.pack.description))) {
     api
       .refreshPackArt(inst.id)
       .then((updated) => {

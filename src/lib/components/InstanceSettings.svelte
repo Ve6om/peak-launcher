@@ -7,6 +7,8 @@
   import JavaPicker from './JavaPicker.svelte';
   import JvmPresetPicker from './JvmPresetPicker.svelte';
   import PackVersionPanel from './PackVersionPanel.svelte';
+  import InstanceArt from './InstanceArt.svelte';
+  import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
   import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption } from '$lib/types';
@@ -26,7 +28,7 @@
   // Only the fields this page edits count as "unsaved changes": saving can also
   // change bookkeeping fields (a new loader resets `installed`), and playtime
   // or last-played can change while the page is open.
-  const NOT_EDITED = new Set(['id', 'createdAt', 'lastPlayed', 'playtimeSecs', 'installed', 'versionId', 'pack', 'importedFrom']);
+  const NOT_EDITED = new Set(['id', 'createdAt', 'lastPlayed', 'playtimeSecs', 'installed', 'versionId', 'pack', 'importedFrom', 'customIcon', 'customBanner']);
   function editable(i: Instance): string {
     return JSON.stringify(i, (key, value) => {
       if (NOT_EDITED.has(key)) return undefined;
@@ -105,6 +107,19 @@
   }
 
   const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
+
+  // ---- the instance's own logo and banner ----
+  async function setPicture(kind: 'icon' | 'banner', reset = false) {
+    const path = reset ? null : await api.pickPicture(kind === 'icon' ? 'Choose a logo' : 'Choose a banner');
+    if (!reset && !path) return;
+    try {
+      await api.instanceSetPicture(inst.id, kind, path);
+      await refreshInstances();
+      toast(reset ? 'Back to the default picture' : kind === 'icon' ? 'Logo updated' : 'Banner updated', 'success');
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+  }
   const versionChanged = $derived(inst.loader !== d.loader || inst.gameVersion !== d.gameVersion || inst.loaderVersion !== d.loaderVersion);
 </script>
 
@@ -117,6 +132,20 @@
       </Row>
       <Row title="Notes" desc="Anything you want to remember about this instance" wide>
         <textarea class="input" bind:value={d.notes} placeholder="Seed, server IPs, mod list…"></textarea>
+      </Row>
+      <Row title="Logo" desc="Square picture shown on cards and in the sidebar">
+        <div class="pic">
+          <span class="pic-icon"><InstanceArt loader={inst.loader} icon={instanceIcon(inst)} /></span>
+          <button class="btn" onclick={() => setPicture('icon')}>Choose…</button>
+          {#if inst.customIcon}<button class="btn ghost" onclick={() => setPicture('icon', true)}>Reset</button>{/if}
+        </div>
+      </Row>
+      <Row title="Banner" desc="Wide picture shown at the top of the instance and on the home page">
+        <div class="pic">
+          <span class="pic-banner"><InstanceArt loader={inst.loader} image={instanceBanner(inst)} icon={instanceIcon(inst)} /></span>
+          <button class="btn" onclick={() => setPicture('banner')}>Choose…</button>
+          {#if inst.customBanner}<button class="btn ghost" onclick={() => setPicture('banner', true)}>Reset</button>{/if}
+        </div>
       </Row>
     </div>
   </section>
@@ -326,6 +355,27 @@
 {/if}
 
 <style>
+  .pic {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pic-icon,
+  .pic-banner {
+    display: block;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--stroke);
+    flex-shrink: 0;
+  }
+  .pic-icon {
+    width: 40px;
+    height: 40px;
+  }
+  .pic-banner {
+    width: 120px;
+    height: 40px;
+  }
   .settings {
     display: flex;
     flex-direction: column;

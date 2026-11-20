@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Plus, Clock, Sparkles, ArrowRight, FolderInput } from '@lucide/svelte';
   import InstanceArt from '$lib/components/InstanceArt.svelte';
+  import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import InstanceCard from '$lib/components/InstanceCard.svelte';
   import PlayButton from '$lib/components/PlayButton.svelte';
   import Progress from '$lib/components/Progress.svelte';
@@ -8,6 +9,7 @@
   import { loaderLabel } from '$lib/types';
 
   const hero = $derived(app.instances[0]);
+  const heroBanner = $derived(hero ? (instanceBanner(hero) ?? instanceIcon(hero)) : null);
   // Brand artwork (static/hero.jpg); falls back to generated art if missing.
   let heroImg = $state(true);
   const rest = $derived(app.instances.slice(1, 7));
@@ -28,10 +30,12 @@
   {#if hero}
     <section class="hero glass rise" style:animation-delay="60ms" oncontextmenu={(e) => openInstanceMenu(e, hero)} aria-label={hero.name}>
       <div class="hero-art">
-        {#if heroImg}
+        {#if heroBanner}
+          {#key heroBanner}<InstanceArt loader={hero.loader} image={heroBanner} />{/key}
+        {:else if heroImg}
           <img src="/hero.jpg" alt="" onerror={() => (heroImg = false)} />
         {:else}
-          <InstanceArt loader={hero.loader} image={hero.pack?.bannerUrl} icon={hero.pack?.iconUrl} />
+          <InstanceArt loader={hero.loader} icon={instanceIcon(hero)} />
         {/if}
       </div>
       <div class="hero-shade"></div>

@@ -264,10 +264,17 @@ pub struct CfMod {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CfLogo {
-    #[serde(default)]
+    // Some packs (e.g. Prominence II) come with an empty thumbnail and only
+    // the full logo; empty counts as missing, so the full logo is used.
+    #[serde(default, deserialize_with = "non_empty")]
     pub thumbnail_url: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "non_empty")]
     pub url: Option<String>,
+}
+
+fn non_empty<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Option<String>, D::Error> {
+    let v: Option<String> = serde::Deserialize::deserialize(d)?;
+    Ok(v.filter(|s| !s.trim().is_empty()))
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -586,7 +593,7 @@ pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &st
             version_id: file.id.to_string(),
             title: m.name.clone(),
             version_number: file.display_name.clone(),
-            icon_url: m.logo.as_ref().and_then(|l| l.thumbnail_url.clone()),
+            icon_url: m.logo.as_ref().and_then(|l| l.thumbnail_url.clone().or(l.url.clone())),
             kind: k,
             required_by: parent,
             is_root,
@@ -732,7 +739,7 @@ pub async fn fetch_modpack(cf: &Client, paths: &Paths, id: &str, file_id: Option
             version_id: Some(file.id.to_string()),
             banner_url: m.screenshots.first().map(|s| s.url.clone()),
             description: Some(m.summary.clone()).filter(|d| !d.is_empty()),
-            icon_url: m.logo.and_then(|l| l.thumbnail_url),
+            icon_url: m.logo.and_then(|l| l.thumbnail_url.or(l.url)),
             ..Default::default()
         },
     ))
@@ -828,7 +835,7 @@ pub async fn populate_modpack(cf: &Client, paths: &Paths, inst: &Instance, zip_p
                             version_id: f.id.to_string(),
                             title: name,
                             version_number: f.display_name.clone(),
-                            icon_url: m.and_then(|m| m.logo.as_ref().and_then(|l| l.thumbnail_url.clone())),
+                            icon_url: m.and_then(|m| m.logo.as_ref().and_then(|l| l.thumbnail_url.clone().or(l.url.clone()))),
                         },
                     ));
                 }

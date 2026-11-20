@@ -38,6 +38,10 @@ export interface Instance {
   useSystemOpenal: boolean | null;
   pack: PackInfo | null;
   importedFrom: string | null;
+  /** The player's own logo picture (a file in the instance folder). */
+  customIcon?: string | null;
+  /** The player's own banner picture (a file in the instance folder). */
+  customBanner?: string | null;
 }
 
 export interface ExportEntry {
@@ -152,6 +156,12 @@ export interface JvmPreset {
   flags: string;
 }
 
+/** A server in an instance's own (in-game) multiplayer list. */
+export interface InstanceServer {
+  name: string;
+  address: string;
+}
+
 /** A server in the Servers tab. */
 export interface SavedServer {
   id: string;
@@ -159,6 +169,8 @@ export interface SavedServer {
   address: string;
   /** Instance last used to join it. */
   instanceId: string | null;
+  /** Starred: shown at the top of the list. */
+  favorite?: boolean;
 }
 
 /** A server on the Discover list. */
@@ -175,7 +187,7 @@ export interface Listing {
   gameVersion: string;
   loader: LoaderId;
   /** The modpack the server runs, installed before joining. */
-  pack: { projectId: string; name: string; iconUrl: string | null } | null;
+  pack: { projectId: string; name: string; iconUrl: string | null; versionId?: string | null; versionName?: string | null } | null;
   votes: number;
   featured: boolean;
   verified: boolean;
@@ -308,6 +320,8 @@ export interface Settings {
   appimageMenuDismissed: boolean;
   /** Tell the player when an installed modpack has a new version. */
   modpackUpdateCheck: boolean;
+  /** Show what the player is doing on their Discord profile. */
+  discordPresence: boolean;
   enableCommands: boolean;
   preLaunchCommand: string;
   postExitCommand: string;

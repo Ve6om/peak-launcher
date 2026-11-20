@@ -4,6 +4,7 @@
 import { api } from './api';
 import { app, refreshInstances, toast, errorText, activeAccount, go, isBusy, isRunning } from './state.svelte';
 import type { Instance, Listing } from './types';
+import { playingOn } from './presence.svelte';
 
 /** A server-list id from a peak:// link, waiting for Discover to open it. */
 export const serverLink = $state<{ id: string | null }>({ id: null });
@@ -42,8 +43,9 @@ export function watchPendingJoins() {
 
 async function join(inst: Instance, address: string, serverName: string) {
   app.logs[inst.id] = [];
+  playingOn[inst.id] = serverName;
   try {
-    await api.discoverJoin(inst.id, address);
+    await api.discoverJoin(inst.id, address, serverName);
   } catch (e) {
     delete app.progress[inst.id];
     toast(`${serverName}: ${errorText(e)}`, 'error');
@@ -60,6 +62,58 @@ export function vanillaChoices(l: Listing): Instance[] {
 export function packInstance(l: Listing): Instance | null {
   if (!l.pack) return null;
   return app.instances.find((i) => i.pack?.projectId === l.pack!.projectId) ?? null;
+}
+
+/** What pressing Play on a listing will do, so the page can ask first. */
+export type PlayPlan =
+  | { kind: 'join' }
+  | { kind: 'install' }
+  | { kind: 'switch'; inst: Instance; from: string; to: string };
+
+export function planFor(l: Listing): PlayPlan {
+  if (!l.pack) return { kind: 'join' };
+  const have = packInstance(l);
+  if (!have) return { kind: 'install' };
+  const wanted = l.pack.versionId;
+  if (wanted && have.pack?.versionId && have.pack.versionId !== wanted && have.installed && !isBusy(have.id)) {
+    return { kind: 'switch', inst: have, from: have.pack.versionNumber || 'yours', to: l.pack.versionName || 'the server\u2019s version' };
+  }
+  return { kind: 'join' };
+}
+
+/** Install the server's modpack (its version, if it names one) and join once it's ready. */
+export async function installAndJoin(l: Listing): Promise<Instance | null> {
+  if (!l.pack) return null;
+  if (!activeAccount()) {
+    toast('Add an account to start playing', 'info');
+    go('accounts');
+    return null;
+  }
+  try {
+    const inst = await api.modpackInstall({ projectId: l.pack.projectId, versionId: l.pack.versionId ?? null });
+    await refreshInstances();
+    pendingJoins[inst.id] = { address: l.address, name: l.name };
+    go('instance', inst.id);
+    toast(`Installing ${l.pack.name}. Peak joins ${l.name} as soon as it's ready.`, 'info');
+    return inst;
+  } catch (e) {
+    toast(errorText(e), 'error');
+    return null;
+  }
+}
+
+/** Switch an instance to the pack version the server uses, then join. */
+export async function switchAndJoin(l: Listing, inst: Instance) {
+  if (!l.pack?.versionId) return;
+  try {
+    await api.modpackChangeVersion(inst.id, l.pack.versionId);
+    await refreshInstances();
+    pendingJoins[inst.id] = { address: l.address, name: l.name };
+    go('instance', inst.id);
+    toast(`Switching ${inst.name} to ${l.pack.versionName || 'the server\u2019s version'}. Peak joins ${l.name} when it's done.`, 'info');
+  } catch (e) {
+    toast(errorText(e), 'error');
+  }
 }
 
 /**
@@ -84,10 +138,7 @@ export async function playListing(l: Listing, instanceId: string | 'new' | null)
         }
         return join(have, l.address, l.name);
       }
-      const inst = await api.modpackInstall({ projectId: l.pack.projectId });
-      await refreshInstances();
-      pendingJoins[inst.id] = { address: l.address, name: l.name };
-      toast(`Installing ${l.pack.name}. Peak joins ${l.name} as soon as it's ready.`, 'info');
+      await installAndJoin(l);
       return;
     }
     let inst = instanceId && instanceId !== 'new' ? app.instances.find((i) => i.id === instanceId) : null;

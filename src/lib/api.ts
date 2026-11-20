@@ -35,6 +35,7 @@ import type {
   PastSkin,
   PackUpdate,
   Listing,
+  InstanceServer,
   Player,
   MenuStatus,
   LogLine,
@@ -97,6 +98,8 @@ export const api = {
   /** Switch a modpack instance to another version of its pack (installs in the background). */
   modpackChangeVersion: (id: string, versionId: string) => call<Instance>('modpack_change_version', { id, versionId }),
   resetSettings: () => call<Settings>('reset_settings'),
+  presenceShow: (card: import('./presence.svelte').PresenceCard) => call<void>('presence_show', { card }),
+  presenceClear: () => call<void>('presence_clear'),
   modpackInstall: (opts: { projectId?: string; versionId?: string | null; filePath?: string }) =>
     call<Instance>('modpack_install', {
       projectId: opts.projectId ?? null,
@@ -171,6 +174,7 @@ export const api = {
   serversList: () => call<SavedServer[]>('servers_list'),
   serverSave: (server: SavedServer) => call<SavedServer[]>('server_save', { server }),
   serverDelete: (id: string) => call<SavedServer[]>('server_delete', { id }),
+  serversReorder: (ids: string[]) => call<SavedServer[]>('servers_reorder', { ids }),
   serverPing: (address: string) => call<ServerStatus>('server_ping', { address }),
   serversFromInstance: (instanceId: string) => call<[string, string][]>('servers_from_instance', { instanceId }),
   serverJoin: (serverId: string, instanceId: string) => call<void>('server_join', { serverId, instanceId }),
@@ -178,7 +182,12 @@ export const api = {
   /** A peak:// server link Peak was opened with, if any (only returned once). */
   takePendingLink: () => call<string | null>('take_pending_link'),
   /** Launch an instance straight into a server from the Discover list. */
-  discoverJoin: (instanceId: string, address: string) => call<void>('discover_join', { instanceId, address }),
+  discoverJoin: (instanceId: string, address: string, name?: string) => call<void>('discover_join', { instanceId, address, name }),
+  instanceServers: (id: string) => call<InstanceServer[]>('instance_servers', { id }),
+  instanceServerAdd: (id: string, name: string, address: string) => call<InstanceServer[]>('instance_server_add', { id, name, address }),
+  instanceServerRemove: (id: string, address: string) => call<InstanceServer[]>('instance_server_remove', { id, address }),
+  instanceServersReorder: (id: string, addresses: string[]) => call<InstanceServer[]>('instance_servers_reorder', { id, addresses }),
+  instanceServerJoin: (id: string, address: string) => call<void>('instance_server_join', { id, address }),
   stop: (id: string) => call<void>('stop_instance', { id }),
   running: () => call<string[]>('running_instances'),
   gameLogs: (id: string) => call<LogLine[]>('game_logs', { id }),
@@ -189,6 +198,7 @@ export const api = {
   msLoginFinish: (start: LoginStart) => call<AccountInfo[]>('ms_login_finish', { start }),
   msLoginCancel: () => call<void>('ms_login_cancel'),
   accountSkin: (id: string, refresh = false) => call<Skin | null>('account_skin', { id, refresh }),
+  accountCape: (id: string) => call<string | null>('account_cape', { id }),
   skinWardrobe: (id: string) => call<Wardrobe>('skin_wardrobe', { id }),
   appimageMenuStatus: () => call<MenuStatus>('appimage_menu_status'),
   appimageMenuInstall: () => call<MenuStatus>('appimage_menu_install'),
@@ -202,6 +212,15 @@ export const api = {
   skinUseSaved: (id: string, skinId: string, model: 'classic' | 'slim') => call<Wardrobe>('skin_use_saved', { id, skinId, model }),
   skinHistoryRemove: (id: string, skinId: string) => call<void>('skin_history_remove', { id, skinId }),
   playerLookup: (name: string) => call<Player>('player_lookup', { name }),
+  /** Set an instance's own logo or banner (null puts the pack's artwork back). */
+  instanceSetPicture: (id: string, kind: 'icon' | 'banner', path: string | null) => call<Instance>('instance_set_picture', { id, kind, path }),
+  /** Ask the user for a picture. Returns null if cancelled. */
+  pickPicture: async (title: string): Promise<string | null> => {
+    if (!isTauri) return 'C:/Users/you/Pictures/banner.png';
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({ multiple: false, directory: false, title, filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }] });
+    return typeof picked === 'string' ? picked : null;
+  },
   /** Ask the user for a skin PNG. Returns null if cancelled. */
   pickSkinFile: async (): Promise<string | null> => {
     if (!isTauri) return 'C:/Users/you/Downloads/my-skin.png';
@@ -258,6 +277,7 @@ const mock = (() => {
     autoUpdateCheck: true,
     appimageMenuDismissed: false,
     modpackUpdateCheck: true,
+    discordPresence: true,
     enableCommands: false,
     preLaunchCommand: '',
     postExitCommand: '',
@@ -457,6 +477,7 @@ const mock = (() => {
     listing({ id: 'l3', name: 'Cobble Valley', address: 'cobble.example.invalid', tagline: 'Catch, battle and build with Cobblemon', description: 'A sample modded server. Play installs the pack, then joins.', tags: ['Cobblemon', 'Survival'], gameVersion: '1.21.1', loader: 'fabric', votes: 862, featured: true, pack: { projectId: 'cobble', name: 'Cobblemon Official Modpack', iconUrl: null } }),
     listing({ id: 'l4', name: 'Brass & Steam', address: 'brass.example.invalid', tagline: 'Build factories with Create', description: 'A sample modded server running Create.', tags: ['Create', 'Tech'], gameVersion: '1.21.1', loader: 'neoforge', votes: 540, region: 'Oceania', pack: { projectId: 'create', name: 'Create+', iconUrl: null } })
   ];
+  const mockInstanceServers: Record<string, InstanceServer[]> = {};
   const mockStatus: Record<string, ServerStatus> = {
     'play.peak-example.net': {
       online: true,
@@ -1046,6 +1067,30 @@ const mock = (() => {
         const inst = instances.find((i) => i.id === a.instanceId)!;
         return call('launch_instance', { id: inst.id });
       }
+      case 'instance_servers':
+        return (mockInstanceServers[a.id] ??= [
+          { name: 'Peak Survival', address: 'play.peak-example.net' },
+          { name: 'Creative Plots', address: 'creative.example.org:25570' }
+        ]);
+      case 'instance_server_add': {
+        const l = (mockInstanceServers[a.id] ??= []);
+        if (l.some((s) => s.address === a.address)) throw "That server is already in this instance's list.";
+        l.push({ name: a.name || a.address, address: a.address });
+        return [...l];
+      }
+      case 'instance_server_remove':
+        mockInstanceServers[a.id] = (mockInstanceServers[a.id] ?? []).filter((s) => s.address !== a.address);
+        return mockInstanceServers[a.id];
+      case 'instance_servers_reorder': {
+        const l = mockInstanceServers[a.id] ?? [];
+        mockInstanceServers[a.id] = (a.addresses as string[]).map((ad) => l.find((s) => s.address === ad)!).filter(Boolean);
+        return mockInstanceServers[a.id];
+      }
+      case 'instance_server_join':
+        return call('launch_instance', { id: a.id });
+      case 'servers_reorder':
+        mockServers = (a.ids as string[]).map((id) => mockServers.find((s) => s.id === id)!).filter(Boolean);
+        return mockServers;
       case 'servers_from_instance':
         return [
           ['Friends SMP', 'smp.example.net'],
@@ -1116,6 +1161,17 @@ const mock = (() => {
           historyFound: true
         } satisfies Player;
       }
+      case 'instance_set_picture': {
+        const inst = instances.find((i) => i.id === a.id)!;
+        if (a.kind === 'icon') inst.customIcon = a.path ? 'peak-icon.png' : null;
+        else inst.customBanner = a.path ? 'peak-banner.png' : null;
+        return inst;
+      }
+      case 'presence_show':
+      case 'presence_clear':
+        return null;
+      case 'account_cape':
+        return null;
       case 'account_skin':
         // Preview: a made-up skin so heads and the 3D model have something to show.
         return { png: sampleSkin(), model: 'classic' } satisfies Skin;
