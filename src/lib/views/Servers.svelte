@@ -2,7 +2,7 @@
   // Saved servers with live status, and a Join button that launches an
   // instance straight into the server.
   import { onMount } from 'svelte';
-  import { Plus, RefreshCw, FolderInput, Server as ServerIcon, Play, Pencil, Trash2, Users, Copy, LoaderCircle, SignalZero, Bookmark, Compass } from '@lucide/svelte';
+  import { Plus, RefreshCw, FolderInput, Server as ServerIcon, Play, Pencil, Trash2, Users, Copy, LoaderCircle, SignalZero, Bookmark, Compass, Star, ChevronUp, ChevronDown } from '@lucide/svelte';
   import Modal from '$lib/components/Modal.svelte';
   import LoaderIcon from '$lib/components/LoaderIcon.svelte';
   import DiscoverServers from '$lib/components/DiscoverServers.svelte';
@@ -103,6 +103,31 @@
     confirmDelete = null;
   }
 
+  // Starred servers first, then the player's own order.
+  const ordered = $derived([...servers].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite)));
+
+  async function toggleFavorite(s: SavedServer) {
+    try {
+      servers = await api.serverSave({ ...$state.snapshot(s), favorite: !s.favorite });
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+  }
+
+  /** Move a server up or down (within starred, or within the rest). */
+  async function move(s: SavedServer, by: number) {
+    const list = ordered.slice();
+    const i = list.findIndex((x) => x.id === s.id);
+    const j = i + by;
+    if (j < 0 || j >= list.length || !!list[j].favorite !== !!s.favorite) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    try {
+      servers = await api.serversReorder(list.map((x) => x.id));
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+  }
+
   async function copyAddress(address: string) {
     await navigator.clipboard.writeText(address).catch(() => {});
     toast('Address copied');
@@ -181,7 +206,7 @@
     <DiscoverServers />
   {:else}
   <div class="list">
-    {#each servers as s, i (s.id)}
+    {#each ordered as s, i (s.id)}
       {@const st = status[s.id]}
       {@const ready = st && st !== 'loading' ? st : null}
       {@const inst = app.instances.find((x) => x.id === chosen(s))}
@@ -241,6 +266,13 @@
           <button class="btn primary" onclick={() => join(s)} disabled={!inst || isRunning(inst.id) || isBusy(inst.id)}>
             <Play size={15} /> Join
           </button>
+          <button class="btn ghost icon star" class:on={s.favorite} title={s.favorite ? 'Unstar' : 'Star (keeps it at the top)'} aria-label={s.favorite ? `Unstar ${s.name}` : `Star ${s.name}`} onclick={() => toggleFavorite(s)}>
+            <Star size={15} fill={s.favorite ? 'currentColor' : 'none'} />
+          </button>
+          <span class="order">
+            <button class="btn ghost icon tiny" title="Move up" aria-label="Move {s.name} up" disabled={i === 0 || !!ordered[i - 1]?.favorite !== !!s.favorite} onclick={() => move(s, -1)}><ChevronUp size={13} /></button>
+            <button class="btn ghost icon tiny" title="Move down" aria-label="Move {s.name} down" disabled={i === ordered.length - 1 || !!ordered[i + 1]?.favorite !== !!s.favorite} onclick={() => move(s, 1)}><ChevronDown size={13} /></button>
+          </span>
           <button class="btn ghost icon" title="Edit" aria-label="Edit {s.name}" onclick={() => (editing = { ...s })}><Pencil size={15} /></button>
           <button class="btn ghost icon del" class:confirm={confirmDelete === s.id} title={confirmDelete === s.id ? 'Click again to remove' : 'Remove'} aria-label="Remove {s.name}" onclick={() => remove(s)}>
             <Trash2 size={15} />
@@ -328,6 +360,17 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+  }
+  .star.on {
+    color: #fbbf24;
+  }
+  .order {
+    display: inline-flex;
+    flex-direction: column;
+  }
+  .order .tiny {
+    width: 26px;
+    height: 18px;
   }
   .tabs {
     display: flex;

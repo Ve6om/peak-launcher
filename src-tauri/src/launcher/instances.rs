@@ -72,6 +72,56 @@ pub struct Instance {
     /// Folder in another launcher this instance was copied from.
     #[serde(default)]
     pub imported_from: Option<String>,
+    /// The player's own logo picture: a file name in the instance folder.
+    #[serde(default)]
+    pub custom_icon: Option<String>,
+    /// The player's own banner picture: a file name in the instance folder.
+    #[serde(default)]
+    pub custom_banner: Option<String>,
+}
+
+/// The kind of picture an image file is, from its first bytes.
+fn picture_ext(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("png")
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("jpg")
+    } else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("webp")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("gif")
+    } else {
+        None
+    }
+}
+
+/// Set (or with None, remove) the player's own logo or banner for an
+/// instance. The picture is copied into the instance folder.
+pub async fn set_picture(paths: &Paths, id: &str, kind: &str, source: Option<&std::path::Path>) -> Result<Instance> {
+    let mut inst = get(paths, id).await?;
+    let old = match kind {
+        "icon" => inst.custom_icon.take(),
+        "banner" => inst.custom_banner.take(),
+        _ => return Err(Error::msg("Unknown picture kind")),
+    };
+    if let Some(name) = old.filter(|n| n.starts_with("peak-") && !n.contains(['/', '\\'])) {
+        let _ = tokio::fs::remove_file(paths.instance(id).join(name)).await;
+    }
+    if let Some(src) = source {
+        let bytes = tokio::fs::read(src).await?;
+        if bytes.len() > 10 * 1024 * 1024 {
+            return Err(Error::msg("That picture is over 10 MB. Pick a smaller one."));
+        }
+        let ext = picture_ext(&bytes).ok_or_else(|| Error::msg("That isn't a PNG, JPG, WebP or GIF picture."))?;
+        let name = format!("peak-{kind}-{}.{ext}", chrono::Utc::now().timestamp_millis());
+        tokio::fs::write(paths.instance(id).join(&name), &bytes).await?;
+        match kind {
+            "icon" => inst.custom_icon = Some(name),
+            _ => inst.custom_banner = Some(name),
+        }
+    }
+    save(paths, &inst).await?;
+    Ok(inst)
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -198,6 +248,8 @@ pub async fn create(paths: &Paths, name: &str, game_version: &str, loader: &str,
         use_system_openal: None,
         pack: None,
         imported_from: None,
+        custom_icon: None,
+        custom_banner: None,
     };
     tokio::fs::create_dir_all(game_dir(paths, &id)).await?;
     save(paths, &inst).await?;

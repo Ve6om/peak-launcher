@@ -18,6 +18,12 @@ pub struct ListingPack {
     pub name: String,
     #[serde(default)]
     pub icon_url: Option<String>,
+    /// The pack version the server runs; None means the latest.
+    #[serde(default)]
+    pub version_id: Option<String>,
+    /// That version's name, for showing.
+    #[serde(default)]
+    pub version_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

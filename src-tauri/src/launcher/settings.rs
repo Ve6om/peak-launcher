@@ -41,6 +41,8 @@ pub struct Settings {
     pub appimage_menu_dismissed: bool,
     /// Tell the player when a modpack they installed has a new version.
     pub modpack_update_check: bool,
+    /// Show what the player is doing on their Discord profile.
+    pub discord_presence: bool,
 
     // Commands
     pub enable_commands: bool,
@@ -86,6 +88,7 @@ impl Default for Settings {
             auto_update_check: true,
             appimage_menu_dismissed: false,
             modpack_update_check: true,
+            discord_presence: true,
             enable_commands: false,
             pre_launch_command: String::new(),
             post_exit_command: String::new(),

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
-  import { ExternalLink, RefreshCw } from '@lucide/svelte';
+  import { ExternalLink, RefreshCw, MessageCircle } from '@lucide/svelte';
   import { updates, checkForUpdate } from '$lib/updates.svelte';
   import { menu, loadMenuStatus, addToMenu, removeFromMenu } from '$lib/menuEntry.svelte';
   import { onMount } from 'svelte';
@@ -268,6 +268,9 @@
       <section id="sec-Integrations" class="panel glass">
         <h3>Integrations</h3>
         <div class="rows">
+          <Row title="Show what I'm doing in Discord" desc="Your Discord profile shows Playing Peak Launcher, with what you're doing: the modpack you're playing, the server you're on, or that you're browsing. It's only shared with the Discord app on this computer.">
+            <Switch bind:checked={s.discordPresence} label="Show what I'm doing in Discord" />
+          </Row>
           <Row
             title="CurseForge API key"
             desc={app.info?.curseforgeBuiltIn
@@ -312,6 +315,9 @@
           <span>Version {app.info?.version}{app.info?.devBuild ? ' · development build' : ''} · GPL-3.0</span>
           {#if app.info?.dataDir}<span class="mono path">{app.info.dataDir}</span>{/if}
         </div>
+        <button class="btn discord" title="Help, news and support" onclick={() => api.openUrl('https://discord.gg/DR2XVfVCku')}>
+          <MessageCircle size={14} /> Discord
+        </button>
         <button class="btn check" disabled={updates.checking} onclick={checkUpdates}>
           <RefreshCw size={14} class={updates.checking ? 'spin' : ''} />
           {updates.checking ? 'Checking…' : 'Check for updates'}
@@ -462,6 +468,12 @@
     border-radius: 5px;
     background: rgba(255, 255, 255, 0.07);
     color: var(--muted);
+  }
+  .discord {
+    margin-left: auto;
+  }
+  .about .discord + .check {
+    margin-left: 0;
   }
   .about {
     display: flex;

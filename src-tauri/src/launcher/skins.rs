@@ -30,6 +30,9 @@ struct Cached {
     url: String,
     model: String,
     fetched_at: Option<DateTime<Utc>>,
+    /// The cape the account wears, if any (saved next to the skin).
+    #[serde(default)]
+    cape_url: Option<String>,
 }
 
 /// Only plain hex ids (Minecraft profile UUIDs without dashes) are used in
@@ -79,6 +82,18 @@ pub async fn get(paths: &Paths, profile_id: &str, refresh: bool) -> Result<Optio
             };
         }
     };
+    // The cape comes in the same answer; keep it next to the skin.
+    let cape_path = dir.join(format!("{id}.cape.png"));
+    let cape = cape_url(&profile).map(|u| u.replacen("http://", "https://", 1)).filter(|u| u.starts_with("https://textures.minecraft.net/"));
+    if cape.is_none() {
+        let _ = tokio::fs::remove_file(&cape_path).await;
+    } else if cached.as_ref().and_then(|c| c.cape_url.as_ref()) != cape.as_ref() || !cape_path.exists() {
+        if let Some(png) = fetch_png(cape.as_deref().unwrap_or_default()).await {
+            tokio::fs::create_dir_all(&dir).await?;
+            let bytes = B64.decode(png.trim_start_matches("data:image/png;base64,")).unwrap_or_default();
+            tokio::fs::write(&cape_path, bytes).await?;
+        }
+    }
     let Some((url, model)) = parse_textures(&profile) else {
         return Ok(None);
     };
@@ -91,8 +106,18 @@ pub async fn get(paths: &Paths, profile_id: &str, refresh: bool) -> Result<Optio
         tokio::fs::create_dir_all(&dir).await?;
         tokio::fs::write(&png_path, &bytes).await?;
     }
-    super::paths::write_json(&meta_path, &Cached { url, model: model.clone(), fetched_at: Some(Utc::now()) }).await?;
+    super::paths::write_json(&meta_path, &Cached { url, model: model.clone(), fetched_at: Some(Utc::now()), cape_url: cape }).await?;
     read(&png_path, model).await.map(Some)
+}
+
+/// The cape the account wears (saved when its skin was looked up), as a
+/// data: URL, or None.
+pub async fn cape(paths: &Paths, profile_id: &str) -> Result<Option<String>> {
+    let Some(id) = clean_id(profile_id) else { return Ok(None) };
+    match tokio::fs::read(paths.cache().join("skins").join(format!("{id}.cape.png"))).await {
+        Ok(bytes) if bytes.starts_with(b"\x89PNG") => Ok(Some(format!("data:image/png;base64,{}", B64.encode(bytes)))),
+        _ => Ok(None),
+    }
 }
 
 async fn read(path: &std::path::Path, model: String) -> Result<Skin> {
@@ -187,7 +212,7 @@ async fn remember(paths: &Paths, profile_id: &str, profile: &ApiProfile) -> Resu
     let _ = record(paths, &id, &bytes, model).await;
     super::paths::write_json(
         &dir.join(format!("{id}.json")),
-        &Cached { url: active.url.replacen("http://", "https://", 1), model: model.into(), fetched_at: Some(Utc::now()) },
+        &Cached { url: active.url.replacen("http://", "https://", 1), model: model.into(), fetched_at: Some(Utc::now()), cape_url: None },
     )
     .await?;
     Ok(Some(Skin { png, model: model.into() }))
@@ -195,6 +220,20 @@ async fn remember(paths: &Paths, profile_id: &str, profile: &ApiProfile) -> Resu
 
 async fn to_wardrobe(paths: &Paths, profile_id: &str, profile: ApiProfile) -> Result<Wardrobe> {
     let skin = remember(paths, profile_id, &profile).await?;
+    if let Some(id) = clean_id(profile_id) {
+        let cape_path = paths.cache().join("skins").join(format!("{id}.cape.png"));
+        match profile.capes.iter().find(|c| c.state == "ACTIVE").map(|c| c.url.clone()) {
+            Some(url) => {
+                if let Some(png) = fetch_png(&url).await {
+                    let bytes = B64.decode(png.trim_start_matches("data:image/png;base64,")).unwrap_or_default();
+                    let _ = tokio::fs::write(&cape_path, bytes).await;
+                }
+            }
+            None => {
+                let _ = tokio::fs::remove_file(&cape_path).await;
+            }
+        }
+    }
     let mut capes = Vec::new();
     for c in profile.capes {
         capes.push(Cape {

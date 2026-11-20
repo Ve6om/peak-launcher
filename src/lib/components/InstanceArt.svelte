@@ -2,6 +2,8 @@
   // Instance cover art. Modpacks show their own artwork (a wide banner, or
   // their icon); everything else shows its mod loader's logo (the grass block
   // for vanilla) on a soft glow in its colour. Small thumbnails skip the glow.
+  // With prefer="logo", the pack's logo fills the art, so cards show the
+  // pack's real logo rather than a screenshot.
   import { loaderIcon, loaderTint, PIXEL_ART } from '$lib/loaders';
 
   let {
@@ -9,17 +11,21 @@
     letter = '',
     rounded = true,
     image = null,
-    icon = null
-  }: { loader?: string; letter?: string; rounded?: boolean; image?: string | null; icon?: string | null } = $props();
+    icon = null,
+    prefer = 'banner'
+  }: { loader?: string; letter?: string; rounded?: boolean; image?: string | null; icon?: string | null; prefer?: 'banner' | 'logo' } = $props();
 
   let imageFailed = $state(false);
   let iconFailed = $state(false);
-  const showImage = $derived(!!image && !imageFailed);
-  const showIcon = $derived(!showImage && !!icon && !iconFailed);
+  const logoMode = $derived(prefer === 'logo' && !!icon && !iconFailed);
+  const showImage = $derived(!logoMode && !!image && !imageFailed);
+  const showIcon = $derived(!logoMode && !showImage && !!icon && !iconFailed);
 </script>
 
 <div class="art" class:rounded style:--tint={loaderTint(loader)}>
-  {#if showImage}
+  {#if logoMode}
+    <img class="cover" src={icon} alt="" loading="lazy" draggable="false" onerror={() => (iconFailed = true)} />
+  {:else if showImage}
     <img class="cover" src={image} alt="" loading="lazy" draggable="false" onerror={() => (imageFailed = true)} />
   {:else if showIcon}
     <img class="cover filled" src={icon} alt="" loading="lazy" draggable="false" onerror={() => (iconFailed = true)} />

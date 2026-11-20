@@ -1,6 +1,7 @@
 mod error;
 mod launcher;
 mod links;
+mod presence;
 mod window;
 
 use crate::error::{Error, Result};
@@ -132,6 +133,13 @@ async fn update_instance(state: State<'_, AppState>, instance: Instance) -> Resu
     instances::apply_edit(&mut current, instance);
     instances::save(&state.paths, &current).await?;
     Ok(current)
+}
+
+/// Set the instance's own logo or banner picture ("icon" or "banner"); no
+/// path puts the modpack's artwork back.
+#[tauri::command]
+async fn instance_set_picture(state: State<'_, AppState>, id: String, kind: String, path: Option<String>) -> Result<Instance> {
+    instances::set_picture(&state.paths, &id, &kind, path.as_deref().map(std::path::Path::new)).await
 }
 
 #[tauri::command]
@@ -983,11 +991,65 @@ async fn discover_list() -> Result<Vec<launcher::discover::Listing>> {
     launcher::discover::list().await
 }
 
-/// Launch an instance straight into a server from the list.
+/// Launch an instance straight into a server from the list. The server is
+/// also added to the game's own multiplayer list, so players can rejoin
+/// from inside Minecraft after a disconnect.
 #[tauri::command]
-async fn discover_join(app: AppHandle, state: State<'_, AppState>, instance_id: String, address: String) -> Result<()> {
+async fn discover_join(app: AppHandle, state: State<'_, AppState>, instance_id: String, address: String, name: Option<String>) -> Result<()> {
     servers::parse_address(&address)?;
+    remember_in_game(&state.paths, &instance_id, name.as_deref().unwrap_or(&address), &address).await;
     launch_instance(app, state, instance_id, Some(address)).await
+}
+
+/// Add a server to the instance's in-game list (servers.dat). Failing to do
+/// so never stops the game from starting.
+async fn remember_in_game(paths: &Paths, instance_id: &str, name: &str, address: &str) {
+    let file = instances::game_dir(paths, instance_id).join("servers.dat");
+    if let Err(e) = launcher::serversdat::add(&file, name, address).await {
+        eprintln!("Couldn't add {address} to the in-game server list: {e}");
+    }
+}
+
+/// The servers in an instance's in-game multiplayer list.
+#[tauri::command]
+async fn instance_servers(state: State<'_, AppState>, id: String) -> Result<Vec<launcher::serversdat::Entry>> {
+    launcher::serversdat::list(&instances::game_dir(&state.paths, &id).join("servers.dat")).await
+}
+
+#[tauri::command]
+async fn instance_server_add(state: State<'_, AppState>, id: String, name: String, address: String) -> Result<Vec<launcher::serversdat::Entry>> {
+    servers::parse_address(&address)?;
+    if state.running.lock().unwrap().contains_key(&id) {
+        return Err(Error::msg("Close the game first; it rewrites its server list when it exits."));
+    }
+    let file = instances::game_dir(&state.paths, &id).join("servers.dat");
+    if !launcher::serversdat::add(&file, &name, &address).await? {
+        return Err(Error::msg("That server is already in this instance's list."));
+    }
+    launcher::serversdat::list(&file).await
+}
+
+#[tauri::command]
+async fn instance_server_remove(state: State<'_, AppState>, id: String, address: String) -> Result<Vec<launcher::serversdat::Entry>> {
+    if state.running.lock().unwrap().contains_key(&id) {
+        return Err(Error::msg("Close the game first; it rewrites its server list when it exits."));
+    }
+    launcher::serversdat::remove(&instances::game_dir(&state.paths, &id).join("servers.dat"), &address).await
+}
+
+#[tauri::command]
+async fn instance_servers_reorder(state: State<'_, AppState>, id: String, addresses: Vec<String>) -> Result<Vec<launcher::serversdat::Entry>> {
+    if state.running.lock().unwrap().contains_key(&id) {
+        return Err(Error::msg("Close the game first; it rewrites its server list when it exits."));
+    }
+    launcher::serversdat::reorder(&instances::game_dir(&state.paths, &id).join("servers.dat"), &addresses).await
+}
+
+/// Launch an instance straight into one of its own servers.
+#[tauri::command]
+async fn instance_server_join(app: AppHandle, state: State<'_, AppState>, id: String, address: String) -> Result<()> {
+    servers::parse_address(&address)?;
+    launch_instance(app, state, id, Some(address)).await
 }
 
 /// Launch an instance straight into a server, and remember it for next time.
@@ -999,6 +1061,7 @@ async fn server_join(app: AppHandle, state: State<'_, AppState>, server_id: Stri
         .find(|s| s.id == server_id)
         .ok_or_else(|| Error::msg("That server isn't in the list any more."))?;
     servers::remember_instance(&state.paths, &server_id, &instance_id).await?;
+    remember_in_game(&state.paths, &instance_id, &server.name, &server.address).await;
     launch_instance(app, state, instance_id, Some(server.address)).await
 }
 
@@ -1021,7 +1084,8 @@ async fn refresh_pack_art(state: State<'_, AppState>, id: String) -> Result<Inst
         modrinth::project(&pid).await?
     };
     if let Some(pack) = inst.pack.as_mut() {
-        pack.icon_url = pack.icon_url.clone().or(project.icon_url.clone());
+        // An empty saved icon (from before the CurseForge fix) counts as missing.
+        pack.icon_url = pack.icon_url.clone().filter(|u| !u.trim().is_empty()).or(project.icon_url.clone());
         pack.banner_url = pack
             .banner_url
             .clone()
@@ -1097,6 +1161,12 @@ async fn account_skin(state: State<'_, AppState>, id: String, refresh: Option<bo
         return Ok(None);
     }
     launcher::skins::get(&state.paths, &account.id, refresh.unwrap_or(false)).await
+}
+
+/// The cape an account wears (None for offline accounts or no cape).
+#[tauri::command]
+async fn account_cape(state: State<'_, AppState>, id: String) -> Result<Option<String>> {
+    launcher::skins::cape(&state.paths, &id).await
 }
 
 /// A signed-in Microsoft account with a usable Minecraft token, for skin changes.
@@ -1316,6 +1386,7 @@ pub fn run() {
                 eprintln!("Tray icon unavailable: {e}");
             }
             app.manage(links::PendingLink::default());
+            app.manage(presence::Presence::default());
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 // Installers register peak:// already; this also covers a
@@ -1392,7 +1463,15 @@ pub fn run() {
             modpack_change_version,
             reset_settings,
             discover_list,
+            instance_set_picture,
+            instance_servers,
+            instance_server_add,
+            instance_server_remove,
+            instance_servers_reorder,
+            instance_server_join,
             links::take_pending_link,
+            presence::presence_show,
+            presence::presence_clear,
             discover_join,
             content_search,
             content_project,
@@ -1418,6 +1497,7 @@ pub fn run() {
             ms_login_finish,
             ms_login_cancel,
             account_skin,
+            account_cape,
             appimage_menu_status,
             appimage_menu_install,
             appimage_menu_remove,
