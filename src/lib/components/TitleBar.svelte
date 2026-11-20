@@ -127,16 +127,40 @@
   .playing.on {
     background: rgba(16, 185, 129, 0.2);
   }
+  /* A solid dot with a soft ring growing out of it. The dot itself never
+     changes, so it can't flicker on graphics drivers that render small
+     opacity animations unevenly; the ring is a GPU-composited transform. */
   .dot {
+    position: relative;
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--success);
-    animation: pulse 1.6s ease-in-out infinite;
   }
-  @keyframes pulse {
-    50% {
-      opacity: 0.35;
+  .dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--success);
+    will-change: transform, opacity;
+    animation: ring 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  }
+  @keyframes ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.5;
+    }
+    70%,
+    100% {
+      transform: scale(2.6);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot::after {
+      animation: none;
+      opacity: 0;
     }
   }
   .catch {

@@ -2,6 +2,7 @@ pub mod accounts;
 pub mod apicache;
 pub mod appimage;
 pub mod curseforge;
+pub mod discover;
 pub mod export;
 pub mod ftb;
 pub mod importer;

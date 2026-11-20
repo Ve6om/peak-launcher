@@ -161,6 +161,32 @@ export interface SavedServer {
   instanceId: string | null;
 }
 
+/** A server on the Discover list. */
+export interface Listing {
+  id: string;
+  name: string;
+  address: string;
+  tagline: string;
+  description: string;
+  tags: string[];
+  region: string;
+  language: string;
+  /** Minecraft version to join with. */
+  gameVersion: string;
+  loader: LoaderId;
+  /** The modpack the server runs, installed before joining. */
+  pack: { projectId: string; name: string; iconUrl: string | null } | null;
+  votes: number;
+  featured: boolean;
+  verified: boolean;
+  website: string | null;
+  discord: string | null;
+  /** The owner's banner, if a moderator approved one. */
+  bannerUrl?: string | null;
+  /** The server's page on the website, where players vote. */
+  pageUrl?: string | null;
+}
+
 /** Live status straight from the server. */
 export interface ServerStatus {
   online: boolean;

@@ -2,14 +2,21 @@
   // Saved servers with live status, and a Join button that launches an
   // instance straight into the server.
   import { onMount } from 'svelte';
-  import { Plus, RefreshCw, FolderInput, Server as ServerIcon, Play, Pencil, Trash2, Users, Copy, LoaderCircle, SignalZero } from '@lucide/svelte';
+  import { Plus, RefreshCw, FolderInput, Server as ServerIcon, Play, Pencil, Trash2, Users, Copy, LoaderCircle, SignalZero, Bookmark, Compass } from '@lucide/svelte';
   import Modal from '$lib/components/Modal.svelte';
   import LoaderIcon from '$lib/components/LoaderIcon.svelte';
+  import DiscoverServers from '$lib/components/DiscoverServers.svelte';
+  import { serverLink } from '$lib/discover.svelte';
   import { api } from '$lib/api';
   import { app, go, toast, errorText, activeAccount, isRunning, isBusy } from '$lib/state.svelte';
   import { motdLines, plain } from '$lib/motd';
   import type { SavedServer, ServerStatus } from '$lib/types';
 
+  let tab = $state<'mine' | 'discover'>(serverLink.id ? 'discover' : 'mine');
+  // A peak:// link while this page is already open.
+  $effect(() => {
+    if (serverLink.id) tab = 'discover';
+  });
   let servers = $state<SavedServer[]>([]);
   let status = $state<Record<string, ServerStatus | 'loading'>>({});
   let loaded = $state(false);
@@ -152,15 +159,27 @@
   <header>
     <div>
       <h1>Servers</h1>
-      <p>Save the servers you play on, see who's online, and join with any instance.</p>
+      <p>{tab === 'mine' ? "Save the servers you play on, see who's online, and join with any instance." : 'Find new servers to play on. Modded servers install their pack for you.'}</p>
     </div>
-    <div class="tools">
+    {#if tab === 'mine'}<div class="tools">
       <button class="btn" onclick={refreshAll} disabled={!servers.length}><RefreshCw size={15} /> Refresh</button>
       <button class="btn" onclick={openImport} disabled={!app.instances.length}><FolderInput size={15} /> Import from instance</button>
       <button class="btn primary" onclick={() => (editing = { id: '', name: '', address: '', instanceId: null })}><Plus size={16} /> Add server</button>
-    </div>
+    </div>{/if}
   </header>
 
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected={tab === 'mine'} class:active={tab === 'mine'} onclick={() => (tab = 'mine')}>
+      <Bookmark size={15} /> My servers {#if servers.length}<span class="count">{servers.length}</span>{/if}
+    </button>
+    <button role="tab" aria-selected={tab === 'discover'} class:active={tab === 'discover'} onclick={() => (tab = 'discover')}>
+      <Compass size={15} /> Discover <span class="new">New</span>
+    </button>
+  </div>
+
+  {#if tab === 'discover'}
+    <DiscoverServers />
+  {:else}
   <div class="list">
     {#each servers as s, i (s.id)}
       {@const st = status[s.id]}
@@ -242,6 +261,7 @@
       {/if}
     {/each}
   </div>
+  {/if}
 </div>
 
 {#if editing}
@@ -308,6 +328,56 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-top: -6px;
+    border-bottom: 1px solid var(--stroke);
+  }
+  .tabs button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 42px;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .tabs button:hover {
+    color: var(--text);
+  }
+  .tabs button.active {
+    color: var(--text);
+  }
+  .tabs button.active::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--gradient);
+  }
+  .count {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--muted);
+  }
+  .new {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: var(--on-accent);
+    background: var(--accent);
   }
   header {
     display: flex;
