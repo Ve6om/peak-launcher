@@ -278,11 +278,14 @@ export async function init() {
 
   await on<{ instanceId: string; name: string; files: BlockedFile[] }>('install-blocked', (e) => {
     app.blocked[e.instanceId] = e.files;
+    // Don't join a server with mods still missing.
+    import('./discover.svelte').then((m) => m.dropPendingJoin(e.instanceId, 'blocked')).catch(() => {});
     // Ask the user to fetch them right away, like ATLauncher does.
     app.manualFor = e.instanceId;
   });
   await on<{ instanceId: string; name: string; message: string }>('install-error', (e) => {
     toast(`${e.name}: ${e.message}`, 'error');
+    import('./discover.svelte').then((m) => m.dropPendingJoin(e.instanceId, 'failed')).catch(() => {});
     refreshInstances();
   });
   await on<InstallProgress>('install-progress', (p) => {
@@ -323,6 +326,8 @@ export async function init() {
   app.ready = true;
   guardWindowClose().catch(() => {});
   import('./presence.svelte').then((m) => m.startPresence()).catch(() => {});
+  // Check modpacks for updates quietly, a moment after start-up.
+  setTimeout(() => import('./packUpdates.svelte').then((m) => m.checkPackUpdates()).catch(() => {}), 4000);
 
   // Modpacks installed before Peak saved their artwork: fetch it once, quietly.
   for (const inst of app.instances.filter((i) => i.pack?.projectId && (!i.pack.iconUrl || !i.pack.description))) {
@@ -342,6 +347,9 @@ export async function play(inst: Instance) {
     go('accounts');
     return;
   }
+  // A modpack with a newer version: ask now (not at start-up).
+  const { askBeforePlay } = await import('./packUpdates.svelte');
+  if (!(await askBeforePlay(inst))) return;
   app.logs[inst.id] = [];
   try {
     await api.launch(inst.id);
