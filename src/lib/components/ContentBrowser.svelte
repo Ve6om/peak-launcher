@@ -213,6 +213,7 @@
   }
   .bar {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
   }
@@ -223,7 +224,8 @@
     padding-left: 6px;
   }
   .search {
-    flex: 1;
+    flex: 1 1 220px;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -244,7 +246,10 @@
     color: var(--text);
   }
   .sort {
-    width: 170px;
+    /* As wide as its longest option, and never squeezed smaller. */
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 150px;
     height: 38px;
   }
   .list {
