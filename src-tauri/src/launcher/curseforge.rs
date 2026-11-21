@@ -712,7 +712,8 @@ pub fn parse_loader(id: &str, mc: &str) -> Option<(&'static str, String)> {
 }
 
 /// Download a modpack's zip (best release unless a file is given).
-pub async fn fetch_modpack(cf: &Client, paths: &Paths, id: &str, file_id: Option<&str>) -> Result<(PathBuf, PackInfo)> {
+/// The pack and the file to install (the given one, else the newest release).
+async fn pack_file(cf: &Client, id: &str, file_id: Option<&str>) -> Result<(u64, CfMod, CfFile)> {
     let mid = raw_id(id)?;
     let m: CfMod = cf.get(&format!("/mods/{mid}"), &[]).await?;
     let file: CfFile = match file_id {
@@ -722,6 +723,70 @@ pub async fn fetch_modpack(cf: &Client, paths: &Paths, id: &str, file_id: Option
             list.iter().find(|f| f.release_type == 1).or(list.first()).cloned().ok_or_else(|| Error::msg("This modpack has no files"))?
         }
     };
+    Ok((mid, m, file))
+}
+
+fn pack_info(mid: u64, m: &CfMod, file: &CfFile) -> PackInfo {
+    PackInfo {
+        name: m.name.clone(),
+        version_number: file.display_name.clone(),
+        project_id: Some(format!("{PREFIX}{mid}")),
+        version_id: Some(file.id.to_string()),
+        banner_url: m.screenshots.first().map(|s| s.url.clone()),
+        description: Some(m.summary.clone()).filter(|d| !d.is_empty()),
+        icon_url: m.logo.as_ref().and_then(|l| l.thumbnail_url.clone().or(l.url.clone())),
+        ..Default::default()
+    }
+}
+
+/// A pack whose author turned off launcher downloads: what to download by hand.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualPack {
+    pub name: String,
+    pub version: String,
+    pub file_id: String,
+    pub file_name: String,
+    pub size: u64,
+    pub sha1: Option<String>,
+    /// The file's page on CurseForge, which starts the download.
+    pub download_page: String,
+    pub icon_url: Option<String>,
+}
+
+/// If this pack has to be downloaded by hand, what and from where; else None.
+pub async fn manual_pack(cf: &Client, id: &str, file_id: Option<&str>) -> Result<Option<ManualPack>> {
+    let (_, m, file) = pack_file(cf, id, file_id).await?;
+    if file.download_url.is_some() {
+        return Ok(None);
+    }
+    Ok(Some(ManualPack {
+        download_page: format!("https://www.curseforge.com/minecraft/modpacks/{}/download/{}", m.slug, file.id),
+        name: m.name.clone(),
+        version: file.display_name.clone(),
+        file_id: file.id.to_string(),
+        file_name: file.file_name.clone(),
+        size: file.file_length,
+        sha1: file.sha1(),
+        icon_url: m.logo.as_ref().and_then(|l| l.thumbnail_url.clone().or(l.url.clone())),
+    }))
+}
+
+/// The pack's details for a zip the player downloaded by hand, after checking
+/// it's the right file.
+pub async fn manual_pack_info(cf: &Client, id: &str, file_id: &str, zip: &Path) -> Result<PackInfo> {
+    let (mid, m, file) = pack_file(cf, id, Some(file_id)).await?;
+    if let Some(want) = file.sha1() {
+        let got = net::sha1_file(zip).await?;
+        if !got.eq_ignore_ascii_case(&want) {
+            return Err(Error::msg(format!("That file isn't {} ({}). Download it again from CurseForge.", m.name, file.display_name)));
+        }
+    }
+    Ok(pack_info(mid, &m, &file))
+}
+
+pub async fn fetch_modpack(cf: &Client, paths: &Paths, id: &str, file_id: Option<&str>) -> Result<(PathBuf, PackInfo)> {
+    let (mid, m, file) = pack_file(cf, id, file_id).await?;
     let url = file.download_url.clone().ok_or_else(|| {
         Error::msg(format!(
             "{} can't be downloaded by launchers. Download the zip from https://www.curseforge.com/minecraft/modpacks/{} and import it instead.",
@@ -730,19 +795,7 @@ pub async fn fetch_modpack(cf: &Client, paths: &Paths, id: &str, file_id: Option
     })?;
     let dest = paths.cache().join("modpacks").join(&file.file_name);
     net::download_all(vec![Download::new(url, dest.clone(), file.sha1(), Some(file.file_length))], 1, |_| {}).await?;
-    Ok((
-        dest,
-        PackInfo {
-            name: m.name.clone(),
-            version_number: file.display_name.clone(),
-            project_id: Some(format!("{PREFIX}{mid}")),
-            version_id: Some(file.id.to_string()),
-            banner_url: m.screenshots.first().map(|s| s.url.clone()),
-            description: Some(m.summary.clone()).filter(|d| !d.is_empty()),
-            icon_url: m.logo.and_then(|l| l.thumbnail_url.or(l.url)),
-            ..Default::default()
-        },
-    ))
+    Ok((dest, pack_info(mid, &m, &file)))
 }
 
 fn read_manifest(zip_path: &Path) -> Result<Manifest> {

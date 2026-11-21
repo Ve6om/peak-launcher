@@ -5,6 +5,7 @@ import { api } from './api';
 import { app, refreshInstances, toast, errorText, activeAccount, go, isBusy, isRunning } from './state.svelte';
 import type { Instance, Listing } from './types';
 import { playingOn } from './presence.svelte';
+import { installPack } from './manualPack.svelte';
 
 /** A server-list id from a peak:// link, waiting for Discover to open it. */
 export const serverLink = $state<{ id: string | null }>({ id: null });
@@ -103,9 +104,15 @@ export async function installAndJoin(l: Listing): Promise<Instance | null> {
     return null;
   }
   try {
-    const inst = await api.modpackInstall({ projectId: l.pack.projectId, versionId: l.pack.versionId ?? null });
+    const joinWhenReady = (inst: Instance) => {
+      pendingJoins[inst.id] = { address: l.address, name: l.name };
+    };
+    const inst = await installPack({ projectId: l.pack.projectId, versionId: l.pack.versionId ?? null }, joinWhenReady);
+    // null: the pack has to be downloaded by hand; the dialog takes over and
+    // sets up the join once it installs the file.
+    if (!inst) return null;
     await refreshInstances();
-    pendingJoins[inst.id] = { address: l.address, name: l.name };
+    joinWhenReady(inst);
     go('instance', inst.id);
     toast(`Installing ${l.pack.name}. Peak joins ${l.name} as soon as it's ready.`, 'info');
     return inst;
