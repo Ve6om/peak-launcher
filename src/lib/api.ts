@@ -2,6 +2,7 @@
 // (e.g. `npm run dev` without Tauri) it falls back to an in-memory mock so the
 // interface can be designed and tested without the Rust backend.
 import type {
+  SideFilter,
   AccountInfo,
   AppInfo,
   ContentKind,
@@ -71,8 +72,8 @@ export const api = {
   createInstance: (name: string, gameVersion: string, loader: LoaderId, loaderVersion: string | null) =>
     call<Instance>('create_instance', { name, gameVersion, loader, loaderVersion }),
   worlds: (id: string) => call<string[]>('list_worlds', { id }),
-  contentSearch: (source: Source, instanceId: string, kind: ContentKind, query: string, sort: string, offset: number) =>
-    call<SearchResult>('content_search', { source, instanceId, kind, query, sort, offset }),
+  contentSearch: (source: Source, instanceId: string, kind: ContentKind, query: string, sort: string, offset: number, side: SideFilter = 'any') =>
+    call<SearchResult>('content_search', { source, instanceId, kind, query, sort, offset, side }),
   contentProject: (id: string) => call<Project>('content_project', { id }),
   contentVersions: (instanceId: string, kind: ContentKind, projectId: string) =>
     call<ContentVersion[]>('content_versions', { instanceId, kind, projectId }),
@@ -582,8 +583,17 @@ const mock = (() => {
             downloads: Math.round(48_000_000 / (i + 1)),
             follows: Math.round(30_000 / (i + 1)),
             categories: ['optimization', 'utility', 'library'].slice(0, (i % 3) + 1),
-            date_modified: iso(864e5 * (i + 2))
-          }));
+            date_modified: iso(864e5 * (i + 2)),
+            // A mix of sides, so the "Runs on" filter has something to do.
+            client_side: a.source === 'curseforge' ? null : i % 3 === 2 ? 'unsupported' : 'required',
+            server_side: a.source === 'curseforge' ? null : i % 3 === 1 ? 'unsupported' : 'required'
+          }))
+          .filter((h) => {
+            if (a.source === 'curseforge' || a.kind !== 'mod' || !a.side || a.side === 'any') return true;
+            if (a.side === 'client') return h.server_side === 'unsupported';
+            if (a.side === 'server') return h.client_side === 'unsupported';
+            return h.client_side !== 'unsupported' && h.server_side !== 'unsupported';
+          });
         const out = sourced(a.source, hits);
         return { hits: out.slice(a.offset, a.offset + 24), total_hits: out.length, offset: a.offset };
       }

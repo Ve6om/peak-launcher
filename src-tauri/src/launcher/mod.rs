@@ -43,7 +43,7 @@ mod tests {
         let paths = super::paths::Paths::new(dir.clone());
         let inst = super::instances::create(&paths, "Mods", "1.21.4", "fabric", Some("0.16.9".into())).await.unwrap();
 
-        let found = modrinth::search(&paths, &inst.id, Kind::Mod, "mod menu", "relevance", 0).await.unwrap();
+        let found = modrinth::search(&paths, &inst.id, Kind::Mod, "mod menu", "relevance", "any", 0).await.unwrap();
         println!("search hits: {} (first: {})", found.total_hits, found.hits[0].title);
         assert!(found.hits.iter().any(|h| h.slug == "modmenu"));
 
@@ -65,7 +65,7 @@ mod tests {
         let updates = modrinth::check_updates(&paths, &inst.id, Kind::Mod).await.unwrap();
         println!("updates: {}", updates.len());
 
-        let shaders = modrinth::search(&paths, &inst.id, Kind::Shader, "", "downloads", 0).await.unwrap();
+        let shaders = modrinth::search(&paths, &inst.id, Kind::Shader, "", "downloads", "any", 0).await.unwrap();
         println!("shaders: {} (first: {})", shaders.total_hits, shaders.hits[0].title);
         let _ = std::fs::remove_dir_all(dir);
     }

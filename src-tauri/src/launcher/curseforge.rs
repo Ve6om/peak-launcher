@@ -367,6 +367,8 @@ fn to_hit(m: CfMod) -> SearchHit {
         author: m.authors.first().map(|a| a.name.clone()).unwrap_or_default(),
         categories: m.categories.into_iter().map(|c| c.name).collect(),
         date_modified: m.date_modified,
+        client_side: None,
+        server_side: None,
     }
 }
 

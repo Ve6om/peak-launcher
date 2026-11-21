@@ -81,6 +81,8 @@ fn to_hit(v: &Value) -> SearchHit {
         author: v["authors"][0]["name"].as_str().unwrap_or("FTB Team").to_string(),
         categories: v["tags"].as_array().into_iter().flatten().filter_map(|t| t["name"].as_str().map(String::from)).collect(),
         date_modified: iso(v["updated"].as_i64().unwrap_or(0)),
+        client_side: None,
+        server_side: None,
     }
 }
 

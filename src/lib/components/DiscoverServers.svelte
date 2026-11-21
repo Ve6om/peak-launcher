@@ -834,6 +834,8 @@
     font-size: 13.5px;
     line-height: 1.6;
     color: var(--muted);
+    /* Keep the owner's paragraphs and list lines. */
+    white-space: pre-line;
   }
   .facts {
     display: grid;
