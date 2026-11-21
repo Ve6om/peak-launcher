@@ -18,6 +18,8 @@ interface Toast {
   id: number;
   kind: 'info' | 'success' | 'error';
   text: string;
+  /** Offer the rage button (a launch failed or the game crashed). */
+  rage?: boolean;
 }
 
 export const app = $state({
@@ -175,12 +177,12 @@ export const isRunning = (id: string) => app.running.includes(id);
 export const isBusy = (id: string) => !!app.progress[id] && app.progress[id].stage !== 'Done';
 
 let toastId = 0;
-export function toast(text: string, kind: Toast['kind'] = 'info') {
+export function toast(text: string, kind: Toast['kind'] = 'info', opts: { rage?: boolean } = {}) {
   const id = ++toastId;
-  app.toasts.push({ id, kind, text });
+  app.toasts.push({ id, kind, text, rage: opts.rage });
   setTimeout(() => {
     app.toasts = app.toasts.filter((t) => t.id !== id);
-  }, kind === 'error' ? 7000 : 3500);
+  }, opts.rage ? 12000 : kind === 'error' ? 7000 : 3500);
 }
 
 export function errorText(e: unknown) {
@@ -320,7 +322,7 @@ export async function init() {
       app.running = app.running.filter((r) => r !== s.instanceId);
       import('./presence.svelte').then((m) => delete m.playingOn[s.instanceId]).catch(() => {});
       if (s.exitCode && s.exitCode !== 0) {
-        toast(`Game exited with code ${s.exitCode}. Check the console for details.`, 'error');
+        toast(`Game exited with code ${s.exitCode}. Check the console for details.`, 'error', { rage: true });
         // Show what went wrong (the pop-out window, if open, already does).
         if (!app.poppedOut[s.instanceId]) go('instance', s.instanceId, 'console');
       }
@@ -359,7 +361,7 @@ export async function play(inst: Instance) {
     await api.launch(inst.id);
   } catch (e) {
     delete app.progress[inst.id];
-    toast(errorText(e), 'error');
+    toast(errorText(e), 'error', { rage: true });
   }
 }
 
