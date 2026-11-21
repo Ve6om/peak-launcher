@@ -31,7 +31,7 @@
         stop = true;
         clearInterval(timer);
         installing = true;
-        if (!(await installDownloaded(path))) {
+        if (!(await installDownloaded(path, true))) {
           installing = false;
           failed = true;
         }

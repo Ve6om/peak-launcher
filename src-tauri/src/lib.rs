@@ -761,7 +761,7 @@ async fn modpack_change_version(app: AppHandle, state: State<'_, AppState>, id: 
 
     launcher::packupdate::back_up_mods(&paths, &id, &old.version_number).await?;
     instances::save(&paths, &inst).await?;
-    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf);
+    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf, None);
     Ok(inst)
 }
 
@@ -784,19 +784,32 @@ async fn modpack_install(
     project_id: Option<String>,
     version_id: Option<String>,
     file_path: Option<String>,
+    remove_file: Option<bool>,
 ) -> Result<Instance> {
     let paths = state.paths.clone();
+    // A pack zip Peak found in Downloads for the player: tidy it away once
+    // it's installed (only ever a file directly in the Downloads folder).
+    let cleanup = match (&file_path, remove_file) {
+        (Some(f), Some(true)) => {
+            let f = std::path::PathBuf::from(f);
+            let downloads = app.path().download_dir().ok().and_then(|d| d.canonicalize().ok());
+            let parent = f.canonicalize().ok().and_then(|c| c.parent().map(|p| p.to_path_buf()));
+            let is_zip = f.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+            (is_zip && downloads.is_some() && downloads == parent).then_some(f)
+        }
+        _ => None,
+    };
     let cf = cf_client(&paths).await.ok();
     if let Some(pid) = project_id.as_deref().filter(|p| ftb::is_ftb(p)) {
         let (manifest, info) = ftb::fetch(pid, version_id.as_deref()).await?;
         let inst = ftb::prepare(&paths, &manifest, info).await?;
-        spawn_pack_install(app, paths, inst.clone(), std::path::PathBuf::new(), PackKind::Ftb(manifest), cf);
+        spawn_pack_install(app, paths, inst.clone(), std::path::PathBuf::new(), PackKind::Ftb(manifest), cf, None);
         return Ok(inst);
     }
     if let Some(pid) = project_id.as_deref().filter(|p| technic::is_technic(p)) {
         let (plan, info) = technic::fetch(&paths, pid, version_id.as_deref()).await?;
         let inst = technic::prepare(&paths, &plan, info).await?;
-        spawn_pack_install(app, paths, inst.clone(), std::path::PathBuf::new(), PackKind::Technic(plan), cf);
+        spawn_pack_install(app, paths, inst.clone(), std::path::PathBuf::new(), PackKind::Technic(plan), cf, None);
         return Ok(inst);
     }
     let (archive, pack) = match (project_id, file_path) {
@@ -835,7 +848,7 @@ async fn modpack_install(
         (inst, PackKind::Modrinth(index))
     };
 
-    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf);
+    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf, cleanup);
     Ok(inst)
 }
 
@@ -877,7 +890,15 @@ async fn find_download(app: AppHandle, file_name: String, size: u64) -> Result<O
 
 /// Download a modpack's files and install the game in the background, with
 /// progress on the new instance.
-fn spawn_pack_install(app: AppHandle, paths: Paths, inst: Instance, archive: std::path::PathBuf, kind: PackKind, cf: Option<curseforge::Client>) {
+fn spawn_pack_install(
+    app: AppHandle,
+    paths: Paths,
+    inst: Instance,
+    archive: std::path::PathBuf,
+    kind: PackKind,
+    cf: Option<curseforge::Client>,
+    cleanup: Option<std::path::PathBuf>,
+) {
     let app2 = app.clone();
     tokio::spawn(async move {
         let mut inst = inst;
@@ -910,6 +931,11 @@ fn spawn_pack_install(app: AppHandle, paths: Paths, inst: Instance, archive: std
             Ok(blocked)
         }
         .await;
+        if result.is_ok() {
+            if let Some(f) = &cleanup {
+                let _ = tokio::fs::remove_file(f).await;
+            }
+        }
         match result {
             Ok(blocked) if !blocked.is_empty() => {
                 let list: Vec<manual::ManualFile> = blocked.iter().cloned().map(Into::into).collect();
