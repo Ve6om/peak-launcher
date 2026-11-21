@@ -79,6 +79,26 @@ pub struct SearchHit {
     #[serde(default)]
     pub categories: Vec<String>,
     pub date_modified: String,
+    /// Where the mod runs, from Modrinth: required, optional, unsupported or
+    /// unknown. None for sources that don't say (CurseForge, FTB, Technic).
+    #[serde(default)]
+    pub client_side: Option<String>,
+    #[serde(default)]
+    pub server_side: Option<String>,
+}
+
+/// Modrinth search facets for a "which side does it run on" filter.
+fn side_facets(side: &str) -> Vec<Vec<String>> {
+    let runs = |s: &str| vec![format!("{s}_side:required"), format!("{s}_side:optional")];
+    // "Client only" means the server doesn't need it (and the other way
+    // round), which includes mods that are optional on the other side.
+    let not = |s: &str| vec![format!("{s}_side:unsupported"), format!("{s}_side:optional")];
+    match side {
+        "client" => vec![runs("client"), not("server")],
+        "server" => vec![runs("server"), not("client")],
+        "both" => vec![runs("client"), runs("server")],
+        _ => vec![],
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,7 +108,7 @@ pub struct SearchResult {
     pub offset: u64,
 }
 
-pub async fn search(paths: &Paths, instance_id: &str, kind: Kind, query: &str, sort: &str, offset: u32) -> Result<SearchResult> {
+pub async fn search(paths: &Paths, instance_id: &str, kind: Kind, query: &str, sort: &str, side: &str, offset: u32) -> Result<SearchResult> {
     let inst = instances::get(paths, instance_id).await?;
     let loaders = loaders_for(&inst, kind);
     if kind == Kind::Mod && loaders.is_empty() {
@@ -100,6 +120,9 @@ pub async fn search(paths: &Paths, instance_id: &str, kind: Kind, query: &str, s
     ];
     if !loaders.is_empty() {
         facets.push(loaders.iter().map(|l| format!("categories:{l}")).collect());
+    }
+    if kind == Kind::Mod {
+        facets.extend(side_facets(side));
     }
     let index = match sort {
         "downloads" | "follows" | "newest" | "updated" => sort,

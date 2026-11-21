@@ -461,6 +461,7 @@ async fn content_search(
     kind: String,
     query: String,
     sort: String,
+    side: Option<String>,
     offset: u32,
 ) -> Result<SearchResult> {
     let kind = Kind::parse(&kind)?;
@@ -469,7 +470,8 @@ async fn content_search(
         let inst = instances::get(&state.paths, &instance_id).await?;
         return curseforge::search(&cf, Some(&inst), Some(kind), &query, &sort, offset).await;
     }
-    modrinth::search(&state.paths, &instance_id, kind, &query, &sort, offset).await
+    // CurseForge doesn't say which side a mod runs on, so this only filters Modrinth.
+    modrinth::search(&state.paths, &instance_id, kind, &query, &sort, side.as_deref().unwrap_or("any"), offset).await
 }
 
 #[tauri::command]

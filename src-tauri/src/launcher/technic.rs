@@ -82,6 +82,8 @@ fn to_hit(v: &Value) -> SearchHit {
         author: v["user"].as_str().unwrap_or_default().to_string(),
         categories: [v["minecraft"].as_str().map(|m| format!("Minecraft {m}"))].into_iter().flatten().collect(),
         date_modified: String::new(),
+        client_side: None,
+        server_side: None,
     }
 }
 

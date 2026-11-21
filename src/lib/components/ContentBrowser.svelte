@@ -7,13 +7,16 @@
   import SourceLogo from './SourceLogo.svelte';
   import { api } from '$lib/api';
   import { app, go, compact, ago, errorText, requestInstall } from '$lib/state.svelte';
-  import { CONTENT_KINDS, loaderLabel, type ContentKind, type Instance, type SearchHit, type Source } from '$lib/types';
+  import { CONTENT_KINDS, loaderLabel, sideLabel, type ContentKind, type Instance, type SideFilter, type SearchHit, type Source } from '$lib/types';
 
   let { inst, kind, onchanged }: { inst: Instance; kind: ContentKind; onchanged: () => void } = $props();
 
   let source = $state<Source>('modrinth');
   let query = $state('');
   let sort = $state('relevance');
+  // Which side a mod runs on. Only Modrinth says, so it only filters there.
+  let side = $state<SideFilter>('any');
+  const sideFilters = $derived(kind === 'mod' && source === 'modrinth');
   let hits = $state<SearchHit[]>([]);
   let total = $state(0);
   let loading = $state(false);
@@ -46,7 +49,7 @@
     loading = true;
     error = null;
     try {
-      const res = await api.contentSearch(source, inst.id, kind, query.trim(), sort, reset ? 0 : hits.length);
+      const res = await api.contentSearch(source, inst.id, kind, query.trim(), sort, reset ? 0 : hits.length, sideFilters ? side : 'any');
       if (my !== req) return;
       hits = reset ? res.hits : [...hits, ...res.hits];
       total = res.total_hits;
@@ -66,6 +69,7 @@
     kind;
     source;
     sort;
+    side;
     query;
     needsKey;
     clearTimeout(timer);
@@ -109,6 +113,20 @@
       <input bind:value={query} placeholder="Search {label.label.toLowerCase()} for {inst.gameVersion}{kind === 'mod' ? ` ${loaderLabel(inst.loader)}` : ''}…" />
       {#if loading}<LoaderCircle size={15} class="spin" />{/if}
     </div>
+    {#if kind === 'mod'}
+      <select
+        class="input sort"
+        bind:value={side}
+        disabled={!sideFilters}
+        title={sideFilters ? 'Where the mod runs' : "CurseForge doesn't say which side mods run on"}
+        aria-label="Runs on"
+      >
+        <option value="any">Any side</option>
+        <option value="client">Client only</option>
+        <option value="server">Server only</option>
+        <option value="both">Client and server</option>
+      </select>
+    {/if}
     <select class="input sort" bind:value={sort}>
       <option value="relevance">Relevance</option>
       <option value="downloads">Most downloaded</option>
@@ -150,6 +168,7 @@
               <span class="stat"><Download size={12} /> {compact(hit.downloads)}</span>
               <span class="stat"><Heart size={12} /> {compact(hit.follows)}</span>
               <span class="stat">Updated {ago(hit.date_modified).toLowerCase()}</span>
+              {#if kind === 'mod' && sideLabel(hit)}<span class="side">{sideLabel(hit)}</span>{/if}
             </div>
           </div>
           <div class="action">
@@ -288,6 +307,14 @@
     gap: 4px;
     font-size: 11.5px;
     color: var(--faint);
+  }
+  .side {
+    padding: 1px 7px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
   .action {
     position: relative;

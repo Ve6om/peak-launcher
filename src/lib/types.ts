@@ -451,6 +451,20 @@ export interface SearchHit {
   author: string;
   categories: string[];
   date_modified: string;
+  /** Modrinth only: required, optional, unsupported or unknown. */
+  client_side?: string | null;
+  server_side?: string | null;
+}
+
+/** The mod search's "runs on" filter. */
+export type SideFilter = 'any' | 'client' | 'server' | 'both';
+
+/** A short label for where a mod runs, or null if it runs on both or we can't tell. */
+export function sideLabel(hit: Pick<SearchHit, 'client_side' | 'server_side'>): string | null {
+  const runs = (v?: string | null) => v === 'required' || v === 'optional';
+  if (runs(hit.client_side) && hit.server_side === 'unsupported') return 'Client only';
+  if (runs(hit.server_side) && hit.client_side === 'unsupported') return 'Server only';
+  return null;
 }
 
 export interface SearchResult {
