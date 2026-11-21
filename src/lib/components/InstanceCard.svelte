@@ -2,6 +2,7 @@
   import { Play, Clock, LoaderCircle } from '@lucide/svelte';
   import InstanceArt from './InstanceArt.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
+  import { versionStatus } from '$lib/packUpdates.svelte';
   import { app, go, play, ago, isRunning, isBusy, openInstanceMenu } from '$lib/state.svelte';
   import { loaderLabel, packVersion, type Instance } from '$lib/types';
 
@@ -32,6 +33,9 @@
     <h3>{inst.name}</h3>
     <div class="meta">
       <span>{inst.pack ? `${packVersion(inst.pack)}` : loaderLabel(inst.loader)}</span>
+      {#if versionStatus(inst)}
+        <span class="vstatus" class:outdated={versionStatus(inst) === 'outdated'}>{versionStatus(inst) === 'outdated' ? 'Outdated' : 'Latest'}</span>
+      {/if}
       <span class="dot"></span>
       <Clock size={12} />
       <span>{ago(inst.lastPlayed)}</span>
@@ -40,6 +44,18 @@
 </div>
 
 <style>
+  .vstatus {
+    padding: 0 6px;
+    border-radius: 5px;
+    font-size: 10.5px;
+    font-weight: 650;
+    color: #86efac;
+    background: rgba(16, 185, 129, 0.12);
+  }
+  .vstatus.outdated {
+    color: #fcd34d;
+    background: rgba(251, 191, 36, 0.13);
+  }
   .card {
     position: relative;
     overflow: hidden;

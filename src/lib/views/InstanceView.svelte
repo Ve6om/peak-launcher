@@ -8,6 +8,7 @@
   import { loaderLabel, packVersion } from '$lib/types';
   import InstanceArt from '$lib/components/InstanceArt.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
+  import { versionStatus } from '$lib/packUpdates.svelte';
   import PlayButton from '$lib/components/PlayButton.svelte';
   import Progress from '$lib/components/Progress.svelte';
   import { api } from '$lib/api';
@@ -49,7 +50,11 @@
           <div class="chips">
             <span class="chip">Minecraft {inst.gameVersion}</span>
             <span class="chip">{loaderLabel(inst.loader)}{inst.loaderVersion ? ` ${inst.loaderVersion}` : ''}</span>
-            {#if inst.pack}<span class="chip">Modpack {packVersion(inst.pack)}</span>{/if}
+            {#if inst.pack}
+              <span class="chip" class:outdated={versionStatus(inst) === 'outdated'} class:latest={versionStatus(inst) === 'latest'}>
+                Modpack {packVersion(inst.pack)}{versionStatus(inst) ? ` · ${versionStatus(inst) === 'outdated' ? 'Outdated' : 'Latest'}` : ''}
+              </span>
+            {/if}
             {#if isRunning(inst.id)}<span class="chip live">● Playing</span>{/if}
           </div>
         </div>
@@ -142,6 +147,14 @@
 {/if}
 
 <style>
+  .chip.latest {
+    color: #86efac;
+    border-color: rgba(52, 211, 153, 0.3);
+  }
+  .chip.outdated {
+    color: #fcd34d;
+    border-color: rgba(251, 191, 36, 0.35);
+  }
   .page {
     display: flex;
     flex-direction: column;

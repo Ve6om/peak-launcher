@@ -20,6 +20,19 @@ export const pendingJoins = $state<Record<string, { address: string; name: strin
 
 let watching = false;
 
+/**
+ * Stop waiting to join a server for this instance, e.g. when its install
+ * failed or still needs files downloaded by hand.
+ */
+export function dropPendingJoin(instanceId: string, reason: 'blocked' | 'failed') {
+  const target = pendingJoins[instanceId];
+  if (!target) return;
+  delete pendingJoins[instanceId];
+  if (reason === 'blocked') {
+    toast(`Some files need downloading by hand first. When they're done, press Play on ${target.name} to join.`, 'info');
+  }
+}
+
 /** Start watching installs (once). */
 export function watchPendingJoins() {
   if (watching) return;

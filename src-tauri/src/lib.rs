@@ -202,11 +202,18 @@ async fn install_inner(app: &AppHandle, paths: &Paths, inst: &mut Instance) -> R
     .await;
 
     app.state::<AppState>().installing.lock().unwrap().remove(&inst.id);
+    // Save "installed" before saying Done: the window re-reads the instance
+    // when it hears Done, and must see it installed (e.g. to join a server).
+    let saved = match result {
+        Ok(version_id) => {
+            inst.installed = true;
+            inst.version_id = Some(version_id);
+            instances::save(paths, inst).await
+        }
+        Err(e) => Err(e),
+    };
     progress(InstallProgress { stage: "Done", done: 1, total: 1, bytes: 0 });
-    let version_id = result?;
-    inst.installed = true;
-    inst.version_id = Some(version_id);
-    instances::save(paths, inst).await
+    saved
 }
 
 #[tauri::command]
@@ -626,8 +633,9 @@ async fn pack_versions(paths: &Paths, project_id: &str) -> Result<Vec<modrinth::
     modpacks::versions(project_id).await
 }
 
-/// Modpack instances with a newer version, leaving out skipped updates and
-/// packs the player muted. Empty when update checks are off in Settings.
+/// Modpack instances with a newer version (marked when the player skipped it
+/// or muted the pack, so the window can still show them as outdated). Empty
+/// when update checks are off in Settings.
 #[tauri::command]
 async fn modpack_updates(state: State<'_, AppState>) -> Result<Vec<launcher::packupdate::PackUpdate>> {
     use futures::StreamExt;
@@ -641,7 +649,7 @@ async fn modpack_updates(state: State<'_, AppState>) -> Result<Vec<launcher::pac
         .filter_map(|i| {
             let p = i.pack.clone()?;
             let pid = p.project_id.clone()?;
-            (!p.no_update_prompts && p.version_id.is_some()).then_some((i, p, pid))
+            p.version_id.is_some().then_some((i, p, pid))
         })
         .collect();
     let found: Vec<Option<launcher::packupdate::PackUpdate>> = futures::stream::iter(packs)
@@ -650,7 +658,9 @@ async fn modpack_updates(state: State<'_, AppState>) -> Result<Vec<launcher::pac
             async move {
                 // A pack that can't be checked (offline, removed) is just skipped.
                 let versions = pack_versions(&paths, &pid).await.ok()?;
-                let next = launcher::packupdate::newer(&versions, &pack)?;
+                // Newest version regardless of a skip; the skip is reported instead.
+                let probe = PackInfo { skipped_version: None, ..pack.clone() };
+                let next = launcher::packupdate::newer(&versions, &probe)?;
                 Some(launcher::packupdate::PackUpdate {
                     instance_id: inst.id.clone(),
                     instance_name: inst.name.clone(),
@@ -659,6 +669,8 @@ async fn modpack_updates(state: State<'_, AppState>) -> Result<Vec<launcher::pac
                     latest_id: next.id.clone(),
                     latest: next.version_number.clone(),
                     icon_url: pack.icon_url.clone(),
+                    skipped: pack.skipped_version.as_deref() == Some(next.id.as_str()),
+                    muted: pack.no_update_prompts,
                 })
             }
         })

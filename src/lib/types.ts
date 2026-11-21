@@ -108,6 +108,10 @@ export interface PackUpdate {
   latestId: string;
   latest: string;
   iconUrl: string | null;
+  /** The player skipped this version. */
+  skipped?: boolean;
+  /** The player turned update reminders off for this pack. */
+  muted?: boolean;
 }
 
 /** Pack version without the file extension or a repeated pack name. */

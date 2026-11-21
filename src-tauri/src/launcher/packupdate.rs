@@ -18,6 +18,10 @@ pub struct PackUpdate {
     pub latest_id: String,
     pub latest: String,
     pub icon_url: Option<String>,
+    /// The player skipped this version (still shown as outdated, not asked about).
+    pub skipped: bool,
+    /// The player turned update reminders off for this pack.
+    pub muted: bool,
 }
 
 /// The version a pack would update to: the newest release (the newest of

@@ -239,7 +239,7 @@
           <Row title="Check for updates automatically" desc="Peak asks GitHub for a newer version when it starts and every few hours. Updates are only installed when you choose to.">
             <Switch bind:checked={s.autoUpdateCheck} label="Check for updates automatically" />
           </Row>
-          <Row title="Tell me about modpack updates" desc="When Peak starts, check whether your installed modpacks have new versions and offer to update them.">
+          <Row title="Tell me about modpack updates" desc="Check your modpacks for new versions, mark them Latest or Outdated, and ask when you press Play on one that has an update.">
             <Switch bind:checked={s.modpackUpdateCheck} label="Tell me about modpack updates" />
           </Row>
           <Row title="Parallel downloads" desc="Files downloaded at once. Lower this on slow connections.">

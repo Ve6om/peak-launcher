@@ -16,7 +16,7 @@
   import CloseDialog from '$lib/components/CloseDialog.svelte';
   import UpdateDialog from '$lib/components/UpdateDialog.svelte';
   import MenuEntryOffer from '$lib/components/MenuEntryOffer.svelte';
-  import PackUpdateOffer from '$lib/components/PackUpdateOffer.svelte';
+  import PackUpdatePrompt from '$lib/components/PackUpdatePrompt.svelte';
   import { updates, startUpdateChecks } from '$lib/updates.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Home from '$lib/views/Home.svelte';
@@ -130,7 +130,7 @@
 {/if}
 {#if app.ready}
   <MenuEntryOffer />
-  <PackUpdateOffer />
+  <PackUpdatePrompt />
 {/if}
 <Toasts />
 {/if}

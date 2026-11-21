@@ -181,7 +181,8 @@
   function playLabel(l: Listing): string {
     if (preparing[l.id]) return 'Getting the pack…';
     const inst = packInstance(l);
-    if (inst && pendingJoins[inst.id]) return 'Installing…';
+    // Only while something is really happening; otherwise it's just Play.
+    if (inst && pendingJoins[inst.id] && (isBusy(inst.id) || !inst.installed)) return 'Installing…';
     if (l.pack && !inst) return 'Install & play';
     return 'Play';
   }
@@ -189,7 +190,7 @@
   const busyFor = (l: Listing) => {
     if (preparing[l.id]) return true;
     const inst = l.pack ? packInstance(l) : app.instances.find((i) => i.id === chosen(l));
-    return !!inst && (isRunning(inst.id) || isBusy(inst.id) || !!pendingJoins[inst.id]);
+    return !!inst && (isRunning(inst.id) || isBusy(inst.id) || (!!pendingJoins[inst.id] && !inst.installed));
   };
 
   function bars(ms: number | null): number {
