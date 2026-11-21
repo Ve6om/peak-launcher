@@ -1444,6 +1444,28 @@ async fn reset_settings(state: State<'_, AppState>) -> Result<Settings> {
     Ok(fresh)
 }
 
+// ---------------------------------------------------------------- start with the computer
+
+/// The argument the OS passes when it starts Peak at sign-in.
+const AUTOSTART_ARG: &str = "--autostart";
+
+/// Whether Peak starts when the user signs in. The OS keeps this (a Run key on
+/// Windows, a login item on macOS, an autostart entry on Linux), so it's off
+/// until the user turns it on.
+#[tauri::command]
+fn autostart_enabled(app: AppHandle) -> Result<bool> {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().map_err(|e| Error::msg(format!("Couldn't check whether Peak starts with your computer: {e}")))
+}
+
+#[tauri::command]
+fn set_autostart(app: AppHandle, on: bool) -> Result<()> {
+    use tauri_plugin_autostart::ManagerExt;
+    let manager = app.autolaunch();
+    let result = if on { manager.enable() } else { manager.disable() };
+    result.map_err(|e| Error::msg(format!("Couldn't change whether Peak starts with your computer: {e}")))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1458,7 +1480,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
         .setup(|app| {
+            // Started with the computer: open minimized rather than in the way.
+            if std::env::args().any(|a| a == AUTOSTART_ARG) {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.minimize();
+                }
+            }
             let root = app.path().data_dir()?.join("PeakLauncher");
             std::fs::create_dir_all(&root)?;
             let paths = Paths::new(root);
@@ -1508,6 +1537,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            autostart_enabled,
+            set_autostart,
             game_logs,
             content_linked,
             serverpack_analyze,

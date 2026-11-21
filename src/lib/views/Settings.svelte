@@ -35,9 +35,42 @@
     else if (r === 'error') toast(`Couldn't check for updates: ${updates.error}`, 'error');
   }
 
-  const sections = ['Appearance', 'Java & memory', 'Game', 'Commands', 'Network', 'Integrations', 'About'] as const;
+  // Each one is its own tab; the last one opened is remembered.
+  const sections = ['General', 'Appearance', 'Java & memory', 'Game', 'Commands', 'Network', 'Integrations', 'About'] as const;
+  type Section = (typeof sections)[number];
   let showKey = $state(false);
-  let current = $state<(typeof sections)[number]>('Appearance');
+  let current = $state<Section>(lastTab());
+
+  function lastTab(): Section {
+    try {
+      const saved = localStorage.getItem('peak-settings-tab');
+      if (saved && (sections as readonly string[]).includes(saved)) return saved as Section;
+    } catch {
+      // No storage: start on General.
+    }
+    return 'General';
+  }
+
+  // Start Peak with the computer. Kept by the OS (not in settings.json), and
+  // switched straight away rather than on Save.
+  let autostart = $state<boolean | null>(null);
+  let autostartBusy = $state(false);
+  onMount(() => {
+    api.autostartEnabled().then((on) => (autostart = on)).catch(() => (autostart = null));
+  });
+  async function setAutostart(on: boolean) {
+    autostartBusy = true;
+    autostart = on;
+    try {
+      await api.setAutostart(on);
+      toast(on ? 'Peak will start when your computer does' : "Peak won't start with your computer", 'success');
+    } catch (e) {
+      autostart = !on;
+      toast(errorText(e), 'error');
+    } finally {
+      autostartBusy = false;
+    }
+  }
 
   // Leaving the page without saving reverts any accent / background preview.
   $effect(() => () => {
@@ -95,9 +128,13 @@
     }
   }
 
-  function jump(name: (typeof sections)[number]) {
+  function jump(name: Section) {
     current = name;
-    document.getElementById('sec-' + name)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    try {
+      localStorage.setItem('peak-settings-tab', name);
+    } catch {
+      // Not remembered; fine.
+    }
   }
 
   const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
@@ -117,7 +154,29 @@
     </nav>
 
     <div class="content">
-      <section id="sec-Appearance" class="panel glass">
+      <section id="sec-General" class="panel glass" hidden={current !== 'General'}>
+        <h3>General</h3>
+        <div class="rows">
+          <Row title="Start Peak when my computer starts" desc="Peak opens minimized when you sign in to your computer, ready when you are. This takes effect straight away.">
+            <Switch
+              checked={!!autostart}
+              disabled={autostart === null || autostartBusy}
+              onchange={(on: boolean) => setAutostart(on)}
+              label="Start Peak when my computer starts"
+            />
+          </Row>
+          <Row title="When the game window opens" desc={afterLaunchHelp[s.afterLaunch] ?? afterLaunchHelp.open}>
+            <div class="seg">
+              <button class:active={s.afterLaunch === 'open'} onclick={() => (s.afterLaunch = 'open')}>Stay open</button>
+              <button class:active={s.afterLaunch === 'minimize'} onclick={() => (s.afterLaunch = 'minimize')}>Minimize</button>
+              <button class:active={s.afterLaunch === 'hide'} onclick={() => (s.afterLaunch = 'hide')}>Hide to tray</button>
+              <button class:active={s.afterLaunch === 'close'} onclick={() => (s.afterLaunch = 'close')}>Close Peak</button>
+            </div>
+          </Row>
+        </div>
+      </section>
+
+      <section id="sec-Appearance" class="panel glass" hidden={current !== 'Appearance'}>
         <h3>Appearance</h3>
         <div class="rows">
           <Row title="Background" desc="The colourful aurora glow, a quiet topographic map, or both">
@@ -140,7 +199,7 @@
         </div>
       </section>
 
-      <section id="sec-Java & memory" class="panel glass">
+      <section id="sec-Java & memory" class="panel glass" hidden={current !== 'Java & memory'}>
         <h3>Java & memory</h3>
         <div class="rows">
           <Row title="Maximum memory" desc="How much RAM Minecraft may use. 4–6 GB suits most modpacks; vanilla is happy with 2–4 GB.">
@@ -167,7 +226,7 @@
         </div>
       </section>
 
-      <section id="sec-Game" class="panel glass">
+      <section id="sec-Game" class="panel glass" hidden={current !== 'Game'}>
         <h3>Game</h3>
         <div class="rows">
           <Row title="Window size" desc="Starting resolution of the game window">
@@ -177,14 +236,6 @@
           </Row>
           <Row title="Start fullscreen">
             <Switch bind:checked={s.fullscreen} label="Start fullscreen" />
-          </Row>
-          <Row title="When the game window opens" desc={afterLaunchHelp[s.afterLaunch] ?? afterLaunchHelp.open}>
-            <div class="seg">
-              <button class:active={s.afterLaunch === 'open'} onclick={() => (s.afterLaunch = 'open')}>Stay open</button>
-              <button class:active={s.afterLaunch === 'minimize'} onclick={() => (s.afterLaunch = 'minimize')}>Minimize</button>
-              <button class:active={s.afterLaunch === 'hide'} onclick={() => (s.afterLaunch = 'hide')}>Hide to tray</button>
-              <button class:active={s.afterLaunch === 'close'} onclick={() => (s.afterLaunch = 'close')}>Close Peak</button>
-            </div>
           </Row>
           <Row title="Open console on launch" desc="Switch to the instance's console when the game starts">
             <Switch bind:checked={s.openConsole} label="Open console on launch" />
@@ -203,7 +254,7 @@
         </div>
       </section>
 
-      <section id="sec-Commands" class="panel glass">
+      <section id="sec-Commands" class="panel glass" hidden={current !== 'Commands'}>
         <h3>Commands</h3>
         <p class="sub">
           Variables: <code>$INST_NAME</code> <code>$INST_ID</code> <code>$INST_DIR</code> <code>$INST_MC_DIR</code> <code>$INST_JAVA</code>
@@ -224,7 +275,7 @@
         </div>
       </section>
 
-      <section id="sec-Network" class="panel glass">
+      <section id="sec-Network" class="panel glass" hidden={current !== 'Network'}>
         <h3>Network</h3>
         <div class="rows">
           {#if menu.status?.isAppImage}
@@ -265,7 +316,7 @@
         </div>
       </section>
 
-      <section id="sec-Integrations" class="panel glass">
+      <section id="sec-Integrations" class="panel glass" hidden={current !== 'Integrations'}>
         <h3>Integrations</h3>
         <div class="rows">
           <Row title="Show what I'm doing in Discord" desc="Your Discord profile shows Playing Peak Launcher, with what you're doing: the modpack you're playing, the server you're on, or that you're browsing. It's only shared with the Discord app on this computer.">
@@ -294,7 +345,7 @@
         </div>
       </section>
 
-      <section class="panel glass">
+      <section class="panel glass" hidden={current !== 'About'}>
         <h3>Reset</h3>
         <div class="rows">
           <Row
@@ -308,7 +359,7 @@
         </div>
       </section>
 
-      <section id="sec-About" class="panel glass about">
+      <section id="sec-About" class="panel glass about" hidden={current !== 'About'}>
         <Logo size={34} />
         <div>
           <b>Peak Launcher</b>
@@ -391,6 +442,9 @@
     flex-direction: column;
     gap: 16px;
     min-width: 0;
+  }
+  section[hidden] {
+    display: none !important;
   }
   section {
     scroll-margin-top: 12px;

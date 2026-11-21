@@ -1,9 +1,14 @@
 <script lang="ts">
-  let { checked = $bindable(false), disabled = false, label = '' }: { checked?: boolean; disabled?: boolean; label?: string } = $props();
+  let {
+    checked = $bindable(false),
+    disabled = false,
+    label = '',
+    onchange
+  }: { checked?: boolean; disabled?: boolean; label?: string; onchange?: (on: boolean) => void } = $props();
 </script>
 
 <label class="switch" class:disabled>
-  <input type="checkbox" bind:checked {disabled} aria-label={label} />
+  <input type="checkbox" bind:checked {disabled} aria-label={label} onchange={(e) => onchange?.(e.currentTarget.checked)} />
   <span class="knob"></span>
 </label>
 
