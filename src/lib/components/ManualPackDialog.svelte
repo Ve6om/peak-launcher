@@ -1,7 +1,8 @@
 <script lang="ts">
   // "Download this pack yourself": open its CurseForge page, then Peak
   // spots the zip in Downloads and installs it.
-  import { ExternalLink, FolderOpen, LoaderCircle, CheckCircle2 } from '@lucide/svelte';
+  import { ExternalLink, FolderOpen, LoaderCircle, CheckCircle2, CircleAlert } from '@lucide/svelte';
+  import { untrack } from 'svelte';
   import Modal from './Modal.svelte';
   import { api } from '$lib/api';
   import { manualPack, installDownloaded } from '$lib/manualPack.svelte';
@@ -9,31 +10,39 @@
   const cur = $derived(manualPack.current);
   let opened = $state(false);
   let installing = $state(false);
+  let failed = $state(false);
 
   // Look for the file every couple of seconds while the dialog is open
   // (a quick look at one folder; nothing is read until it's there).
+  // Only `cur` restarts this: everything else is read untracked, or setting
+  // `installing` would restart the watcher and install the pack again.
   $effect(() => {
     const c = cur;
-    opened = false;
-    installing = false;
-    if (!c) return;
-    let stop = false;
-    const tick = async () => {
-      if (stop || installing) return;
-      const path = await api.findDownload(c.info.fileName, c.info.size).catch(() => null);
-      if (stop) return;
-      if (path) {
+    return untrack(() => {
+      opened = false;
+      installing = false;
+      failed = false;
+      if (!c) return;
+      let stop = false;
+      const tick = async () => {
+        if (stop || installing) return;
+        const path = await api.findDownload(c.info.fileName, c.info.size).catch(() => null);
+        if (stop || installing || !path) return;
+        stop = true;
+        clearInterval(timer);
         installing = true;
-        const ok = await installDownloaded(path);
-        if (!ok) installing = false;
-      }
-    };
-    const timer = setInterval(tick, 2000);
-    tick();
-    return () => {
-      stop = true;
-      clearInterval(timer);
-    };
+        if (!(await installDownloaded(path))) {
+          installing = false;
+          failed = true;
+        }
+      };
+      const timer = setInterval(tick, 2000);
+      tick();
+      return () => {
+        stop = true;
+        clearInterval(timer);
+      };
+    });
   });
 
   function download() {
@@ -46,7 +55,11 @@
     const path = await api.pickModpackFile();
     if (!path) return;
     installing = true;
-    if (!(await installDownloaded(path))) installing = false;
+    failed = false;
+    if (!(await installDownloaded(path))) {
+      installing = false;
+      failed = true;
+    }
   }
 
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 100 * 1024 * 1024 ? 0 : 1)} MB`;
@@ -64,6 +77,8 @@
     <div class="status">
       {#if installing}
         <CheckCircle2 size={16} /> Found it. Installing…
+      {:else if failed}
+        <CircleAlert size={16} /> That file didn't install. Download it again, or pick the file yourself.
       {:else if opened}
         <LoaderCircle size={16} class="spin" /> Waiting for the download to finish…
       {:else}

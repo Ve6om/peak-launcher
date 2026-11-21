@@ -33,9 +33,12 @@ export async function installPack(
 }
 
 /** Install the file the player downloaded (from the dialog). */
+let busy = false;
+
 export async function installDownloaded(path: string): Promise<boolean> {
   const cur = manualPack.current;
-  if (!cur) return false;
+  if (!cur || busy) return false;
+  busy = true;
   try {
     const inst = await api.modpackInstall({ projectId: cur.projectId, versionId: cur.info.fileId, filePath: path });
     manualPack.current = null;
@@ -47,5 +50,7 @@ export async function installDownloaded(path: string): Promise<boolean> {
   } catch (e) {
     toast(errorText(e), 'error');
     return false;
+  } finally {
+    busy = false;
   }
 }
