@@ -241,6 +241,8 @@ export const api = {
   info: () => call<AppInfo>('app_info'),
   settings: () => call<Settings>('get_settings'),
   saveSettings: (settings: Settings) => call<Settings>('save_settings', { settings }),
+  autostartEnabled: () => call<boolean>('autostart_enabled'),
+  setAutostart: (on: boolean) => call<void>('set_autostart', { on }),
   openUrl: async (url: string) => {
     if (isTauri) {
       const { openUrl } = await import('@tauri-apps/plugin-opener');
@@ -267,6 +269,7 @@ const mock = (() => {
   let accounts: AccountInfo[] = [{ id: 'a1', username: 'PeakPlayer', kind: 'microsoft', active: true }];
   const DEFAULT_ARGS =
     '-XX:+UnlockExperimentalVMOptions -XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M';
+  let mockAutostart = false;
   let settings: Settings = {
     accent: 'glacier',
     background: 'aurora',
@@ -825,6 +828,11 @@ const mock = (() => {
       case 'reset_settings':
         settings = { ...JSON.parse(JSON.stringify(defaultSettings)), curseforgeApiKey: settings.curseforgeApiKey };
         return settings;
+      case 'autostart_enabled':
+        return mockAutostart;
+      case 'set_autostart':
+        mockAutostart = !!a.on;
+        return null;
       case 'modpack_install': {
         const t = a.projectId ? (String(a.projectId).startsWith('technic:') ? (['Tekkit 2', '', ''] as [string, string, string]) : String(a.projectId).startsWith('ftb:') ? ftbMock(a.projectId) : findMock(a.projectId)) : undefined;
         const name = t ? t[0] : String(a.filePath).split(/[\\/]/).pop()!.replace(/\.mrpack$/, '');

@@ -328,3 +328,16 @@ textarea.input {
   font-size: 12.5px;
   color: var(--faint);
 }
+
+/* The rage button's shake, when the window itself can't move (maximized). */
+html.raging body {
+  animation: rage-shake 0.09s linear infinite;
+}
+@keyframes rage-shake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-14px, 9px) rotate(-1.2deg); }
+  40% { transform: translate(12px, -11px) rotate(1deg); }
+  60% { transform: translate(-10px, -7px) rotate(-0.8deg); }
+  80% { transform: translate(13px, 10px) rotate(1.2deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
