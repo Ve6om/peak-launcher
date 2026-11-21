@@ -32,12 +32,18 @@ export async function installPack(
   }
 }
 
-/** Install the file the player downloaded (from the dialog). */
-export async function installDownloaded(path: string): Promise<boolean> {
+let busy = false;
+
+/**
+ * Install the file the player downloaded (from the dialog). `found` means
+ * Peak spotted it in Downloads, so it's deleted once the pack is installed.
+ */
+export async function installDownloaded(path: string, found = false): Promise<boolean> {
   const cur = manualPack.current;
-  if (!cur) return false;
+  if (!cur || busy) return false;
+  busy = true;
   try {
-    const inst = await api.modpackInstall({ projectId: cur.projectId, versionId: cur.info.fileId, filePath: path });
+    const inst = await api.modpackInstall({ projectId: cur.projectId, versionId: cur.info.fileId, filePath: path, removeFile: found });
     manualPack.current = null;
     await refreshInstances();
     toast(`Installing ${inst.name}…`, 'info');
@@ -47,5 +53,7 @@ export async function installDownloaded(path: string): Promise<boolean> {
   } catch (e) {
     toast(errorText(e), 'error');
     return false;
+  } finally {
+    busy = false;
   }
 }

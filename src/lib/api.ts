@@ -105,11 +105,12 @@ export const api = {
   resetSettings: () => call<Settings>('reset_settings'),
   presenceShow: (card: import('./presence.svelte').PresenceCard) => call<void>('presence_show', { card }),
   presenceClear: () => call<void>('presence_clear'),
-  modpackInstall: (opts: { projectId?: string; versionId?: string | null; filePath?: string }) =>
+  modpackInstall: (opts: { projectId?: string; versionId?: string | null; filePath?: string; removeFile?: boolean }) =>
     call<Instance>('modpack_install', {
       projectId: opts.projectId ?? null,
       versionId: opts.versionId ?? null,
-      filePath: opts.filePath ?? null
+      filePath: opts.filePath ?? null,
+      removeFile: opts.removeFile ?? null
     }),
   exportEntries: (instanceId: string) => call<ExportEntry[]>('export_entries', { instanceId }),
   exportPack: (instanceId: string, options: ExportOptions) => call<ExportReport>('export_pack', { instanceId, options }),
