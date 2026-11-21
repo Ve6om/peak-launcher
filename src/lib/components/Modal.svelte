@@ -33,7 +33,10 @@
       </div>
       <button class="btn ghost icon" aria-label="Close" onclick={onclose}><X size={18} /></button>
     </header>
-    {@render children()}
+    <!-- Scrolls when the window is too short for the whole dialog. -->
+    <div class="body">
+      {@render children()}
+    </div>
   </div>
 </div>
 
@@ -57,7 +60,19 @@
     border-color: var(--stroke-strong);
     box-shadow: var(--shadow), 0 40px 80px -20px rgba(0, 0, 0, 0.7);
   }
+  .body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Room for focus rings and the scrollbar without clipping. */
+    margin: -4px -10px -4px -4px;
+    padding: 4px 10px 4px 4px;
+  }
   header {
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
