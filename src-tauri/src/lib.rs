@@ -800,7 +800,16 @@ async fn modpack_install(
         return Ok(inst);
     }
     let (archive, pack) = match (project_id, file_path) {
-        (Some(pid), _) if curseforge::is_cf(&pid) => {
+        // A pack the player downloaded by hand (its author turned off
+        // launcher downloads): their zip, with the pack's details.
+        (Some(pid), Some(path)) if curseforge::is_cf(&pid) => {
+            let cf = cf.as_ref().ok_or_else(|| Error::msg(NEED_CF_KEY))?;
+            let path = std::path::PathBuf::from(path);
+            let file_id = version_id.as_deref().ok_or_else(|| Error::msg("Which version of the pack is this?"))?;
+            let info = curseforge::manual_pack_info(cf, &pid, file_id, &path).await?;
+            (path, Some(info))
+        }
+        (Some(pid), None) if curseforge::is_cf(&pid) => {
             let cf = cf.as_ref().ok_or_else(|| Error::msg(NEED_CF_KEY))?;
             let (path, info) = curseforge::fetch_modpack(cf, &paths, &pid, version_id.as_deref()).await?;
             (path, Some(info))
@@ -828,6 +837,42 @@ async fn modpack_install(
 
     spawn_pack_install(app, paths, inst.clone(), archive, kind, cf);
     Ok(inst)
+}
+
+/// If a CurseForge pack has to be downloaded by hand (its author turned off
+/// launcher downloads): its file name, size and download page.
+#[tauri::command]
+async fn modpack_manual_info(state: State<'_, AppState>, project_id: String, version_id: Option<String>) -> Result<Option<curseforge::ManualPack>> {
+    if !curseforge::is_cf(&project_id) {
+        return Ok(None);
+    }
+    curseforge::manual_pack(&cf_client(&state.paths).await?, &project_id, version_id.as_deref()).await
+}
+
+/// Look in the Downloads folder for a file the player is downloading by
+/// hand. Returns its path once it's all there (the right size).
+#[tauri::command]
+async fn find_download(app: AppHandle, file_name: String, size: u64) -> Result<Option<String>> {
+    if file_name.contains(['/', '\\']) || file_name.contains("..") {
+        return Ok(None);
+    }
+    let dir = app.path().download_dir()?;
+    let stem = file_name.trim_end_matches(".zip");
+    // Browsers name a second copy "pack (1).zip".
+    let mut entries = tokio::fs::read_dir(&dir).await?;
+    while let Some(e) = entries.next_entry().await? {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let same = name == file_name || (name.starts_with(stem) && name.ends_with(".zip") && name[stem.len()..].trim_start().starts_with('('));
+        if !same {
+            continue;
+        }
+        if let Ok(meta) = e.metadata().await {
+            if meta.is_file() && (size == 0 || meta.len() == size) {
+                return Ok(Some(e.path().to_string_lossy().into_owned()));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// Download a modpack's files and install the game in the background, with
@@ -1469,6 +1514,8 @@ pub fn run() {
             modpack_search,
             modpack_versions,
             modpack_install,
+            modpack_manual_info,
+            find_download,
             modpack_updates,
             modpack_skip_update,
             modpack_mute_updates,

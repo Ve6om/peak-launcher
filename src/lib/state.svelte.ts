@@ -144,7 +144,11 @@ export async function installItems(instanceId: string, items: PlanItem[]) {
 
 export async function installModpack(opts: { projectId?: string; versionId?: string | null; filePath?: string }) {
   try {
-    const inst = await api.modpackInstall(opts);
+    // CurseForge packs that launchers can't download open the "download it
+    // yourself" dialog, which installs the pack once the file arrives.
+    const { installPack } = await import('./manualPack.svelte');
+    const inst = opts.projectId && !opts.filePath ? await installPack({ projectId: opts.projectId, versionId: opts.versionId }) : await api.modpackInstall(opts);
+    if (!inst) return null;
     await refreshInstances();
     toast(`Installing ${inst.name}…`, 'info');
     go('instance', inst.id);

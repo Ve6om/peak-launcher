@@ -35,6 +35,7 @@ import type {
   PastSkin,
   PackUpdate,
   Listing,
+  ManualPack,
   InstanceServer,
   Player,
   MenuStatus,
@@ -93,6 +94,10 @@ export const api = {
     call<SearchResult>('modpack_search', { source, query, sort, offset }),
   modpackVersions: (projectId: string) => call<ContentVersion[]>('modpack_versions', { projectId }),
   modpackUpdates: () => call<PackUpdate[]>('modpack_updates'),
+  /** If a CurseForge pack must be downloaded by hand: what and where (else null). */
+  modpackManualInfo: (projectId: string, versionId: string | null) => call<ManualPack | null>('modpack_manual_info', { projectId, versionId }),
+  /** The path of a file in Downloads once it's all there, else null. */
+  findDownload: (fileName: string, size: number) => call<string | null>('find_download', { fileName, size }),
   modpackSkipUpdate: (id: string, versionId: string) => call<Instance>('modpack_skip_update', { id, versionId }),
   modpackMuteUpdates: (id: string, muted: boolean) => call<Instance>('modpack_mute_updates', { id, muted }),
   /** Switch a modpack instance to another version of its pack (installs in the background). */
@@ -771,6 +776,10 @@ const mock = (() => {
           game_versions: ['1.21.4'],
           loaders: ['fabric']
         }));
+      case 'modpack_manual_info':
+        return null;
+      case 'find_download':
+        return null;
       case 'modpack_updates': {
         await sleep(600);
         if (!settings.modpackUpdateCheck) return [];

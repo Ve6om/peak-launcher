@@ -177,6 +177,18 @@ export interface SavedServer {
   favorite?: boolean;
 }
 
+/** A CurseForge pack the player has to download by hand. */
+export interface ManualPack {
+  name: string;
+  version: string;
+  fileId: string;
+  fileName: string;
+  size: number;
+  sha1: string | null;
+  downloadPage: string;
+  iconUrl: string | null;
+}
+
 /** A server on the Discover list. */
 export interface Listing {
   id: string;
