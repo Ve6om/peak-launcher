@@ -90,13 +90,13 @@ impl VersionJson {
                 _ => l.name.clone(),
             }
         };
-        let mut seen = std::collections::HashSet::new();
-        let mut libraries = Vec::new();
-        for lib in self.libraries.into_iter().chain(parent.libraries) {
-            if seen.insert(key(&lib)) {
-                libraries.push(lib);
-            }
-        }
+        // Only drop parent entries the child replaces. A profile can list the
+        // same artifact more than once with different OS rules (1.18.2 has an
+        // osx-only lwjgl 3.2.1 next to 3.2.2 for everything else), so entries
+        // within one profile must never be collapsed or the wrong one survives.
+        let overridden: std::collections::HashSet<String> = self.libraries.iter().map(key).collect();
+        let mut libraries = self.libraries;
+        libraries.extend(parent.libraries.into_iter().filter(|l| !overridden.contains(&key(l))));
         let arguments = match (parent.arguments, self.arguments) {
             (Some(mut p), Some(c)) => {
                 p.game.extend(c.game);
@@ -290,5 +290,29 @@ pub struct AssetObject {
 impl AssetObject {
     pub fn rel_path(&self) -> String {
         format!("{}/{}", &self.hash[..2], self.hash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn version(id: &str, libs: serde_json::Value) -> VersionJson {
+        serde_json::from_value(serde_json::json!({ "id": id, "libraries": libs })).unwrap()
+    }
+
+    #[test]
+    fn merge_keeps_parent_entries_split_by_os() {
+        let parent = version(
+            "1.18.2",
+            serde_json::json!([
+                { "name": "org.lwjgl:lwjgl:3.2.1", "rules": [{ "action": "allow", "os": { "name": "osx" } }] },
+                { "name": "org.lwjgl:lwjgl:3.2.2", "rules": [{ "action": "allow" }, { "action": "disallow", "os": { "name": "osx" } }] },
+                { "name": "com.google.guava:guava:21.0" },
+            ]),
+        );
+        let child = version("1.18.2-forge", serde_json::json!([{ "name": "com.google.guava:guava:31.0.1-jre" }]));
+        let names: Vec<_> = child.merge(parent).libraries.into_iter().map(|l| l.name).collect();
+        assert_eq!(names, ["com.google.guava:guava:31.0.1-jre", "org.lwjgl:lwjgl:3.2.1", "org.lwjgl:lwjgl:3.2.2"]);
     }
 }
