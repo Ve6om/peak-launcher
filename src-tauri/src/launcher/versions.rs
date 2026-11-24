@@ -190,7 +190,6 @@ pub struct AssetIndexRef {
 #[serde(rename_all = "camelCase")]
 pub struct JavaVersion {
     pub component: String,
-    #[allow(dead_code)]
     pub major_version: u32,
 }
 

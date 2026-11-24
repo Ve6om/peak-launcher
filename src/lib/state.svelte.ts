@@ -1,4 +1,5 @@
 import { api, on, isTauri } from './api';
+import { view } from './visibility.svelte';
 import type {
   AccountInfo,
   AppInfo,
@@ -41,6 +42,10 @@ export const app = $state({
   importing: false,
   /** Instance being exported as a modpack. */
   exporting: null as Instance | null,
+  /** "Which Java?" asked on first play; answer with true to go on playing. */
+  javaPrompt: null as null | ((go: boolean) => void),
+  /** Instance whose Optimize dialog is open (from its overview or right-click menu). */
+  optimizing: null as Instance | null,
   /** Instance being exported as a server pack. */
   serverPack: null as Instance | null,
   /** Instance whose manual-download dialog is open. */
@@ -49,6 +54,10 @@ export const app = $state({
   closePrompt: false,
   /** Background picked in Settings but not saved yet (live preview). */
   bgPreview: null as null | 'aurora' | 'contours' | 'both',
+  /** Lighter effects switched in Settings but not saved yet. */
+  lightPreview: null as null | boolean,
+  /** Moving glow switched in Settings but not saved yet. */
+  glowPreview: null as null | boolean,
   /** Open right-click menu for an instance. */
   menu: null as { x: number; y: number; id: string } | null,
   /** Instance waiting for delete confirmation. */
@@ -239,25 +248,82 @@ export async function refreshInstances() {
 /** Accent colours: [accent, lighter tint, text-on-accent]. Named after the mountains. */
 export const ACCENTS: Record<string, [string, string, string]> = {
   glacier: ['#5cc8f0', '#a9e4fa', '#06141b'],
-  alpenglow: ['#ff8a4c', '#ffc59e', '#1d0c03'],
+  tarn: ['#3fd6b4', '#a8f0de', '#04170f'],
   moss: ['#86d17a', '#c9eebf', '#0b1708'],
+  larch: ['#f2c14e', '#fae3a8', '#1d1503'],
+  alpenglow: ['#ff8a4c', '#ffc59e', '#1d0c03'],
+  ember: ['#ff6464', '#ffb3b3', '#2a0707'],
+  heather: ['#f27ac0', '#fbc4e3', '#2a0718'],
   dusk: ['#a596f7', '#d6cfff', '#120c2b'],
-  ember: ['#ff6464', '#ffb3b3', '#2a0707']
+  granite: ['#b4bfcc', '#dde3ea', '#11151a']
 };
 
 /** Accent names used by earlier versions. */
 const OLD_ACCENTS: Record<string, string> = { violet: 'dusk', rose: 'ember', emerald: 'moss', ocean: 'glacier', sunset: 'alpenglow' };
 
+export const isHexColor = (v: string) => /^#[0-9a-f]{6}$/i.test(v);
+
+/** A preset name, a custom colour ("#rrggbb") or "rainbow". */
 export function accentName(name: string) {
-  return ACCENTS[name] ? name : (OLD_ACCENTS[name] ?? 'glacier');
+  if (ACCENTS[name] || name === 'rainbow' || isHexColor(name)) return isHexColor(name) ? name.toLowerCase() : name;
+  return OLD_ACCENTS[name] ?? 'glacier';
 }
 
-export function applyAccent(name: string) {
-  const [a, b, on] = ACCENTS[accentName(name)];
+export function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+export function rgbToHex([r, g, b]: [number, number, number]) {
+  return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+const mix = (a: [number, number, number], b: [number, number, number], t: number): [number, number, number] =>
+  [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * t) as [number, number, number];
+
+/** Tint and button-text colours for any accent, so it always stays readable. */
+export function accentColors(hex: string): [string, string, string] {
+  const rgb = hexToRgb(hex);
+  const lum = (c: number) => {
+    c /= 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const light = 0.2126 * lum(rgb[0]) + 0.7152 * lum(rgb[1]) + 0.0722 * lum(rgb[2]) > 0.18;
+  return [hex, rgbToHex(mix(rgb, [255, 255, 255], 0.5)), light ? rgbToHex(mix(rgb, [0, 0, 0], 0.9)) : '#ffffff'];
+}
+
+function setAccentVars([a, b, on]: [string, string, string]) {
   const root = document.documentElement.style;
   root.setProperty('--accent', a);
   root.setProperty('--accent-2', b);
   root.setProperty('--on-accent', on);
+}
+
+export function applyAccent(name: string) {
+  const picked = accentName(name);
+  stopRainbow();
+  if (picked === 'rainbow') startRainbow();
+  else setAccentVars(isHexColor(picked) ? accentColors(picked) : ACCENTS[picked]);
+}
+
+// Rainbow: walks round the colour wheel (one lap every 8 seconds), in small
+// steps so it looks smooth. Waits while Peak is minimized or hidden.
+const RAINBOW_LAP_MS = 8000;
+const RAINBOW_STEP_MS = 50;
+let rainbowTimer: ReturnType<typeof setInterval> | null = null;
+let hue = 200;
+
+function startRainbow() {
+  const step = () => {
+    if (!view.shown) return;
+    hue = (hue + (360 * RAINBOW_STEP_MS) / RAINBOW_LAP_MS) % 360;
+    setAccentVars([`hsl(${hue.toFixed(1)} 85% 66%)`, `hsl(${hue.toFixed(1)} 90% 84%)`, `hsl(${hue.toFixed(1)} 60% 8%)`]);
+  };
+  step();
+  rainbowTimer = setInterval(step, RAINBOW_STEP_MS);
+}
+
+function stopRainbow() {
+  if (rainbowTimer) clearInterval(rainbowTimer);
+  rainbowTimer = null;
 }
 
 export async function init() {
@@ -356,6 +422,7 @@ export async function play(inst: Instance) {
   // A modpack with a newer version: ask now (not at start-up).
   const { askBeforePlay } = await import('./packUpdates.svelte');
   if (!(await askBeforePlay(inst))) return;
+  if (!(await askJavaOnce(inst))) return;
   app.logs[inst.id] = [];
   try {
     await api.launch(inst.id);
@@ -363,6 +430,14 @@ export async function play(inst: Instance) {
     delete app.progress[inst.id];
     toast(errorText(e), 'error', { rage: true });
   }
+}
+
+/** The first time someone plays, let them pick a Java build (unless this
+ *  instance or their settings already name a particular Java). */
+function askJavaOnce(inst: Instance): Promise<boolean> {
+  const s = app.settings;
+  if (!s || s.javaVendorChosen || !s.useBundledJava || inst.javaPath || inst.javaRuntime) return Promise.resolve(true);
+  return new Promise((resolve) => (app.javaPrompt = resolve));
 }
 
 export async function stop(inst: Instance) {

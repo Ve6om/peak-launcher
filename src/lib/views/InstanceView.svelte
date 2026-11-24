@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import InstanceServers from '$lib/components/InstanceServers.svelte';
@@ -60,6 +60,9 @@
         </div>
         <div class="actions">
           <PlayButton {inst} />
+          <button class="btn lg" title="Pick memory, Java flags and Java for this instance" onclick={() => (app.optimizing = inst)}>
+            <Sparkles size={17} /> Optimize
+          </button>
           <button class="btn lg icon-lg" title="Open folder" aria-label="Open folder" onclick={() => api.openFolder(inst.id)}>
             <FolderOpen size={18} />
           </button>

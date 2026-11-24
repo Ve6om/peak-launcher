@@ -329,6 +329,26 @@ textarea.input {
   color: var(--faint);
 }
 
+/* Lighter effects (Settings > Appearance): no blur anywhere, panels a little
+   more solid to make up for it. */
+/* Linux: WebKitGTK often draws on the CPU (an AppImage can't always use the
+   GPU), and then every frosted panel re-blurs what's behind it on each redraw,
+   which makes the whole app lag. The panels sit on the already-soft glow, so
+   without the blur they look the same. Behind dialogs the page is dimmed a
+   little more instead of blurred. */
+html.linux-fx *,
+html.linux-fx *::before,
+html.linux-fx *::after,
+html.light-fx *,
+html.light-fx *::before,
+html.light-fx *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.light-fx .glass {
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+
 /* The rage button's shake, when the window itself can't move (maximized). */
 html.raging body {
   animation: rage-shake 0.09s linear infinite;

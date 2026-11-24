@@ -50,6 +50,10 @@
     background: rgba(4, 5, 10, 0.55);
     backdrop-filter: blur(6px);
   }
+  :global(html.linux-fx) .backdrop,
+  :global(html.light-fx) .backdrop {
+    background: rgba(4, 5, 10, 0.7);
+  }
   .modal {
     max-width: calc(100vw - 48px);
     max-height: calc(100vh - 80px);
