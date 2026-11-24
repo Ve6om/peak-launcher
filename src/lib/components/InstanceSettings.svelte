@@ -6,12 +6,15 @@
   import Switch from './Switch.svelte';
   import JavaPicker from './JavaPicker.svelte';
   import JvmPresetPicker from './JvmPresetPicker.svelte';
+  import OptimizeDialog from './OptimizeDialog.svelte';
+  import { Sparkles } from '@lucide/svelte';
   import PackVersionPanel from './PackVersionPanel.svelte';
   import InstanceArt from './InstanceArt.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
-  import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption } from '$lib/types';
+  import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption, type TuningSuggestion, type DetectedJava } from '$lib/types';
+  import { javaFolderName } from '$lib/javaNames';
 
   let { inst }: { inst: Instance } = $props();
 
@@ -43,12 +46,24 @@
   // ---- data for pickers ----
   let mcVersions = $state<ManifestEntry[]>([]);
   let runtimes = $state<RuntimeOption[]>([]);
+  /** Java already installed on this computer (not Peak's own downloads). */
+  let pcJava = $state<DetectedJava[]>([]);
   let worlds = $state<string[]>([]);
   let loaderVersions = $state<LoaderVersion[]>([]);
 
   onMount(async () => {
     api.versions().then((m) => (mcVersions = m.versions)).catch(() => {});
     api.javaRuntimes().then((r) => (runtimes = r)).catch(() => {});
+    api
+      .detectJava()
+      .then((list) => {
+        const slash = (p: string) => p.replace(/\\/g, '/');
+        const own = slash(app.info?.dataDir ?? '').replace(/\/$/, '') + '/runtimes/';
+        pcJava = list.filter((j) => !slash(j.path).startsWith(own));
+        // A path picked from this list shows here again, not under Custom path.
+        if (javaMode === 'custom' && d.javaPath && pcJava.some((j) => j.path === d.javaPath)) javaMode = 'runtime';
+      })
+      .catch(() => {});
     api.worlds(inst.id).then((w) => (worlds = w)).catch(() => {});
   });
 
@@ -77,11 +92,16 @@
 
   // ---- Java mode ----
   type JavaMode = 'auto' | 'runtime' | 'custom';
-  let javaMode = $state<JavaMode>(untrack(() => (inst.javaPath ? 'custom' : inst.javaRuntime ? 'runtime' : 'auto')));
+  // In "Automatic", javaRuntime may name a build ("mojang", "temurin",
+  // "graalvm") that Peak downloads in whichever Java version the game needs.
+  const BUILDS = ['mojang', 'temurin', 'graalvm'];
+  const isBuild = (r: string | null) => !!r && BUILDS.includes(r);
+  let javaMode = $state<JavaMode>(untrack(() => (inst.javaPath ? 'custom' : inst.javaRuntime && !isBuild(inst.javaRuntime) ? 'runtime' : 'auto')));
+  const buildNames: Record<string, string> = { mojang: "Mojang's Java", temurin: 'Eclipse Temurin', graalvm: 'GraalVM' };
   function setJavaMode(m: JavaMode) {
     javaMode = m;
     if (m !== 'custom') d.javaPath = null;
-    if (m !== 'runtime') d.javaRuntime = null;
+    if (m === 'custom' || (m === 'auto' && !isBuild(d.javaRuntime)) || (m === 'runtime' && isBuild(d.javaRuntime))) d.javaRuntime = null;
     if (m === 'runtime' && !d.javaRuntime) d.javaRuntime = runtimes.at(-1)?.component ?? 'java-runtime-delta';
     if (m === 'custom' && d.javaPath === null) d.javaPath = '';
   }
@@ -107,6 +127,20 @@
   }
 
   const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
+
+  // ---- Optimize ----
+  let optimizing = $state(false);
+  async function applyTuning(t: TuningSuggestion, useGraal: boolean) {
+    optimizing = false;
+    d.memoryMb = t.memoryMb;
+    d.jvmPreset = t.jvmPreset;
+    if (useGraal) {
+      javaMode = 'auto';
+      d.javaPath = null;
+      d.javaRuntime = 'graalvm';
+    }
+    await save();
+  }
 
   // ---- the instance's own logo and banner ----
   async function setPicture(kind: 'icon' | 'banner', reset = false) {
@@ -189,7 +223,12 @@
   </section>
 
   <section class="panel glass">
-    <h3>Java & memory</h3>
+    <div class="head">
+      <h3>Java & memory</h3>
+      <button class="btn small" onclick={() => (optimizing = true)} title="Pick memory, flags and Java for this instance">
+        <Sparkles size={14} /> Optimize
+      </button>
+    </div>
     <div class="rows">
       <Row
         title="Maximum memory"
@@ -210,19 +249,51 @@
       >
         <input class="input num" type="number" min="0" step="64" value={d.metaspaceMb ?? g.metaspaceMb} oninput={(e) => (d.metaspaceMb = +e.currentTarget.value)} />
       </Row>
-      <Row title="Java" desc="Automatic picks the exact Java version Mojang ships for this game version.">
+      <Row title="Java" desc="Automatic downloads the Java version this game needs, from the build below.">
         <div class="seg">
           <button class:active={javaMode === 'auto'} onclick={() => setJavaMode('auto')}>Automatic</button>
           <button class:active={javaMode === 'runtime'} onclick={() => setJavaMode('runtime')}>Pick version</button>
           <button class:active={javaMode === 'custom'} onclick={() => setJavaMode('custom')}>Custom path</button>
         </div>
       </Row>
-      {#if javaMode === 'runtime'}
-        <Row title="Java runtime" desc="Downloaded automatically if needed">
+      {#if javaMode === 'auto'}
+        <Row title="Java build" desc="Which build Peak downloads. GraalVM is often a little faster; switch back if the game acts strangely.">
           <select class="input" bind:value={d.javaRuntime}>
-            {#each runtimes as r (r.component)}
-              <option value={r.component}>Java {r.major} ({r.component}){r.installed ? ' · installed' : ''}</option>
-            {/each}
+            <option value={null}>Same as Settings ({buildNames[g.javaVendor] ?? "Mojang's Java"})</option>
+            {#each BUILDS as b (b)}<option value={b}>{buildNames[b]}</option>{/each}
+          </select>
+        </Row>
+      {:else if javaMode === 'runtime'}
+        <Row title="Java runtime" desc="Mojang's Java (downloaded if needed) or any Java already on this computer">
+          <select
+            class="input"
+            value={d.javaPath ? `path:${d.javaPath}` : d.javaRuntime}
+            onchange={(e) => {
+              const v = e.currentTarget.value;
+              if (v.startsWith('path:')) {
+                d.javaPath = v.slice(5);
+                d.javaRuntime = null;
+              } else {
+                d.javaRuntime = v;
+                d.javaPath = null;
+              }
+            }}
+          >
+            <optgroup label="Mojang's Java (Peak downloads it)">
+              {#each runtimes as r (r.component)}
+                <option value={r.component}>Java {r.major} ({r.component}){r.installed ? ' · downloaded' : ''}</option>
+              {/each}
+            </optgroup>
+            {#if pcJava.length || d.javaPath}
+              <optgroup label="Installed on this computer">
+                {#each pcJava as j (j.path)}
+                  <option value="path:{j.path}">Java {j.major} · {javaFolderName(j.path)}</option>
+                {/each}
+                {#if d.javaPath && !pcJava.some((j) => j.path === d.javaPath)}
+                  <option value="path:{d.javaPath}">{javaFolderName(d.javaPath)}</option>
+                {/if}
+              </optgroup>
+            {/if}
           </select>
         </Row>
       {:else if javaMode === 'custom'}
@@ -346,6 +417,10 @@
   {/if}
 </div>
 
+{#if optimizing}
+  <OptimizeDialog {inst} onapply={applyTuning} onclose={() => (optimizing = false)} />
+{/if}
+
 {#if dirty}
   <div class="savebar glass" transition:fly={{ y: 20, duration: 220 }}>
     <span>You have unsaved changes</span>
@@ -355,6 +430,24 @@
 {/if}
 
 <style>
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 650;
+  }
+  .btn.small {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+    gap: 6px;
+  }
   .pic {
     display: flex;
     align-items: center;

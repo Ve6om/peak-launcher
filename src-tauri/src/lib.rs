@@ -261,6 +261,22 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
         servers::parse_address(address)?;
         launch_inst.quick_play = instances::QuickPlay { mode: "server".into(), value: address.to_string() };
     }
+    // A Java build the player picked (Temurin / GraalVM) is downloaded here,
+    // with progress showing, rather than quietly inside the launch.
+    if let Some((vendor, major)) = launch::vendor_choice(&launch_inst, &version, &settings) {
+        if launcher::distros::installed(&paths, &vendor, major).is_none() {
+            let emitter = app.clone();
+            let iid = id.clone();
+            let send = move |stage: &'static str, p: launcher::net::Progress| {
+                let progress = InstallProgress { stage, done: p.done, total: p.total, bytes: p.bytes };
+                let _ = emitter.emit("install-progress", InstallEvent { instance_id: iid.clone(), progress });
+            };
+            let send2 = send.clone();
+            // If it fails, the launch below plays with Mojang's Java instead.
+            let _ = launcher::distros::ensure(&paths, &vendor, major, move |p| send2("Downloading Java", p)).await;
+            send("Done", launcher::net::Progress { done: 1, total: 1, bytes: 0 });
+        }
+    }
     let plan = launch::plan(&paths, &launch_inst, &version, &account, &settings).await?;
 
     state.logs.lock().unwrap().remove(&id);
@@ -1217,6 +1233,73 @@ async fn java_runtimes(state: State<'_, AppState>) -> Result<Vec<RuntimeOption>>
     java::available_runtimes(&state.paths).await
 }
 
+// ---------------- screenshots ----------------
+
+#[tauri::command]
+async fn screenshots_list(state: State<'_, AppState>) -> Result<Vec<launcher::screenshots::Screenshot>> {
+    let all = instances::list(&state.paths).await?;
+    Ok(launcher::screenshots::list(&state.paths, &all).await)
+}
+
+#[tauri::command]
+async fn screenshot_preview(state: State<'_, AppState>, instance_id: String, file: String) -> Result<String> {
+    let p = launcher::screenshots::thumbnail(&state.paths, &instance_id, &file).await?;
+    Ok(p.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn screenshot_set_tags(state: State<'_, AppState>, key: String, tags: Vec<String>) -> Result<Vec<String>> {
+    launcher::screenshots::set_tags(&state.paths, &key, tags).await
+}
+
+#[tauri::command]
+async fn screenshot_copy(state: State<'_, AppState>, instance_id: String, file: String) -> Result<()> {
+    let p = launcher::screenshots::checked(&state.paths, &instance_id, &file)?;
+    launcher::screenshots::copy_image(p).await
+}
+
+/// Save one screenshot (a copy) or several (a zip) where the player chose.
+#[tauri::command]
+async fn screenshot_export(state: State<'_, AppState>, items: Vec<(String, String)>, to: String) -> Result<usize> {
+    let files = items
+        .iter()
+        .map(|(id, f)| launcher::screenshots::checked(&state.paths, id, f))
+        .collect::<Result<Vec<_>>>()?;
+    let to = std::path::PathBuf::from(to);
+    if files.len() == 1 && !to.to_string_lossy().to_ascii_lowercase().ends_with(".zip") {
+        tokio::fs::copy(&files[0], &to).await?;
+        return Ok(1);
+    }
+    launcher::screenshots::export_zip(files, to).await
+}
+
+#[tauri::command]
+async fn screenshot_trash(state: State<'_, AppState>, items: Vec<(String, String)>) -> Result<usize> {
+    launcher::screenshots::trash(&state.paths, items).await
+}
+
+/// The Optimize button: memory, flags and Java suggested for one instance.
+#[tauri::command]
+async fn suggest_tuning(state: State<'_, AppState>, id: String) -> Result<launcher::tuning::Suggestion> {
+    let inst = instances::get(&state.paths, &id).await?;
+    Ok(launcher::tuning::suggest_for(&state.paths, &inst).await)
+}
+
+/// Every Java Peak has downloaded (Mojang's, Temurin, GraalVM) and its size.
+#[tauri::command]
+async fn installed_java(state: State<'_, AppState>) -> Result<Vec<launcher::distros::InstalledRuntime>> {
+    Ok(launcher::distros::list_installed(&state.paths).await)
+}
+
+/// Delete a downloaded Java; it comes back by itself when a game needs it.
+#[tauri::command]
+async fn remove_java(state: State<'_, AppState>, id: String) -> Result<()> {
+    if !state.running.lock().unwrap().is_empty() {
+        return Err(Error::msg("Close your games first: one of them may be using this Java."));
+    }
+    launcher::distros::remove(&state.paths, &id).await
+}
+
 #[tauri::command]
 async fn detect_java(state: State<'_, AppState>) -> Result<Vec<DetectedJava>> {
     Ok(java::detect(&state.paths).await)
@@ -1466,8 +1549,22 @@ fn set_autostart(app: AppHandle, on: bool) -> Result<()> {
     result.map_err(|e| Error::msg(format!("Couldn't change whether Peak starts with your computer: {e}")))
 }
 
+/// Linux: WebKitGTK's GPU path (DMA-BUF) is badly broken on NVIDIA's driver,
+/// especially under Wayland: the whole window crawls or stays blank. Turn it
+/// off there, unless the player set it themselves.
+#[cfg(target_os = "linux")]
+fn linux_webview_workarounds() {
+    let nvidia = std::path::Path::new("/proc/driver/nvidia/version").exists();
+    if nvidia && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        // SAFETY: runs first thing in run(), before Tauri or any other thread starts.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    linux_webview_workarounds();
     tauri::Builder::default()
         // First: a second copy of Peak (e.g. opened by a peak:// link) hands
         // its link to this one and exits.
@@ -1608,6 +1705,15 @@ pub fn run() {
             manual_dismiss,
             open_downloads_folder,
             java_runtimes,
+            installed_java,
+            screenshots_list,
+            screenshot_preview,
+            screenshot_set_tags,
+            screenshot_copy,
+            screenshot_export,
+            screenshot_trash,
+            suggest_tuning,
+            remove_java,
             detect_java,
             test_java,
             list_accounts,

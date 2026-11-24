@@ -1,6 +1,6 @@
 <script lang="ts">
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
-  import { House, Library, Package, Server, Users, Settings, Plus, ChevronRight } from '@lucide/svelte';
+  import { House, Library, Package, Server, Users, Images, Settings, Plus, ChevronRight } from '@lucide/svelte';
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
   import type { View } from '$lib/types';
   import InstanceArt from './InstanceArt.svelte';
@@ -12,6 +12,7 @@
     { view: 'browse', label: 'Modpacks', icon: Package },
     { view: 'servers', label: 'Servers', icon: Server },
     { view: 'accounts', label: 'Accounts', icon: Users },
+    { view: 'screenshots', label: 'Screenshots', icon: Images },
     { view: 'settings', label: 'Settings', icon: Settings }
   ];
 

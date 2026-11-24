@@ -27,6 +27,11 @@ pub struct Settings {
     pub use_bundled_java: bool,
     /// Used when `use_bundled_java` is off.
     pub java_path: String,
+    /// Which Java build automatic Java uses: "mojang" (default), "temurin" or
+    /// "graalvm". The right version is downloaded when a game needs it.
+    pub java_vendor: String,
+    /// The player has picked a Java build (asked once, the first time they play).
+    pub java_vendor_chosen: bool,
 
     // Game window & launching
     pub window_width: u32,
@@ -43,6 +48,12 @@ pub struct Settings {
     pub modpack_update_check: bool,
     /// Show what the player is doing on their Discord profile.
     pub discord_presence: bool,
+    /// Skip the blur and moving background glow, for slower PCs (and Linux's
+    /// web view, where they're costly). Off unless the player turns it on.
+    pub light_effects: bool,
+    /// The aurora glow drifts slowly. Off by default on Linux, where WebKitGTK
+    /// redraws the glow and every frosted panel over it on each frame.
+    pub moving_glow: bool,
 
     // Commands
     pub enable_commands: bool,
@@ -80,6 +91,8 @@ impl Default for Settings {
             jvm_preset: "none".into(),
             use_bundled_java: true,
             java_path: String::new(),
+            java_vendor: "mojang".into(),
+            java_vendor_chosen: false,
             window_width: 1280,
             window_height: 720,
             fullscreen: false,
@@ -89,6 +102,8 @@ impl Default for Settings {
             appimage_menu_dismissed: false,
             modpack_update_check: true,
             discord_presence: true,
+            light_effects: false,
+            moving_glow: !cfg!(target_os = "linux"),
             enable_commands: false,
             pre_launch_command: String::new(),
             post_exit_command: String::new(),
@@ -135,6 +150,9 @@ fn migrate_jvm(s: &mut Settings, had_preset: bool) {
         s.jvm_args.clear();
         s.jvm_preset = "balanced".into();
     }
+    if s.java_vendor != "mojang" && !super::distros::is_vendor(&s.java_vendor) {
+        s.java_vendor = "mojang".into();
+    }
     if !super::jvmflags::is_known(&s.jvm_preset) {
         s.jvm_preset = "none".into();
     }
@@ -177,6 +195,8 @@ pub fn defaults_keeping(current: &Settings) -> Settings {
     Settings {
         curseforge_api_key: current.curseforge_api_key.clone(),
         appimage_menu_dismissed: current.appimage_menu_dismissed,
+        // Reset puts the build back to Mojang's without asking again.
+        java_vendor_chosen: current.java_vendor_chosen,
         ..Settings::default()
     }
 }

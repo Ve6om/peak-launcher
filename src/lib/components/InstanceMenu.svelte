@@ -2,7 +2,7 @@
   // Right-click menu for an instance (cards, sidebar, hero).
   import { tick } from 'svelte';
   import { scale } from 'svelte/transition';
-  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server } from '@lucide/svelte';
+  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server, Sparkles } from '@lucide/svelte';
   import { api } from '$lib/api';
   import type { Instance } from '$lib/types';
   import { app, go, play, stop, isRunning, isBusy, duplicateInstance, repairInstance } from '$lib/state.svelte';
@@ -72,6 +72,7 @@
     {/if}
     <button role="menuitem" onclick={run((i) => go('instance', i.id))}><ExternalLink size={15} /> Open</button>
     <button role="menuitem" onclick={run((i) => go('instance', i.id, 'settings'))}><SlidersHorizontal size={15} /> Edit settings</button>
+    <button role="menuitem" onclick={run((i) => (app.optimizing = i))}><Sparkles size={15} /> Optimize…</button>
     <button role="menuitem" onclick={run((i) => api.openFolder(i.id))}><FolderOpen size={15} /> Open folder</button>
     <div class="sep"></div>
     <button role="menuitem" onclick={run((i) => duplicateInstance(i))}><Copy size={15} /> Duplicate</button>

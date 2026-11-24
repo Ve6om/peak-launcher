@@ -4,6 +4,7 @@
 use super::accounts::{Account, AccountKind};
 use super::install::{self, library_artifact, log_config_path, natives_dir};
 use super::instances::{self, Instance};
+use super::distros;
 use super::java;
 use super::paths::{self, Paths};
 use super::rules;
@@ -59,21 +60,65 @@ pub fn effective(inst: &Instance, s: &Settings) -> Effective {
     }
 }
 
+/// The Temurin / GraalVM build this launch will use, if the player picked one
+/// (the same choice `resolve_java` makes), as (vendor, Java version).
+pub fn vendor_choice(inst: &Instance, version: &VersionJson, s: &Settings) -> Option<(String, u32)> {
+    if inst.java_path.as_ref().is_some_and(|p| !p.trim().is_empty()) {
+        return None;
+    }
+    let vendor = match inst.java_runtime.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+        Some(choice) => choice.to_string(),
+        None if !s.use_bundled_java && !s.java_path.trim().is_empty() => return None,
+        None => s.java_vendor.clone(),
+    };
+    if !distros::is_vendor(&vendor) {
+        return None;
+    }
+    let needed = version.java_version.as_ref().map(|j| j.major_version).unwrap_or(8);
+    distros::major_for(&vendor, needed).map(|m| (vendor, m))
+}
+
 /// Pick the Java binary: instance custom path > instance runtime override >
 /// global custom path (when bundled Java is off) > the version's runtime.
+/// A runtime override of "temurin" / "graalvm" (instance or global) means that
+/// build, in whichever Java version the game needs; "mojang" means Mojang's.
 pub async fn resolve_java(paths: &Paths, inst: &Instance, version: &VersionJson, s: &Settings) -> Result<PathBuf> {
+    let component = version.java_version.as_ref().map(|j| j.component.as_str()).unwrap_or(java::LEGACY_COMPONENT);
+    let needed = version.java_version.as_ref().map(|j| j.major_version).unwrap_or(8);
+    let vendor_java = |vendor: String| async move {
+        let Some(major) = distros::major_for(&vendor, needed) else {
+            eprintln!("{vendor} has no Java for this version (needs {needed}); using Mojang's");
+            return java::ensure_runtime(paths, component, false, |_| {}).await;
+        };
+        // Offline, or the vendor's site is down: play with Mojang's rather than not at all.
+        match distros::ensure(paths, &vendor, major, |_| {}).await {
+            Ok(exe) => Ok(exe),
+            Err(e) => {
+                eprintln!("couldn't get {vendor} Java {major} ({e}); using Mojang's");
+                java::ensure_runtime(paths, component, false, |_| {}).await
+            }
+        }
+    };
     if let Some(p) = inst.java_path.as_ref().filter(|p| !p.trim().is_empty()) {
         let p = PathBuf::from(p.trim());
         return if p.exists() { Ok(p) } else { Err(Error::msg(format!("Java not found at {}", p.display()))) };
     }
-    if let Some(component) = inst.java_runtime.as_ref().filter(|c| !c.trim().is_empty()) {
-        return java::ensure_runtime(paths, component, false, |_| {}).await;
+    if let Some(choice) = inst.java_runtime.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+        if choice == "mojang" {
+            return java::ensure_runtime(paths, component, false, |_| {}).await;
+        }
+        if distros::is_vendor(choice) {
+            return vendor_java(choice.to_string()).await;
+        }
+        return java::ensure_runtime(paths, choice, false, |_| {}).await;
     }
     if !s.use_bundled_java && !s.java_path.trim().is_empty() {
         let p = PathBuf::from(s.java_path.trim());
         return if p.exists() { Ok(p) } else { Err(Error::msg(format!("Java not found at {}", p.display()))) };
     }
-    let component = version.java_version.as_ref().map(|j| j.component.as_str()).unwrap_or(java::LEGACY_COMPONENT);
+    if distros::is_vendor(&s.java_vendor) {
+        return vendor_java(s.java_vendor.clone()).await;
+    }
     java::ensure_runtime(paths, component, false, |_| {}).await
 }
 

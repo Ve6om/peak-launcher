@@ -14,6 +14,9 @@ import type {
   Source,
   UpdateInfo,
   DetectedJava,
+  InstalledJava,
+  TuningSuggestion,
+  Screenshot,
   ExportEntry,
   ExportOptions,
   ExportReport,
@@ -171,6 +174,15 @@ export const api = {
   },
   javaRuntimes: () => call<RuntimeOption[]>('java_runtimes'),
   detectJava: () => call<DetectedJava[]>('detect_java'),
+  installedJava: () => call<InstalledJava[]>('installed_java'),
+  removeJava: (id: string) => call<void>('remove_java', { id }),
+  suggestTuning: (id: string) => call<TuningSuggestion>('suggest_tuning', { id }),
+  screenshots: () => call<Screenshot[]>('screenshots_list'),
+  screenshotPreview: (instanceId: string, file: string) => call<string>('screenshot_preview', { instanceId, file }),
+  screenshotSetTags: (key: string, tags: string[]) => call<string[]>('screenshot_set_tags', { key, tags }),
+  screenshotCopy: (instanceId: string, file: string) => call<void>('screenshot_copy', { instanceId, file }),
+  screenshotExport: (items: [string, string][], to: string) => call<number>('screenshot_export', { items, to }),
+  screenshotTrash: (items: [string, string][]) => call<number>('screenshot_trash', { items }),
   testJava: (path: string) => call<DetectedJava>('test_java', { path }),
   updateInstance: (instance: Instance) => call<Instance>('update_instance', { instance }),
   duplicateInstance: (id: string) => call<Instance>('duplicate_instance', { id }),
@@ -270,6 +282,33 @@ const mock = (() => {
   const DEFAULT_ARGS =
     '-XX:+UnlockExperimentalVMOptions -XX:+UseG1GC -XX:G1NewSizePercent=20 -XX:G1ReservePercent=20 -XX:MaxGCPauseMillis=50 -XX:G1HeapRegionSize=32M';
   let mockAutostart = false;
+  let mockJava: InstalledJava[] = [
+    { id: 'java-runtime-delta', vendor: 'Mojang', label: 'Java 21 (java-runtime-delta)', sizeBytes: 182_000_000 },
+    { id: 'jre-legacy', vendor: 'Mojang', label: 'Java 8 (jre-legacy)', sizeBytes: 121_000_000 },
+    { id: 'graalvm-21', vendor: 'GraalVM', label: 'GraalVM · Java 21', sizeBytes: 402_000_000 }
+  ];
+  // Screenshots: drawn scenes (no real pictures), a few sessions across instances.
+  const scene = (sky: string, ground: string, sun: string) =>
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky}"/><stop offset="1" stop-color="#fff" stop-opacity=".5"/></linearGradient></defs><rect width="160" height="90" fill="url(#s)"/><circle cx="120" cy="24" r="9" fill="${sun}"/><path d="M0 62 L30 44 L52 56 L84 36 L118 58 L160 46 V90 H0Z" fill="${ground}"/><path d="M0 74 H160 V90 H0Z" fill="#000" opacity=".2"/></svg>`
+    );
+  const shot = (instanceId: string, minutesAgo: number, sky: string, ground: string, sun: string, tags: string[] = []): Screenshot => {
+    const d = new Date(Date.now() - minutesAgo * 60000);
+    const p = (n: number) => String(n).padStart(2, '0');
+    const file = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}.png`;
+    return { key: `${instanceId}/${file}`, instanceId, file, path: scene(sky, ground, sun), takenAt: d.toISOString(), sizeBytes: 2_400_000, tags };
+  };
+  let mockShots: Screenshot[] = [
+    shot('survival-sp', 40, '#7cc6ff', '#3f8f3a', '#ffe680', ['base']),
+    shot('survival-sp', 46, '#ffb38a', '#2f6b34', '#ff8a4c'),
+    shot('survival-sp', 52, '#1c2350', '#24402a', '#e8f0ff', ['night']),
+    shot('survival-sp', 58, '#7cc6ff', '#7a5a3a', '#ffe680', ['base', 'build']),
+    shot('creative-builds', 60 * 26, '#a8d8ff', '#8c8c94', '#fff3b0', ['build']),
+    shot('creative-builds', 60 * 26 + 12, '#c9b8ff', '#5e5a80', '#ffd6f0', ['build', 'funny']),
+    shot('skyblock', 60 * 24 * 5, '#5bb4e6', '#c2b280', '#ffe680'),
+    shot('skyblock', 60 * 24 * 5 + 7, '#2a1f45', '#3b2f2f', '#ff6464', ['nether'])
+  ];
   let settings: Settings = {
     accent: 'glacier',
     background: 'aurora',
@@ -278,6 +317,8 @@ const mock = (() => {
     jvmArgs: '',
     jvmPreset: 'none',
     useBundledJava: true,
+    javaVendor: 'mojang',
+    javaVendorChosen: false,
     javaPath: '',
     windowWidth: 1280,
     windowHeight: 720,
@@ -288,6 +329,8 @@ const mock = (() => {
     appimageMenuDismissed: false,
     modpackUpdateCheck: true,
     discordPresence: true,
+    lightEffects: false,
+    movingGlow: true,
     enableCommands: false,
     preLaunchCommand: '',
     postExitCommand: '',
@@ -988,6 +1031,44 @@ const mock = (() => {
           { component: 'java-runtime-gamma', major: 17, installed: false },
           { component: 'java-runtime-delta', major: 21, installed: true }
         ];
+      case 'installed_java':
+        return mockJava;
+      case 'remove_java':
+        mockJava = mockJava.filter((j) => j.id !== a.id);
+        return null;
+      case 'suggest_tuning': {
+        const inst = instances.find((i) => i.id === a.id);
+        const mods = inst?.loader === 'vanilla' ? 0 : 184;
+        return {
+          memoryMb: mods ? 8192 : 3072,
+          jvmPreset: mods ? 'aikar' : 'balanced',
+          graalvm: true,
+          mods,
+          shaders: false,
+          javaMajor: 21,
+          totalMemoryMb: 16384,
+          reasons: mods
+            ? [`${mods} mods: a big modpack, 8 GB.`, "Aikar's flags: made for big modpacks.", "GraalVM: often runs Minecraft a little faster. If the game acts strangely, switch back to Mojang's Java."]
+            : ['Vanilla needs about 3 GB.', 'Smooth (G1): steadier frame times, safe on any Java.', "GraalVM: often runs Minecraft a little faster. If the game acts strangely, switch back to Mojang's Java."]
+        };
+      }
+      case 'screenshots_list':
+        return mockShots;
+      case 'screenshot_preview':
+        return mockShots.find((s) => s.instanceId === a.instanceId && s.file === a.file)?.path ?? '';
+      case 'screenshot_set_tags': {
+        const s = mockShots.find((x) => x.key === a.key);
+        const tags = [...new Set((a.tags as string[]).map((t) => t.trim().toLowerCase()).filter(Boolean))];
+        if (s) s.tags = tags;
+        return tags;
+      }
+      case 'screenshot_copy':
+        return null;
+      case 'screenshot_export':
+        return a.items.length;
+      case 'screenshot_trash':
+        mockShots = mockShots.filter((s) => !a.items.some(([i, f]: [string, string]) => i === s.instanceId && f === s.file));
+        return a.items.length;
       case 'detect_java':
         await sleep(600);
         return [

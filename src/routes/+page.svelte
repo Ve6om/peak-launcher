@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { watchVisibility } from '$lib/visibility.svelte';
   import { fade } from 'svelte/transition';
   import Background from '$lib/components/Background.svelte';
   import TitleBar from '$lib/components/TitleBar.svelte';
@@ -10,6 +11,8 @@
   import DeleteDialog from '$lib/components/DeleteDialog.svelte';
   import ImportDialog from '$lib/components/ImportDialog.svelte';
   import ExportDialog from '$lib/components/ExportDialog.svelte';
+  import OptimizeDialog from '$lib/components/OptimizeDialog.svelte';
+  import JavaChoicePrompt from '$lib/components/JavaChoicePrompt.svelte';
   import ServerPackDialog from '$lib/components/ServerPackDialog.svelte';
   import DependencyDialog from '$lib/components/DependencyDialog.svelte';
   import ManualDownloads from '$lib/components/ManualDownloads.svelte';
@@ -24,6 +27,7 @@
   import Library from '$lib/views/Library.svelte';
   import InstanceView from '$lib/views/InstanceView.svelte';
   import Accounts from '$lib/views/Accounts.svelte';
+  import Screenshots from '$lib/views/Screenshots.svelte';
   import Servers from '$lib/views/Servers.svelte';
   import Browse from '$lib/views/Browse.svelte';
   import Settings from '$lib/views/Settings.svelte';
@@ -36,6 +40,7 @@
 
   onMount(() => {
     if (consoleFor) return;
+    watchVisibility();
     init().catch((e) => toast(`Startup failed: ${errorText(e)}`, 'error'));
     startUpdateChecks();
   });
@@ -89,6 +94,8 @@
               <Servers />
             {:else if app.view === 'accounts'}
               <Accounts />
+            {:else if app.view === 'screenshots'}
+              <Screenshots />
             {:else if app.view === 'settings'}
               <Settings />
             {/if}
@@ -114,6 +121,12 @@
 {/if}
 {#if app.serverPack}
   <ServerPackDialog inst={app.serverPack} />
+{/if}
+{#if app.javaPrompt}
+  <JavaChoicePrompt />
+{/if}
+{#if app.optimizing}
+  <OptimizeDialog inst={app.optimizing} onclose={() => (app.optimizing = null)} />
 {/if}
 {#if pending.plan}
   <DependencyDialog />

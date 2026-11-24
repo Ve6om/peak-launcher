@@ -24,6 +24,8 @@ export interface Instance {
   /** Java flag preset for this instance; null = the global one. */
   jvmPreset: string | null;
   javaPath: string | null;
+  /** A Mojang runtime, or "mojang" / "temurin" / "graalvm" (that build, in
+   *  the Java version the game needs); null = the global choice. */
   javaRuntime: string | null;
   accountId: string | null;
   quickPlay: QuickPlay;
@@ -325,6 +327,10 @@ export interface Settings {
   jvmPreset: string;
   useBundledJava: boolean;
   javaPath: string;
+  /** Which Java build automatic Java uses. */
+  javaVendor: JavaVendor;
+  /** Picked a Java build (asked once, on first play). */
+  javaVendorChosen: boolean;
   windowWidth: number;
   windowHeight: number;
   fullscreen: boolean;
@@ -338,6 +344,10 @@ export interface Settings {
   modpackUpdateCheck: boolean;
   /** Show what the player is doing on their Discord profile. */
   discordPresence: boolean;
+  /** No blur or moving glow, for slower PCs (off unless turned on). */
+  lightEffects: boolean;
+  /** The aurora glow drifts slowly (off by default on Linux). */
+  movingGlow: boolean;
   enableCommands: boolean;
   preLaunchCommand: string;
   postExitCommand: string;
@@ -380,7 +390,39 @@ export interface AppInfo {
   curseforgeBuiltIn: boolean;
 }
 
-export type View = 'home' | 'library' | 'instance' | 'browse' | 'servers' | 'accounts' | 'settings';
+export type View = 'home' | 'library' | 'instance' | 'browse' | 'servers' | 'accounts' | 'screenshots' | 'settings';
+
+/** Java builds automatic Java can use. */
+export type JavaVendor = 'mojang' | 'temurin' | 'graalvm';
+
+export interface InstalledJava {
+  id: string;
+  vendor: string;
+  label: string;
+  sizeBytes: number;
+}
+
+/** What the Optimize button suggests for an instance. */
+export interface TuningSuggestion {
+  memoryMb: number;
+  jvmPreset: string;
+  graalvm: boolean;
+  mods: number;
+  shaders: boolean;
+  javaMajor: number;
+  totalMemoryMb: number;
+  reasons: string[];
+}
+
+export interface Screenshot {
+  key: string;
+  instanceId: string;
+  file: string;
+  path: string;
+  takenAt: string;
+  sizeBytes: number;
+  tags: string[];
+}
 
 export const LOADERS: { id: LoaderId; label: string }[] = [
   { id: 'vanilla', label: 'Vanilla' },

@@ -5,12 +5,14 @@
   import { menu, loadMenuStatus, addToMenu, removeFromMenu } from '$lib/menuEntry.svelte';
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { app, ACCENTS, accentName, applyAccent, toast, errorText } from '$lib/state.svelte';
+  import { app, ACCENTS, accentName, applyAccent, isHexColor, hexToRgb, rgbToHex, toast, errorText } from '$lib/state.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Row from '$lib/components/Row.svelte';
   import Switch from '$lib/components/Switch.svelte';
   import JavaPicker from '$lib/components/JavaPicker.svelte';
   import JvmPresetPicker from '$lib/components/JvmPresetPicker.svelte';
+  import JavaVendorPicker from '$lib/components/JavaVendorPicker.svelte';
+  import JavaDownloads from '$lib/components/JavaDownloads.svelte';
   import type { Settings } from '$lib/types';
 
   let s = $state<Settings>(JSON.parse(JSON.stringify(app.settings)));
@@ -76,11 +78,36 @@
   $effect(() => () => {
     applyAccent(app.settings?.accent ?? 'glacier');
     app.bgPreview = null;
+    app.lightPreview = null;
+    app.glowPreview = null;
   });
 
   function pickAccent(name: string) {
     s.accent = name;
     applyAccent(name);
+  }
+
+  // Custom accent: the last colour picked here, kept while trying presets.
+  let custom = $state(isHexColor(accentName(app.settings?.accent ?? '')) ? accentName(app.settings!.accent) : '#5cc8f0');
+  const accentNow = $derived(accentName(s.accent));
+  const rgb = $derived(hexToRgb(custom));
+  let hexText = $state('');
+  $effect(() => {
+    hexText = custom;
+  });
+  function setCustom(hex: string) {
+    if (!isHexColor(hex)) return;
+    custom = hex.toLowerCase();
+    pickAccent(custom);
+  }
+  function setChannel(i: number, value: number) {
+    const next = [...rgb] as [number, number, number];
+    next[i] = Number.isFinite(value) ? Math.max(0, Math.min(255, Math.round(value))) : 0;
+    setCustom(rgbToHex(next));
+  }
+  function typedHex(v: string) {
+    const t = v.trim();
+    setCustom(t.startsWith('#') ? t : `#${t}`);
   }
 
   function pickBackground(name: Settings['background']) {
@@ -89,9 +116,13 @@
   }
 
   async function save() {
+    // Picking a build here counts as answering the first-play question.
+    if (s.javaVendor !== app.settings?.javaVendor) s.javaVendorChosen = true;
     try {
       app.settings = await api.saveSettings($state.snapshot(s));
       app.bgPreview = null;
+      app.lightPreview = null;
+      app.glowPreview = null;
       toast('Settings saved', 'success');
     } catch (e) {
       toast(errorText(e), 'error');
@@ -102,6 +133,8 @@
     s = JSON.parse(JSON.stringify(app.settings));
     applyAccent(s.accent);
     app.bgPreview = null;
+    app.lightPreview = null;
+    app.glowPreview = null;
   }
 
   // Reset everything to the defaults (keeps your own CurseForge key).
@@ -120,6 +153,8 @@
       s = JSON.parse(JSON.stringify(app.settings));
       applyAccent(s.accent);
       app.bgPreview = null;
+      app.lightPreview = null;
+      app.glowPreview = null;
       toast('Settings are back to their defaults', 'success');
     } catch (e) {
       toast(errorText(e), 'error');
@@ -186,15 +221,53 @@
               <button class:active={s.background === 'contours'} onclick={() => pickBackground('contours')}>Contours</button>
             </div>
           </Row>
-          <Row title="Accent color" desc="Used for buttons, highlights and markers">
+          {#if s.background !== 'contours'}
+            <Row
+              title="Moving glow"
+              desc={linux ? 'The aurora slowly drifts. Off by default on Linux, where it can make Peak sluggish.' : 'The aurora slowly drifts while Peak is open in front of you.'}
+            >
+              <Switch bind:checked={s.movingGlow} disabled={s.lightEffects} onchange={(on: boolean) => (app.glowPreview = on)} label="Moving glow" />
+            </Row>
+          {/if}
+          <Row title="Lighter effects" desc="Skip the blur and the moving background glow. Can be smoother on older PCs, and on Linux.">
+            <Switch bind:checked={s.lightEffects} onchange={(on: boolean) => (app.lightPreview = on)} label="Lighter effects" />
+          </Row>
+          <Row title="Accent color" desc="Used for buttons, highlights and markers" wide>
             <div class="accents">
               {#each Object.entries(ACCENTS) as [name, [a]] (name)}
-                <button class="swatch" class:active={accentName(s.accent) === name} onclick={() => pickAccent(name)} title={name}>
+                <button class="swatch" class:active={accentNow === name} onclick={() => pickAccent(name)} title={name}>
                   <span class="dot" style:background={a}></span>
                   <span class="name">{name}</span>
                 </button>
               {/each}
             </div>
+            <div class="accents special">
+              <button class="swatch" class:active={isHexColor(accentNow)} onclick={() => pickAccent(custom)} title="Pick your own colour">
+                <span class="dot" style:background={custom}></span>
+                <span class="name">Custom</span>
+              </button>
+              <button class="swatch" class:active={accentNow === 'rainbow'} onclick={() => pickAccent('rainbow')} title="Cycles through every colour">
+                <span class="dot rainbow-dot"></span>
+                <span class="name">Rainbow</span>
+              </button>
+            </div>
+            {#if isHexColor(accentNow)}
+              <div class="custom-color">
+                <input type="color" value={custom} oninput={(e) => setCustom(e.currentTarget.value)} aria-label="Pick a colour" />
+                {#each ['R', 'G', 'B'] as ch, i (ch)}
+                  <label class="chan">
+                    <span>{ch}</span>
+                    <input class="input num" type="number" min="0" max="255" value={rgb[i]} onchange={(e) => setChannel(i, e.currentTarget.valueAsNumber)} />
+                  </label>
+                {/each}
+                <label class="chan hex">
+                  <span>Hex</span>
+                  <input class="input mono" maxlength="7" bind:value={hexText} onchange={() => typedHex(hexText)} spellcheck="false" />
+                </label>
+              </div>
+            {:else if accentNow === 'rainbow'}
+              <p class="note">Cycles through every colour, and pauses while Peak is minimized. It keeps Peak redrawing, so it uses a little more CPU than a fixed colour{linux ? ', and noticeably more on Linux' : ''}.</p>
+            {/if}
           </Row>
         </div>
       </section>
@@ -209,10 +282,14 @@
           <Row title="Metaspace" desc="Initial metaspace size in MB (0 to leave it to Java)">
             <input class="input num" type="number" min="0" step="64" bind:value={s.metaspaceMb} />
           </Row>
-          <Row title="Use Minecraft's Java" desc="Download and use the exact Java runtime Mojang ships for each version (recommended)">
+          <Row title="Use Minecraft's Java" desc="Let Peak download the Java each game version needs (recommended)">
             <Switch bind:checked={s.useBundledJava} label="Use Minecraft's Java" />
           </Row>
-          {#if !s.useBundledJava}
+          {#if s.useBundledJava}
+            <Row title="Java build" desc="Peak downloads the Java version each game needs, from the build you pick here. Instances can pick their own." wide>
+              <JavaVendorPicker bind:value={s.javaVendor} />
+            </Row>
+          {:else}
             <Row title="Java executable" desc="Used for every instance unless it picks its own" wide>
               <JavaPicker bind:value={s.javaPath} />
             </Row>
@@ -222,6 +299,9 @@
           </Row>
           <Row title="Extra Java arguments" desc="Your own flags, added after the preset" wide>
             <textarea class="input mono" rows="2" bind:value={s.jvmArgs} placeholder="e.g. -Dfml.readTimeout=180"></textarea>
+          </Row>
+          <Row title="Downloaded Java" desc="Every Java Peak has downloaded for your games, and the space each one takes" wide>
+            <JavaDownloads />
           </Row>
         </div>
       </section>
@@ -455,7 +535,6 @@
   }
   .accents {
     flex-wrap: wrap;
-    justify-content: flex-end;
   }
   .swatch {
     display: inline-flex;
@@ -483,6 +562,48 @@
     width: 12px;
     height: 12px;
     border-radius: 3px;
+  }
+  .accents.special {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--stroke);
+  }
+  .rainbow-dot {
+    background: conic-gradient(#ff6464, #f2c14e, #86d17a, #3fd6b4, #5cc8f0, #a596f7, #f27ac0, #ff6464);
+  }
+  .custom-color {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .custom-color input[type='color'] {
+    width: 38px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid var(--stroke);
+    border-radius: 6px;
+    background: #0e1013;
+    cursor: pointer;
+  }
+  .chan {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .chan .input {
+    width: 64px;
+  }
+  .chan.hex .input {
+    width: 90px;
+  }
+  .note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: var(--muted);
   }
   input[type='range'] {
     flex: 1;

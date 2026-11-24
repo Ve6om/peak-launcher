@@ -220,28 +220,50 @@ pub async fn probe(exe: &Path) -> Option<DetectedJava> {
     Some(DetectedJava { path: exe.to_string_lossy().into_owned(), major: parse_major(&version), version })
 }
 
-/// Find Java installations on this computer (common install folders, JAVA_HOME, PATH).
+/// Find Java installations on this computer: the usual install folders, the
+/// ones developer tools download into (IntelliJ's .jdks, Gradle, SDKMAN,
+/// Scoop...), other launchers' Java, JAVA_HOME and PATH.
 pub async fn detect(paths: &Paths) -> Vec<DetectedJava> {
     let bin = if cfg!(windows) { "javaw.exe" } else { "java" };
     let mut candidates: Vec<PathBuf> = Vec::new();
     let mut roots: Vec<PathBuf> = vec![paths.runtimes()];
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let home = env(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
+    if let Some(h) = &home {
+        for rel in [".jdks", ".gradle/jdks", ".sdkman/candidates/java", ".jabba/jdk", ".asdf/installs/java", ".local/share/mise/installs/java", "scoop/apps"] {
+            roots.push(rel.split('/').fold(h.clone(), |p, part| p.join(part)));
+        }
+    }
     if cfg!(windows) {
-        for base in [std::env::var("ProgramFiles").ok(), std::env::var("ProgramFiles(x86)").ok()].into_iter().flatten() {
-            for vendor in ["Java", "Eclipse Adoptium", "Microsoft", "Zulu", "Amazon Corretto", "BellSoft", "Semeru", "AdoptOpenJDK"] {
-                roots.push(PathBuf::from(&base).join(vendor));
+        let vendors = ["Java", "Eclipse Adoptium", "Eclipse Foundation", "Microsoft", "Zulu", "Amazon Corretto", "BellSoft", "Semeru", "AdoptOpenJDK", "GraalVM", "Oracle"];
+        for base in [env("ProgramFiles"), env("ProgramFiles(x86)"), env("LOCALAPPDATA").map(|l| l.join("Programs"))].into_iter().flatten() {
+            for vendor in vendors {
+                roots.push(base.join(vendor));
             }
+        }
+        if let Some(appdata) = env("APPDATA") {
+            roots.push(appdata.join("PrismLauncher").join("java"));
         }
     } else if cfg!(target_os = "macos") {
         roots.push(PathBuf::from("/Library/Java/JavaVirtualMachines"));
+        if let Some(h) = &home {
+            roots.push(h.join("Library/Java/JavaVirtualMachines"));
+            roots.push(h.join("Library/Application Support/PrismLauncher/java"));
+        }
     } else {
-        roots.push(PathBuf::from("/usr/lib/jvm"));
-        roots.push(PathBuf::from("/usr/java"));
+        for r in ["/usr/lib/jvm", "/usr/lib64/jvm", "/usr/java", "/opt"] {
+            roots.push(PathBuf::from(r));
+        }
+        if let Some(h) = &home {
+            roots.push(h.join(".local/share/PrismLauncher/java"));
+        }
     }
     for root in roots {
         let Ok(rd) = std::fs::read_dir(&root) else { continue };
         for entry in rd.flatten() {
             let p = entry.path();
-            for sub in ["bin", "Contents/Home/bin", "jre.bundle/Contents/Home/bin"] {
+            // "current" is Scoop's and SDKMAN's link to the active version.
+            for sub in ["bin", "Contents/Home/bin", "jre.bundle/Contents/Home/bin", "current/bin"] {
                 let exe = p.join(sub).join(bin);
                 if exe.exists() {
                     candidates.push(exe);
@@ -257,17 +279,36 @@ pub async fn detect(paths: &Paths) -> Vec<DetectedJava> {
             candidates.push(dir.join(bin));
         }
     }
+    // A "current" link points at a real folder: list it under the real name.
+    candidates.sort_by_key(|c| c.components().any(|p| p.as_os_str() == "current"));
+    // Ask every one for its version at the same time.
     let mut seen = std::collections::HashSet::new();
-    let mut out = Vec::new();
+    let mut checks = tokio::task::JoinSet::new();
     for c in candidates {
         let Ok(canon) = std::fs::canonicalize(&c) else { continue };
-        if !seen.insert(canon) {
-            continue;
+        if seen.insert(canon) {
+            checks.spawn(async move { probe(&c).await });
         }
-        if let Some(found) = probe(&c).await {
+    }
+    let mut out = Vec::new();
+    while let Some(r) = checks.join_next().await {
+        if let Ok(Some(found)) = r {
             out.push(found);
         }
     }
-    out.sort_by(|a, b| b.major.cmp(&a.major));
+    out.sort_by(|a, b| b.major.cmp(&a.major).then(a.path.cmp(&b.path)));
     out
+}
+
+#[cfg(test)]
+mod detect_tests {
+    /// Lists the Java this computer has: cargo test --lib -- --ignored --nocapture lists_java_on_this_pc
+    #[tokio::test]
+    #[ignore]
+    async fn lists_java_on_this_pc() {
+        let paths = super::Paths::new(std::env::temp_dir().join("peak-detect-test"));
+        for j in super::detect(&paths).await {
+            println!("Java {} ({}) {}", j.major, j.version, j.path);
+        }
+    }
 }
