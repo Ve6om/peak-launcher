@@ -9,8 +9,9 @@
   import { app, refreshInstances, toast, errorText, isBusy } from '$lib/state.svelte';
   import { packVersion, type ContentVersion, type Instance } from '$lib/types';
   import { packUpdates } from '$lib/packUpdates.svelte';
+  import { changePackVersion } from '$lib/manualPack.svelte';
 
-  let { inst, onchanged }: { inst: Instance; onchanged: (i: Instance) => void } = $props();
+  let { inst, onchanged, plain = false }: { inst: Instance; onchanged: (i: Instance) => void; plain?: boolean } = $props();
 
   const pack = $derived(inst.pack!);
   let versions = $state<ContentVersion[]>([]);
@@ -67,7 +68,14 @@
     confirming = false;
     busy = true;
     try {
-      const changed = await api.modpackChangeVersion(inst.id, choice.id);
+      const picked = choice;
+      const changed = await changePackVersion(inst, picked.id, async () => {
+        packUpdates.list = packUpdates.list.filter((u) => u.instanceId !== inst.id);
+        await refreshInstances();
+        onchanged(app.instances.find((i) => i.id === inst.id) ?? inst);
+      });
+      // Null: CurseForge wants the file downloaded by hand; that dialog takes over.
+      if (!changed) return;
       // Going back to an older version on purpose: don't nag about the newest.
       if (newest && choice.id !== newest.id) await api.modpackSkipUpdate(inst.id, newest.id).catch(() => {});
       packUpdates.list = packUpdates.list.filter((u) => u.instanceId !== inst.id);
@@ -92,8 +100,8 @@
   }
 </script>
 
-<section class="panel glass">
-  <h3><Package size={16} /> Modpack</h3>
+<section class:panel={!plain} class:glass={!plain}>
+  {#if !plain}<h3><Package size={16} /> Modpack</h3>{/if}
   <div class="rows">
     <Row title={pack.name} desc="Installed version: {packVersion(pack) || pack.versionNumber || 'unknown'}">
       {#if update}

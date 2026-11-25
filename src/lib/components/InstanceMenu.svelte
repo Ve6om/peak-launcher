@@ -2,9 +2,10 @@
   // Right-click menu for an instance (cards, sidebar, hero).
   import { tick } from 'svelte';
   import { scale } from 'svelte/transition';
-  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server, Sparkles } from '@lucide/svelte';
+  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server, Sparkles, ArrowDownUp } from '@lucide/svelte';
   import { api } from '$lib/api';
   import type { Instance } from '$lib/types';
+  import { packUpdates } from '$lib/packUpdates.svelte';
   import { app, go, play, stop, isRunning, isBusy, duplicateInstance, repairInstance } from '$lib/state.svelte';
 
   const inst = $derived(app.instances.find((i) => i.id === app.menu?.id) ?? null);
@@ -54,6 +55,7 @@
 {#if app.menu && inst}
   {@const running = isRunning(inst.id)}
   {@const busy = isBusy(inst.id)}
+  {@const hasUpdate = packUpdates.list.some((u) => u.instanceId === inst.id)}
   <div class="catcher" role="presentation" onpointerdown={close} oncontextmenu={(e) => { e.preventDefault(); close(); }}></div>
   <div
     class="menu glass"
@@ -73,6 +75,11 @@
     <button role="menuitem" onclick={run((i) => go('instance', i.id))}><ExternalLink size={15} /> Open</button>
     <button role="menuitem" onclick={run((i) => go('instance', i.id, 'settings'))}><SlidersHorizontal size={15} /> Edit settings</button>
     <button role="menuitem" onclick={run((i) => (app.optimizing = i))}><Sparkles size={15} /> Optimize…</button>
+    {#if inst.pack?.projectId}
+      <button role="menuitem" disabled={busy || running} onclick={run((i) => (app.packVersionFor = i))}>
+        <ArrowDownUp size={15} /> {hasUpdate ? 'Update modpack…' : 'Change modpack version…'}
+      </button>
+    {/if}
     <button role="menuitem" onclick={run((i) => api.openFolder(i.id))}><FolderOpen size={15} /> Open folder</button>
     <div class="sep"></div>
     <button role="menuitem" onclick={run((i) => duplicateInstance(i))}><Copy size={15} /> Duplicate</button>

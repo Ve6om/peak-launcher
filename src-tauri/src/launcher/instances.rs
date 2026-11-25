@@ -78,6 +78,9 @@ pub struct Instance {
     /// The player's own banner picture: a file name in the instance folder.
     #[serde(default)]
     pub custom_banner: Option<String>,
+    /// What this instance shares with others (keybinds, settings, packs).
+    #[serde(default)]
+    pub shared: super::shared::Shared,
 }
 
 /// The kind of picture an image file is, from its first bytes.
@@ -250,6 +253,7 @@ pub async fn create(paths: &Paths, name: &str, game_version: &str, loader: &str,
         imported_from: None,
         custom_icon: None,
         custom_banner: None,
+        shared: super::settings::load(paths).await.map(|s| s.shared_default).unwrap_or_default(),
     };
     tokio::fs::create_dir_all(game_dir(paths, &id)).await?;
     save(paths, &inst).await?;
@@ -338,4 +342,5 @@ pub fn apply_edit(current: &mut Instance, edit: Instance) {
     current.wrapper_command = blank(edit.wrapper_command);
     current.use_system_glfw = edit.use_system_glfw;
     current.use_system_openal = edit.use_system_openal;
+    current.shared = edit.shared;
 }

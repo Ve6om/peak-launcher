@@ -3,6 +3,9 @@
 // interface can be designed and tested without the Rust backend.
 import type {
   SideFilter,
+  GameDefaults,
+  PerfMods,
+  StorageUsage,
   AccountInfo,
   AppInfo,
   ContentKind,
@@ -105,7 +108,8 @@ export const api = {
   modpackSkipUpdate: (id: string, versionId: string) => call<Instance>('modpack_skip_update', { id, versionId }),
   modpackMuteUpdates: (id: string, muted: boolean) => call<Instance>('modpack_mute_updates', { id, muted }),
   /** Switch a modpack instance to another version of its pack (installs in the background). */
-  modpackChangeVersion: (id: string, versionId: string) => call<Instance>('modpack_change_version', { id, versionId }),
+  modpackChangeVersion: (id: string, versionId: string, filePath: string | null = null, removeFile = false) =>
+    call<Instance>('modpack_change_version', { id, versionId, filePath, removeFile }),
   resetSettings: () => call<Settings>('reset_settings'),
   presenceShow: (card: import('./presence.svelte').PresenceCard) => call<void>('presence_show', { card }),
   presenceClear: () => call<void>('presence_clear'),
@@ -138,6 +142,18 @@ export const api = {
   manualScan: (instanceId: string) => call<ManualFile[]>('manual_scan', { instanceId }),
   manualDismiss: (instanceId: string) => call<void>('manual_dismiss', { instanceId }),
   openDownloadsFolder: () => call<void>('open_downloads_folder'),
+  openSharedFolder: () => call<void>('open_shared_folder'),
+  openDataFolder: () => call<void>('open_data_folder'),
+  gameDefaults: () => call<GameDefaults | null>('game_defaults'),
+  gameDefaultsSave: (instanceId: string) => call<GameDefaults>('game_defaults_save', { instanceId }),
+  gameDefaultsClear: () => call<void>('game_defaults_clear'),
+  gameDefaultsLines: () => call<[string, string][]>('game_defaults_lines'),
+  gameDefaultsSet: (lines: [string, string][]) => call<GameDefaults>('game_defaults_set', { lines }),
+  storageUsage: () => call<StorageUsage>('storage_usage'),
+  perfMods: (instanceId: string) => call<PerfMods>('perf_mods', { instanceId }),
+  perfModsAdd: (instanceId: string, projectIds: string[]) => call<string[]>('perf_mods_add', { instanceId, projectIds }),
+  perfModsUndo: (instanceId: string) => call<number>('perf_mods_undo', { instanceId }),
+  storageClean: (what: string) => call<number>('storage_clean', { what }),
   importDetect: () => call<ImportCandidate[]>('import_detect'),
   importInspect: (path: string) => call<ImportCandidate>('import_inspect', { path }),
   importInstances: (candidates: ImportCandidate[]) => call<Instance[]>('import_instances', { candidates }),
@@ -319,6 +335,7 @@ const mock = (() => {
     useBundledJava: true,
     javaVendor: 'mojang',
     javaVendorChosen: false,
+    sharedDefault: { keybinds: true, options: true, resourcepacks: false, shaderpacks: false },
     javaPath: '',
     windowWidth: 1280,
     windowHeight: 720,
@@ -557,6 +574,9 @@ const mock = (() => {
       pingMs: 112
     }
   };
+  const mockPerfAdded: Record<string, string[]> = {};
+  let mockDefaults: GameDefaults | null = null;
+  let mockDefaultLines: [string, string][] = [];
   const mockContent: Record<string, InstalledItem[]> = {
     'survival-spmod': [
       { fileName: 'fabric-api-0.110.0.jar', enabled: true, size: 2_400_000, sha1: 'fabric-api-0.110.0.jar', projectId: 'fabric-api-0.110.0.jar', versionId: 'v1', title: 'Fabric API', versionNumber: '0.110.0', iconUrl: null },
@@ -666,6 +686,94 @@ const mock = (() => {
           body: `## About\n\n${t[1]}\n\n- Works with **Fabric** and **Quilt**\n- Client side only\n\n> Preview data shown in the browser.`
         } satisfies Project;
       }
+      case 'perf_mods': {
+        await sleep(700);
+        const added = (mockPerfAdded[a.instanceId] ??= []);
+        const mods: PerfMods['mods'] = [
+          { projectId: 'AANobbMI', title: 'Sodium', what: 'Much faster rendering, usually the biggest FPS boost', status: 'installed', note: null },
+          { projectId: 'gvQqBUqZ', title: 'Lithium', what: 'Faster game logic: mobs, redstone, chunks', status: 'add', note: null },
+          { projectId: 'uXXizFIs', title: 'FerriteCore', what: 'Uses less memory', status: 'add', note: null },
+          { projectId: 'nmDcB62a', title: 'ModernFix', what: 'Faster loading and less memory, best in big packs', status: 'add', note: null },
+          { projectId: '5ZwdcRci', title: 'ImmediatelyFast', what: 'Faster drawing of text, items and the HUD', status: 'unavailable', note: 'No version for Minecraft 1.21.4 with fabric' },
+          { projectId: 'NNAgCjsB', title: 'Entity Culling', what: "Skips drawing mobs and chests you can't see", status: 'add', note: null },
+          { projectId: 'LQ3K71Q1', title: 'Dynamic FPS', what: 'Lowers FPS while the game is in the background, saving power', status: 'add', note: null }
+        ];
+        for (const m of mods) if (added.includes(m.title)) m.status = 'installed';
+        return { mods, added: [...added] };
+      }
+      case 'perf_mods_add': {
+        await sleep(900);
+        const titles: Record<string, string> = { gvQqBUqZ: 'Lithium', uXXizFIs: 'FerriteCore', nmDcB62a: 'ModernFix', NNAgCjsB: 'Entity Culling', LQ3K71Q1: 'Dynamic FPS' };
+        const names = (a.projectIds as string[]).map((id) => titles[id] ?? id);
+        (mockPerfAdded[a.instanceId] ??= []).push(...names);
+        return names;
+      }
+      case 'perf_mods_undo': {
+        await sleep(500);
+        const n = mockPerfAdded[a.instanceId]?.length ?? 0;
+        mockPerfAdded[a.instanceId] = [];
+        return n;
+      }
+      case 'game_defaults':
+        return mockDefaults;
+      case 'game_defaults_save': {
+        await sleep(300);
+        const inst = instances.find((i) => i.id === a.instanceId);
+        mockDefaultLines = [['version', '4189'], ['renderDistance', '12'], ['fov', '0.5'], ['guiScale', '3'], ['key_key.jump', 'key.keyboard.space'], ['key_key.sprint', 'key.keyboard.r'], ['key_key.journeymap.map', 'key.keyboard.j'], ['soundCategory_music', '0.3'], ['tutorialStep', 'none']];
+        mockDefaults = { from: inst?.name ?? 'Instance', savedAt: new Date().toISOString(), keybinds: 3, settings: 5, fov: 90, renderDistance: 12, guiScale: '3', edited: false };
+        return mockDefaults;
+      }
+      case 'game_defaults_clear':
+        mockDefaults = null;
+        mockDefaultLines = [];
+        return;
+      case 'game_defaults_lines':
+        return mockDefaultLines;
+      case 'game_defaults_set': {
+        mockDefaultLines = a.lines;
+        const lines = a.lines as [string, string][];
+        const keys = lines.filter(([k]) => k.startsWith('key_')).length;
+        const fov = lines.find(([k]) => k === 'fov')?.[1];
+        mockDefaults = {
+          from: mockDefaults?.from ?? '',
+          savedAt: new Date().toISOString(),
+          keybinds: keys,
+          settings: lines.length - keys,
+          fov: fov ? Math.round(70 + parseFloat(fov) * 40) : null,
+          renderDistance: Number(lines.find(([k]) => k === 'renderDistance')?.[1]) || null,
+          guiScale: lines.find(([k]) => k === 'guiScale')?.[1] ?? null,
+          edited: true
+        };
+        return mockDefaults;
+      }
+      case 'storage_usage':
+        await sleep(600);
+        return {
+          total: 9.1e9,
+          parts: [
+            { id: 'instances', name: 'Instances', bytes: 4.6e9 },
+            { id: 'assets', name: 'Game sounds and textures', bytes: 1.4e9 },
+            { id: 'java', name: 'Java', bytes: 1.2e9 },
+            { id: 'cache', name: 'Downloads cache', bytes: 1.0e9 },
+            { id: 'libraries', name: 'Game and mod loader libraries', bytes: 0.78e9 },
+            { id: 'versions', name: 'Minecraft versions', bytes: 0.78e9 },
+            { id: 'shared', name: 'Shared packs and settings', bytes: 0 }
+          ],
+          instances: [
+            { id: 'survival-island', name: 'Survival Island', bytes: 2.1e9 },
+            { id: 'creative-builds', name: 'Creative Builds', bytes: 1.5e9 },
+            { id: 'skyblock', name: 'Skyblock Hardcore', bytes: 0.9e9 },
+            { id: 'beta', name: 'Beta Nostalgia', bytes: 0.1e9 }
+          ],
+          cleanable: [
+            { id: 'cache', name: 'Finished downloads', desc: 'Modpack files, loader installers and previews Peak has already used', bytes: 1.2e9, more: null },
+            { id: 'versions', name: 'Minecraft versions no instance uses', desc: 'Downloaded again if you make an instance with one', bytes: 0.31e9, more: null },
+            { id: 'logs', name: 'Old logs and crash reports', desc: 'Clear: older than 30 days. Clear all: every one. Each instance keeps its latest log.', bytes: 0, more: { id: 'logs-all', label: 'Clear all', bytes: 48e6 } }
+          ]
+        };
+      case 'storage_clean':
+        await sleep(500);
+        return 1.2e9;
       case 'content_versions':
         return Array.from({ length: 6 }, (_, i) => ({
           id: 'v' + i,
@@ -766,7 +874,7 @@ const mock = (() => {
         return;
       case 'content_updates':
         return (mockContent[a.instanceId + a.kind] ?? [])
-          .slice(0, 1)
+          .slice(0, 3)
           .map((x) => ({ fileName: x.fileName, projectId: x.projectId!, versionId: 'v0', versionNumber: '6.0.0' }));
       case 'modpack_search': {
         const q = String(a.query).toLowerCase();

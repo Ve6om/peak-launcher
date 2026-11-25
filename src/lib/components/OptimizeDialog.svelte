@@ -5,6 +5,7 @@
   import { Sparkles, Check } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import Switch from './Switch.svelte';
+  import PerfModsPanel from './PerfModsPanel.svelte';
   import { api } from '$lib/api';
   import { app, errorText, refreshInstances, toast } from '$lib/state.svelte';
   import type { Instance, TuningSuggestion } from '$lib/types';
@@ -113,6 +114,8 @@
     <p class="note">
       These are good starting points, not exact numbers: Modrinth and CurseForge don't say how much memory a pack needs, so Peak estimates it from {s.mods} mod{s.mods === 1 ? '' : 's'}{s.shaders ? ', shaders' : ''}, Java {s.javaMajor} and the {gb(s.totalMemoryMb)} of memory in this computer. If the game runs out of memory or stutters, adjust it by hand in the instance's settings.
     </p>
+
+    <PerfModsPanel {inst} />
 
     <div class="actions">
       {#if allGood}

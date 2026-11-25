@@ -33,8 +33,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    max-width: 380px;
+    max-width: min(380px, calc(100vw - 40px));
     padding: 12px 16px;
+    /* Long links and file names wrap instead of running off the window. */
+    overflow-wrap: anywhere;
     font-size: 13px;
     background: rgba(20, 22, 34, 0.8);
     pointer-events: auto;

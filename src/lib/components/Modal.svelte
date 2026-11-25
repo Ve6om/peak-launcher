@@ -10,14 +10,22 @@
     onclose,
     children
   }: { title: string; subtitle?: string; width?: number; onclose: () => void; children: Snippet } = $props();
+
+  // Shown on top of the whole window, even when opened from inside a page
+  // that moves (its animation would otherwise shift where the dialog sits).
+  function toBody(node: HTMLElement) {
+    document.body.appendChild(node);
+    // Moved out of where Svelte put it, so it has to be taken away here too.
+    return { destroy: () => node.remove() };
+  }
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
-<div class="backdrop" transition:fade={{ duration: 180 }} onclick={onclose} role="presentation">
+<div class="backdrop" use:toBody transition:fade={{ duration: 180 }} onclick={onclose} role="presentation">
   <div
     class="modal glass"
-    style:width="{width}px"
+    style:width="min({width}px, calc(100vw - 32px))"
     transition:scale={{ start: 0.96, duration: 220 }}
     onclick={(e) => e.stopPropagation()}
     role="dialog"
