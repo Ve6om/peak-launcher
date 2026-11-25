@@ -633,7 +633,14 @@ struct InstallBlocked {
 }
 
 #[tauri::command]
-async fn modpack_search(state: State<'_, AppState>, source: String, query: String, sort: String, offset: u32) -> Result<SearchResult> {
+async fn modpack_search(
+    state: State<'_, AppState>,
+    source: String,
+    query: String,
+    sort: String,
+    offset: u32,
+    category: Option<String>,
+) -> Result<SearchResult> {
     if source == "curseforge" {
         return curseforge::search(&cf_client(&state.paths).await?, None, None, &query, &sort, offset).await;
     }
@@ -641,7 +648,7 @@ async fn modpack_search(state: State<'_, AppState>, source: String, query: Strin
         return ftb::search(&query, &sort, offset).await;
     }
     if source == "technic" {
-        return technic::search(&query, &sort, offset).await;
+        return technic::search(&query, &sort, offset, category.as_deref()).await;
     }
     modpacks::search(&query, &sort, offset).await
 }

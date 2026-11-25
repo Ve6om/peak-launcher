@@ -21,6 +21,22 @@
 
   let source = $state<Source>(untrack(() => app.browse.source));
   let query = $state('');
+  /** Technic has no categories; these are searches by name (see technic.rs). */
+  const TECHNIC_CATEGORIES = [
+    { id: '', label: 'Trending' },
+    { id: 'tech', label: 'Tech' },
+    { id: 'magic', label: 'Magic' },
+    { id: 'adventure', label: 'Adventure' },
+    { id: 'rpg', label: 'RPG' },
+    { id: 'skyblock', label: 'Skyblock' },
+    { id: 'pixelmon', label: 'Pixelmon' },
+    { id: 'horror', label: 'Horror' },
+    { id: 'survival', label: 'Survival' },
+    { id: '1.12.2', label: '1.12.2' },
+    { id: '1.7.10', label: '1.7.10' }
+  ];
+  let technicCategory = $state('');
+  const technicBrowsing = $derived(source === 'technic' && !query.trim());
   let sort = $state('relevance');
   let hits = $state<SearchHit[]>([]);
   let total = $state(0);
@@ -49,7 +65,8 @@
     loading = true;
     error = null;
     try {
-      const res = await api.modpackSearch(source, query.trim(), sort, reset ? 0 : hits.length);
+      const category = source === 'technic' && technicCategory ? technicCategory : null;
+      const res = await api.modpackSearch(source, query.trim(), sort, reset ? 0 : hits.length, category);
       if (my !== req) return;
       hits = reset ? res.hits : [...hits, ...res.hits];
       total = res.total_hits;
@@ -68,6 +85,7 @@
     source;
     sort;
     query;
+    technicCategory;
     needsKey;
     clearTimeout(timer);
     timer = setTimeout(() => load(true), 250);
@@ -137,6 +155,21 @@
     />
   </div>
 
+  {#if technicBrowsing}
+    <div class="cats" role="tablist" aria-label="Technic categories">
+      {#each TECHNIC_CATEGORIES as c (c.id)}
+        <button role="tab" aria-selected={technicCategory === c.id} class:on={technicCategory === c.id} onclick={() => (technicCategory = c.id)}>{c.label}</button>
+      {/each}
+    </div>
+    <p class="cats-note">
+      {#if technicCategory}
+        Technic doesn't sort packs into categories, so these are found by name and description. A few may not quite fit. Search to find any other Technic pack.
+      {:else}
+        Technic only shares its 20 trending packs with launchers. Pick a category above or search to find any other Technic pack.
+      {/if}
+    </p>
+  {/if}
+
   {#if needsKey}
     <div class="empty glass">
       <KeyRound size={30} />
@@ -198,6 +231,38 @@
 {/if}
 
 <style>
+  .cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: -4px;
+  }
+  .cats button {
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 99px;
+    border: 1px solid var(--stroke);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .cats button:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .cats button.on {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .cats-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--faint);
+  }
   .page {
     display: flex;
     flex-direction: column;
