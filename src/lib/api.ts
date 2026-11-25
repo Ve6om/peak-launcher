@@ -98,8 +98,8 @@ export const api = {
     call<void>('content_remove', { instanceId, kind, fileName }),
   contentUpdates: (instanceId: string, kind: ContentKind) => call<UpdateInfo[]>('content_updates', { instanceId, kind }),
   openContentFolder: (instanceId: string, kind: ContentKind) => call<void>('open_content_folder', { instanceId, kind }),
-  modpackSearch: (source: Source, query: string, sort: string, offset: number) =>
-    call<SearchResult>('modpack_search', { source, query, sort, offset }),
+  modpackSearch: (source: Source, query: string, sort: string, offset: number, category: string | null = null) =>
+    call<SearchResult>('modpack_search', { source, query, sort, offset, category }),
   modpackVersions: (projectId: string) => call<ContentVersion[]>('modpack_versions', { projectId }),
   modpackUpdates: () => call<PackUpdate[]>('modpack_updates'),
   /** If a CurseForge pack must be downloaded by hand: what and where (else null). */

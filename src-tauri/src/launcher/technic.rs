@@ -56,18 +56,49 @@ async fn build() -> u64 {
 static CACHE: Mutex<Option<HashMap<String, (Instant, Value)>>> = Mutex::new(None);
 const CACHE_TTL: Duration = Duration::from_secs(15 * 60);
 
+/// GET a Technic API URL as JSON. Technic answers "too many requests" to
+/// quick bursts, so wait as asked and try again, twice at most.
+async fn get_json_patiently(req: impl Fn() -> reqwest::RequestBuilder) -> Result<Value> {
+    let mut tries = 0;
+    loop {
+        let res = req().send().await?;
+        if res.status() == reqwest::StatusCode::TOO_MANY_REQUESTS && tries < 2 {
+            tries += 1;
+            let wait = res
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok()?.parse::<u64>().ok())
+                .unwrap_or(2)
+                .clamp(1, 10);
+            tokio::time::sleep(Duration::from_secs(wait)).await;
+            continue;
+        }
+        return Ok(res.error_for_status()?.json().await?);
+    }
+}
+
 async fn details(slug: &str) -> Result<Value> {
     if let Some((at, v)) = CACHE.lock().unwrap().get_or_insert_with(HashMap::new).get(slug) {
         if at.elapsed() < CACHE_TTL {
             return Ok(v.clone());
         }
     }
-    let v: Value = net::get_json(&format!("{API}/modpack/{slug}?build={}", build().await)).await?;
+    let url = format!("{API}/modpack/{slug}?build={}", build().await);
+    let v = get_json_patiently(|| net::client().get(&url)).await?;
     if v.get("error").is_some() {
         return Err(Error::msg("Technic couldn't find that modpack"));
     }
     CACHE.lock().unwrap().get_or_insert_with(HashMap::new).insert(slug.to_string(), (Instant::now(), v.clone()));
     Ok(v)
+}
+
+/// A pack whose name says it's no longer looked after ("OUTDATED PACK",
+/// "(STOPPED)", "discontinued"...).
+fn abandoned(title: &str) -> bool {
+    let t = title.to_lowercase();
+    ["outdated", "stopped", "discontinued", "deprecated", "abandoned", "no longer", "dead pack", "do not download", "don't download"]
+        .iter()
+        .any(|w| t.contains(w))
 }
 
 fn to_hit(v: &Value) -> SearchHit {
@@ -87,34 +118,103 @@ fn to_hit(v: &Value) -> SearchHit {
     }
 }
 
-/// Search Technic, or show trending packs when there's no search term.
-/// Technic returns everything at once, so paging is done here.
-pub async fn search(query: &str, sort: &str, offset: u32) -> Result<SearchResult> {
-    let b = build().await;
-    let list: Value = if query.trim().is_empty() {
-        net::get_json(&format!("{API}/trending?build={b}")).await?
-    } else {
-        net::client()
-            .get(format!("{API}/search"))
-            .query(&[("q", query.trim()), ("build", &b.to_string())])
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?
-    };
+/// Technic has no categories, so these are searches: each runs a few
+/// related ones and merges what they find (a search returns at most 15).
+/// Matching is on pack names and descriptions, so the odd pack may not fit.
+pub const CATEGORIES: &[(&str, &[&str])] = &[
+    ("tech", &["tech", "tekkit", "industrial", "automation"]),
+    ("magic", &["magic", "thaumcraft", "witchery", "sorcery"]),
+    ("adventure", &["adventure", "dungeon", "exploration", "quest"]),
+    ("rpg", &["rpg", "rpg classes", "dragon", "role play"]),
+    ("skyblock", &["skyblock", "sky block", "void", "sky factory"]),
+    ("pixelmon", &["pixelmon", "pokemon", "cobblemon"]),
+    ("horror", &["horror", "scary", "zombie apocalypse", "creepy"]),
+    ("survival", &["survival", "hardcore", "realistic", "post apocalyptic"]),
+    ("1.12.2", &["1.12.2", "1.12"]),
+    ("1.7.10", &["1.7.10", "1.7"]),
+];
+
+/// Take turns from each list (best matches first), skipping repeats.
+fn merge(lists: Vec<Vec<String>>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    let longest = lists.iter().map(|l| l.len()).max().unwrap_or(0);
+    for i in 0..longest {
+        for l in &lists {
+            if let Some(s) = l.get(i) {
+                if seen.insert(s.clone()) {
+                    out.push(s.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Search results by query ("" is trending), so going back to a category or
+/// search doesn't ask Technic again.
+static SEARCHES: Mutex<Option<HashMap<String, (Instant, Vec<String>)>>> = Mutex::new(None);
+
+/// One Technic search (or trending).
+async fn slugs_for(query: &str) -> Result<Vec<String>> {
+    let key = query.trim().to_lowercase();
+    if let Some((at, v)) = SEARCHES.lock().unwrap().get_or_insert_with(HashMap::new).get(&key) {
+        if at.elapsed() < CACHE_TTL {
+            return Ok(v.clone());
+        }
+    }
+    let b = build().await.to_string();
+    let list = get_json_patiently(|| {
+        if key.is_empty() {
+            net::client().get(format!("{API}/trending")).query(&[("build", b.as_str())])
+        } else {
+            net::client().get(format!("{API}/search")).query(&[("q", key.as_str()), ("build", b.as_str())])
+        }
+    })
+    .await?;
     let slugs: Vec<String> = list["modpacks"]
         .as_array()
         .into_iter()
         .flatten()
         .filter_map(|m| m["slug"].as_str().map(String::from))
         .collect();
+    SEARCHES.lock().unwrap().get_or_insert_with(HashMap::new).insert(key, (Instant::now(), slugs.clone()));
+    Ok(slugs)
+}
+
+/// Search Technic, show one of the categories above, or (no search term and
+/// no category) Technic's trending packs. Technic returns everything at once,
+/// so paging is done here.
+pub async fn search(query: &str, sort: &str, offset: u32, category: Option<&str>) -> Result<SearchResult> {
+    let wanted: Option<&'static [&'static str]> = match category {
+        Some(c) if query.trim().is_empty() => CATEGORIES.iter().find(|e| e.0 == c).map(|e| e.1),
+        _ => None,
+    };
+    let slugs: Vec<String> = match wanted {
+        Some(queries) => {
+            // Take turns from each search's results (best matches first), skipping repeats.
+            let owned: Vec<String> = queries.iter().map(|q| q.to_string()).collect();
+            let lists: Vec<Vec<String>> = stream::iter(owned)
+                .map(|q: String| async move { slugs_for(&q).await.unwrap_or_default() })
+                .buffered(2)
+                .collect()
+                .await;
+            if lists.iter().all(|l| l.is_empty()) {
+                return Err(crate::error::Error::msg("Couldn't reach Technic. Check your connection and try again."));
+            }
+            merge(lists)
+        }
+        None => slugs_for(query).await?,
+    };
     let total = slugs.len() as u64;
     let page: Vec<String> = slugs.into_iter().skip(offset as usize).take(24).collect();
+    let browsing = wanted.is_some();
     let mut hits: Vec<SearchHit> = stream::iter(page)
         .map(|s| async move { details(&s).await.ok() })
-        .buffered(8)
+        .buffered(6)
         .filter_map(|v| async move { v.map(|v| to_hit(&v)) })
+        // In a category, skip packs whose own name says they're dead.
+        .filter(|h| std::future::ready(!(browsing && abandoned(&h.title))))
         .collect()
         .await;
     match sort {
@@ -392,12 +492,27 @@ mod tests {
     }
 
     /// cargo test -- --ignored --nocapture technic_live
+    #[test]
+    fn spots_abandoned_packs() {
+        assert!(abandoned("OUTDATED PACK: GRAB NEW ONE"));
+        assert!(abandoned("BuildYourRealWorld (STOPPED)"));
+        assert!(!abandoned("Tekkit 2"));
+        assert!(!abandoned("RLCraft"));
+    }
+
     #[tokio::test]
     #[ignore]
     async fn technic_live() {
-        let t = search("", "relevance", 0).await.unwrap();
+        let t = search("", "relevance", 0, None).await.unwrap();
+        let sky = search("", "relevance", 0, Some("skyblock")).await.unwrap();
+        println!("skyblock: {} {:?}", sky.total_hits, sky.hits.iter().take(8).map(|h| &h.title).collect::<Vec<_>>());
+        assert!(sky.total_hits > 15, "a category gathers more than one search's 15");
+        for (id, _) in CATEGORIES {
+            let c = search("", "relevance", 0, Some(id)).await.unwrap();
+            println!("{id}: {} packs, e.g. {:?}", c.total_hits, c.hits.iter().take(4).map(|h| &h.title).collect::<Vec<_>>());
+        }
         println!("trending: {} first: {:?}", t.total_hits, t.hits.iter().take(3).map(|h| &h.title).collect::<Vec<_>>());
-        let s = search("tekkit 2", "relevance", 0).await.unwrap();
+        let s = search("tekkit 2", "relevance", 0, None).await.unwrap();
         println!("search: {:?}", s.hits.iter().take(3).map(|h| (&h.title, &h.project_id)).collect::<Vec<_>>());
         let p = project("technic:tekkit-2").await.unwrap();
         println!("project {} installs {} site {:?}", p.title, p.downloads, p.website_url);
