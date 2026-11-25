@@ -48,6 +48,23 @@ export interface Instance {
   shared?: SharedParts;
 }
 
+/** What the crash helper found after a game closed with an error. */
+export interface CrashDiagnosis {
+  kind: 'missing-mod' | 'wrong-version' | 'java' | 'memory' | 'duplicate' | 'mod-crash' | 'unknown';
+  title: string;
+  detail: string;
+  fix: CrashFix | null;
+  report: string | null;
+  excerpt: string[];
+}
+
+export type CrashFix =
+  | { action: 'installMod'; modId: string; name: string }
+  | { action: 'memory'; mb: number }
+  | { action: 'java'; major: number }
+  | { action: 'changeVersion'; fileName: string; name: string }
+  | { action: 'disableMod'; fileName: string; name: string };
+
 /** Performance mods the Optimize dialog can add. */
 export interface PerfMods {
   mods: { projectId: string; title: string; what: string; status: 'add' | 'installed' | 'clash' | 'unavailable'; note: string | null }[];
@@ -141,6 +158,9 @@ export interface PackInfo {
   skippedVersion?: string | null;
   /** The player asked not to hear about updates to this pack. */
   noUpdatePrompts?: boolean;
+  /** The version before the last version change, to go back to. */
+  previousVersionId?: string | null;
+  previousVersionNumber?: string | null;
 }
 
 /** A modpack instance with a newer version available. */
@@ -388,6 +408,8 @@ export interface Settings {
   modpackUpdateCheck: boolean;
   /** Show what the player is doing on their Discord profile. */
   discordPresence: boolean;
+  /** Join button on the Discord status for any server, not only listed ones. */
+  discordJoinAnyServer: boolean;
   /** No blur or moving glow, for slower PCs (off unless turned on). */
   lightEffects: boolean;
   /** The aurora glow drifts slowly (off by default on Linux). */

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
+  import Select from '$lib/components/Select.svelte';
   import { ExternalLink, RefreshCw, MessageCircle } from '@lucide/svelte';
   import { updates, checkForUpdate } from '$lib/updates.svelte';
   import { menu, loadMenuStatus, addToMenu, removeFromMenu } from '$lib/menuEntry.svelte';
@@ -428,10 +429,15 @@
           </Row>
           {#if s.proxyEnabled}
             <Row title="Proxy">
-              <select class="input type" bind:value={s.proxyType}>
-                <option value="http">HTTP</option>
-                <option value="socks5">SOCKS5</option>
-              </select>
+              <Select
+                bind:value={() => s.proxyType, (v) => v && (s.proxyType = v as typeof s.proxyType)}
+                ariaLabel="Proxy type"
+                style="width: 120px; flex-shrink: 0;"
+                options={[
+                  { value: 'http', label: 'HTTP' },
+                  { value: 'socks5', label: 'SOCKS5' }
+                ]}
+              />
               <input class="input" bind:value={s.proxyHost} placeholder="host" />
               <input class="input port" type="number" min="1" max="65535" bind:value={s.proxyPort} />
             </Row>
@@ -444,6 +450,12 @@
         <div class="rows">
           <Row title="Show what I'm doing in Discord" desc="Your Discord profile shows Playing Peak Launcher, with what you're doing: the modpack you're playing, the server you're on, or that you're browsing. It's only shared with the Discord app on this computer.">
             <Switch bind:checked={s.discordPresence} label="Show what I'm doing in Discord" />
+          </Row>
+          <Row
+            title="Join button for any server"
+            desc="On servers from Peak's server list, your Discord status has a Join on Peak button so friends can join you. Turn this on to show it on other servers too. Their address is shown to anyone who sees your status."
+          >
+            <Switch bind:checked={s.discordJoinAnyServer} disabled={!s.discordPresence} label="Join button for any server" />
           </Row>
           <Row
             title="CurseForge API key"
@@ -672,10 +684,6 @@
   }
   .num {
     width: 110px;
-  }
-  .type {
-    width: 120px;
-    flex-shrink: 0;
   }
   .port {
     width: 100px;

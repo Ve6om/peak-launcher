@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import Select from './Select.svelte';
   import { fly } from 'svelte/transition';
   import { TriangleAlert } from '@lucide/svelte';
   import Row from './Row.svelte';
@@ -194,9 +195,7 @@
     <h3>Game & mod loader</h3>
     <div class="rows">
       <Row title="Minecraft version">
-        <select class="input" bind:value={d.gameVersion}>
-          {#each versionChoices as v (v.id)}<option value={v.id}>{v.id}</option>{/each}
-        </select>
+        <Select bind:value={() => d.gameVersion, (v) => v && (d.gameVersion = v)} ariaLabel="Minecraft version" options={versionChoices.map((v) => ({ value: v.id, label: v.id }))} />
       </Row>
       <Row title="Mod loader">
         <div class="seg">
@@ -208,11 +207,11 @@
       {#if d.loader !== 'vanilla'}
         <Row title="{loaderLabel(d.loader)} version">
           {#if loaderVersions.length}
-            <select class="input" bind:value={d.loaderVersion}>
-              {#each loaderVersions as v (v.id)}
-                <option value={v.id}>{v.id}{v.recommended ? ' (recommended)' : v.stable ? '' : ' (beta)'}</option>
-              {/each}
-            </select>
+            <Select
+              bind:value={d.loaderVersion}
+              ariaLabel="Loader version"
+              options={loaderVersions.map((v) => ({ value: v.id, label: v.id, hint: v.recommended ? 'recommended' : v.stable ? undefined : 'beta' }))}
+            />
           {:else}
             <span class="hint warn">Not available for Minecraft {d.gameVersion}</span>
           {/if}
@@ -260,18 +259,19 @@
       </Row>
       {#if javaMode === 'auto'}
         <Row title="Java build" desc="Which build Peak downloads. GraalVM is often a little faster; switch back if the game acts strangely.">
-          <select class="input" bind:value={d.javaRuntime}>
-            <option value={null}>Same as Settings ({buildNames[g.javaVendor] ?? "Mojang's Java"})</option>
-            {#each BUILDS as b (b)}<option value={b}>{buildNames[b]}</option>{/each}
-          </select>
+          <Select
+            bind:value={d.javaRuntime}
+            ariaLabel="Java build"
+            options={[{ value: null, label: `Same as Settings (${buildNames[g.javaVendor] ?? "Mojang's Java"})` }, ...BUILDS.map((b) => ({ value: b, label: buildNames[b] }))]}
+          />
         </Row>
       {:else if javaMode === 'runtime'}
         <Row title="Java runtime" desc="Mojang's Java (downloaded if needed) or any Java already on this computer">
-          <select
-            class="input"
+          <Select
+            ariaLabel="Java runtime"
             value={d.javaPath ? `path:${d.javaPath}` : d.javaRuntime}
-            onchange={(e) => {
-              const v = e.currentTarget.value;
+            onchange={(v) => {
+              if (!v) return;
               if (v.startsWith('path:')) {
                 d.javaPath = v.slice(5);
                 d.javaRuntime = null;
@@ -280,23 +280,19 @@
                 d.javaPath = null;
               }
             }}
-          >
-            <optgroup label="Mojang's Java (Peak downloads it)">
-              {#each runtimes as r (r.component)}
-                <option value={r.component}>Java {r.major} ({r.component}){r.installed ? ' · downloaded' : ''}</option>
-              {/each}
-            </optgroup>
-            {#if pcJava.length || d.javaPath}
-              <optgroup label="Installed on this computer">
-                {#each pcJava as j (j.path)}
-                  <option value="path:{j.path}">Java {j.major} · {javaFolderName(j.path)}</option>
-                {/each}
-                {#if d.javaPath && !pcJava.some((j) => j.path === d.javaPath)}
-                  <option value="path:{d.javaPath}">{javaFolderName(d.javaPath)}</option>
-                {/if}
-              </optgroup>
-            {/if}
-          </select>
+            options={[
+              ...runtimes.map((r) => ({
+                value: r.component,
+                label: `Java ${r.major} (${r.component})`,
+                hint: r.installed ? 'downloaded' : undefined,
+                group: "Mojang's Java (Peak downloads it)"
+              })),
+              ...pcJava.map((j) => ({ value: `path:${j.path}`, label: `Java ${j.major} · ${javaFolderName(j.path)}`, group: 'Installed on this computer' })),
+              ...(d.javaPath && !pcJava.some((j) => j.path === d.javaPath)
+                ? [{ value: `path:${d.javaPath}`, label: javaFolderName(d.javaPath), group: 'Installed on this computer' }]
+                : [])
+            ]}
+          />
         </Row>
       {:else if javaMode === 'custom'}
         <Row title="Java executable" wide>
@@ -343,10 +339,11 @@
     <h3>Launch</h3>
     <div class="rows">
       <Row title="Account" desc="Play this instance with a specific account">
-        <select class="input" bind:value={() => d.accountId ?? '', (v) => (d.accountId = v || null)}>
-          <option value="">Active account</option>
-          {#each app.accounts as a (a.id)}<option value={a.id}>{a.username}</option>{/each}
-        </select>
+        <Select
+          bind:value={() => d.accountId ?? '', (v) => (d.accountId = v || null)}
+          ariaLabel="Account"
+          options={[{ value: '', label: 'Active account' }, ...app.accounts.map((a) => ({ value: a.id, label: a.username }))]}
+        />
       </Row>
       <Row title="Quick play" desc="Jump straight into a world, server or realm when you press Play. Worlds and realms need 1.20+.">
         <div class="seg">
@@ -358,10 +355,12 @@
       {#if d.quickPlay.mode === 'world'}
         <Row title="World">
           {#if worlds.length}
-            <select class="input" bind:value={d.quickPlay.value}>
-              <option value="" disabled>Choose a world</option>
-              {#each worlds as w (w)}<option value={w}>{w}</option>{/each}
-            </select>
+            <Select
+              bind:value={() => d.quickPlay.value, (v) => (d.quickPlay.value = v ?? '')}
+              ariaLabel="World"
+              placeholder="Choose a world"
+              options={worlds.map((w) => ({ value: w, label: w }))}
+            />
           {:else}
             <span class="hint">No worlds yet. Play once to create one.</span>
           {/if}

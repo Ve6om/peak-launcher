@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import Select from './Select.svelte';
   import { Download, Heart, Check, LoaderCircle, ExternalLink, Code, Bug, BookOpen, Trash2 } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import Markdown from './Markdown.svelte';
@@ -142,11 +143,11 @@
         </div>
         <div class="install">
           {#if versions.length}
-            <select class="input" bind:value={versionId}>
-              {#each versions as v (v.id)}
-                <option value={v.id}>{v.version_number}{v.version_type !== 'release' ? ` (${v.version_type})` : ''}</option>
-              {/each}
-            </select>
+            <Select
+              bind:value={() => versionId, (v) => (versionId = v ?? '')}
+              ariaLabel="Version"
+              options={versions.map((v) => ({ value: v.id, label: v.version_number, hint: v.version_type !== 'release' ? v.version_type : undefined }))}
+            />
             <button class="btn primary" disabled={installing || removing || !versionId} onclick={install}>
               {#if installing}<LoaderCircle size={16} class="spin" /> Installing{:else if kind === 'modpack'}<Download size={16} /> Install as new instance{:else if installed}<Check size={16} /> Reinstall{:else}<Download size={16} /> Install{/if}
             </button>

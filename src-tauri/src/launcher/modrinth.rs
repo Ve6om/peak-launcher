@@ -362,6 +362,82 @@ pub async fn list(paths: &Paths, inst: &str, kind: Kind) -> Result<Vec<Installed
     Ok(out)
 }
 
+/// The Modrinth project for a mod id named in a crash ("sodium",
+/// "fabric-api"...), if one fits this instance. Mod ids usually match a
+/// project's slug; otherwise the best search hit that has a version for the
+/// instance's Minecraft and loader.
+pub async fn project_for_mod_id(inst: &Instance, mod_id: &str, name: &str) -> Option<String> {
+    let id = mod_id.trim().to_lowercase();
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)) {
+        return None;
+    }
+    let fits = |pid: String| async move { compatible_versions(inst, &pid, Kind::Mod).await.ok().filter(|v| !v.is_empty()).map(|_| pid) };
+    for slug in [id.clone(), id.replace('_', "-")] {
+        if let Ok(res) = net::client().get(format!("{API}/project/{slug}")).send().await {
+            if let Ok(p) = res.error_for_status() {
+                if let Ok(p) = p.json::<serde_json::Value>().await {
+                    if let Some(pid) = p.get("id").and_then(|v| v.as_str()) {
+                        if let Some(pid) = fits(pid.to_string()).await {
+                            return Some(pid);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Search: by name (or the id as words), then by the start of the id, since
+    // ids often run words together ("kotlinforforge" is "kotlin-for-forge").
+    let squash = |s: &str| s.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>();
+    let target = squash(&id);
+    let facets = json!([["project_type:mod"], [format!("versions:{}", inst.game_version)]]).to_string();
+    let by_name = if name.trim().is_empty() || name.eq_ignore_ascii_case(mod_id) { id.replace(['-', '_', '.'], " ") } else { name.to_string() };
+    let prefix: String = target.chars().take(6).collect();
+    let mut loose: Option<String> = None;
+    for (query, strict) in [(by_name, false), (prefix, true)] {
+        let Some(hits) = search_hits(&query, &facets).await else { continue };
+        for (pid, slug, title) in hits {
+            let same = squash(&slug) == target || squash(&title) == target;
+            if same {
+                if let Some(pid) = fits(pid).await {
+                    return Some(pid);
+                }
+            } else if !strict && loose.is_none() {
+                loose = Some(pid);
+            }
+        }
+    }
+    // Nothing with that exact id: the top search hit for its name, if it fits.
+    match loose {
+        Some(pid) => fits(pid).await,
+        None => None,
+    }
+}
+
+/// (project id, slug, title) of the top mod search hits.
+async fn search_hits(query: &str, facets: &str) -> Option<Vec<(String, String, String)>> {
+    if query.trim().is_empty() {
+        return None;
+    }
+    let res: serde_json::Value = net::client()
+        .get(format!("{API}/search"))
+        .query(&[("query", query), ("limit", "8"), ("facets", facets)])
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    Some(
+        res.get("hits")?
+            .as_array()?
+            .iter()
+            .filter_map(|h| {
+                Some((h.get("project_id")?.as_str()?.to_string(), h.get("slug")?.as_str()?.to_string(), h.get("title")?.as_str()?.to_string()))
+            })
+            .collect(),
+    )
+}
+
 /// The exact same files on Modrinth (by SHA-1), keyed by hash. Used for
 /// CurseForge files their authors don't let launchers download: when the
 /// identical file is also on Modrinth, it can come from there instead.
@@ -566,18 +642,22 @@ pub async fn install_items(paths: &Paths, inst_id: &str, items: &[PlanItem]) -> 
         .map(|it| Download::new(it.url.clone(), content_dir(paths, inst_id, it.kind).join(&it.file_name), it.sha1.clone(), Some(it.size)))
         .collect();
     net::download_all(downloads, net::concurrency(), |_| {}).await?;
+    // A disabled mod stays disabled when its version changes.
+    let stays_off = |i: usize| old.iter().any(|(j, _, enabled)| *j == i && !enabled) && !old.iter().any(|(j, _, enabled)| *j == i && *enabled);
+    let final_name = |i: usize| if stays_off(i) { format!("{}.disabled", items[i].file_name) } else { items[i].file_name.clone() };
+    // The old files are kept aside (not deleted), so the update can be undone.
     for (i, file_name, _) in &old {
         if *file_name != items[*i].file_name {
-            let _ = tokio::fs::remove_file(content_dir(paths, inst_id, items[*i].kind).join(file_name)).await;
+            let kind = items[*i].kind;
+            if super::undo::keep(paths, inst_id, kind.folder(), file_name, &final_name(*i)).await.is_err() {
+                let _ = tokio::fs::remove_file(content_dir(paths, inst_id, kind).join(file_name)).await;
+            }
         }
     }
-    // A disabled mod stays disabled when its version changes.
     for (i, it) in items.iter().enumerate() {
-        let was_off = old.iter().any(|(j, _, enabled)| *j == i && !enabled);
-        let now_on = !old.iter().any(|(j, _, enabled)| *j == i && *enabled);
-        if was_off && now_on {
+        if stays_off(i) {
             let dir = content_dir(paths, inst_id, it.kind);
-            let _ = tokio::fs::rename(dir.join(&it.file_name), dir.join(format!("{}.disabled", it.file_name))).await;
+            let _ = tokio::fs::rename(dir.join(&it.file_name), dir.join(final_name(i))).await;
         }
     }
     let mut store = load_store(paths, inst_id).await?;
@@ -684,6 +764,22 @@ pub async fn check_updates(paths: &Paths, inst_id: &str, kind: Kind) -> Result<V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Mod ids from crash messages turn into installable projects.
+    /// cargo test -- --ignored --nocapture finds_projects_for_mod_ids
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn finds_projects_for_mod_ids() {
+        let inst = |v: &str, l: &str| -> Instance {
+            serde_json::from_value(json!({ "id": "t", "name": "T", "gameVersion": v, "loader": l, "createdAt": "2026-01-01T00:00:00Z" })).unwrap()
+        };
+        let fabric = inst("1.21.1", "fabric");
+        assert_eq!(project_for_mod_id(&fabric, "sodium", "Sodium").await.as_deref(), Some("AANobbMI"));
+        assert_eq!(project_for_mod_id(&fabric, "fabric-api", "fabric-api").await.as_deref(), Some("P7dR8mSH"));
+        let forge = inst("1.20.1", "forge");
+        let kff = project_for_mod_id(&forge, "kotlinforforge", "kotlinforforge").await;
+        assert_eq!(kff.as_deref(), Some("ordsPcFz"), "kotlinforforge is kotlin-for-forge");
+    }
 
     /// A CurseForge file that launchers can't download (Entity Culling for
     /// CobbleVerse) is the same file on Modrinth.

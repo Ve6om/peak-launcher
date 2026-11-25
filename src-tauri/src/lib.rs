@@ -798,6 +798,8 @@ async fn modpack_change_version(
     pack.description = pack.description.or(old.description.clone());
     pack.no_update_prompts = old.no_update_prompts;
     pack.skipped_version = None;
+    pack.previous_version_id = old.version_id.clone();
+    pack.previous_version_number = Some(old.version_number.clone()).filter(|v| !v.is_empty());
     inst.game_version = temp.game_version.clone();
     inst.loader = temp.loader.clone();
     inst.loader_version = temp.loader_version.clone();
@@ -1250,6 +1252,64 @@ async fn manual_scan(app: AppHandle, state: State<'_, AppState>, instance_id: St
 #[tauri::command]
 async fn manual_dismiss(state: State<'_, AppState>, instance_id: String) -> Result<()> {
     manual::save(&state.paths, &instance_id, &[]).await
+}
+
+/// The last mod / pack update that can be undone in an instance, if any.
+#[tauri::command]
+async fn content_undo_info(state: State<'_, AppState>, instance_id: String) -> Result<Option<launcher::undo::UndoInfo>> {
+    Ok(launcher::undo::info(&state.paths, &instance_id).await)
+}
+
+#[tauri::command]
+async fn content_undo(state: State<'_, AppState>, instance_id: String) -> Result<usize> {
+    if state.running.lock().unwrap().contains_key(&instance_id) {
+        return Err(Error::msg("Close the game first."));
+    }
+    launcher::undo::undo(&state.paths, &instance_id).await
+}
+
+/// Mods that are missing something they need, read from the mod files.
+#[tauri::command]
+async fn content_missing(state: State<'_, AppState>, instance_id: String) -> Result<Vec<moddeps::Missing>> {
+    let dir = modrinth::content_dir(&state.paths, &instance_id, Kind::Mod);
+    tokio::task::spawn_blocking(move || moddeps::missing_in(&moddeps::installed_mods(&dir)))
+        .await
+        .map_err(|e| Error::msg(e.to_string()))
+}
+
+/// Why a game that just closed with an error crashed, and what would fix it.
+#[tauri::command]
+async fn crash_diagnose(state: State<'_, AppState>, instance_id: String, since_ms: i64) -> Result<launcher::crash::Diagnosis> {
+    let since = std::time::UNIX_EPOCH + std::time::Duration::from_millis(since_ms.max(0) as u64);
+    let s = settings::load(&state.paths).await?;
+    let console = state
+        .logs
+        .lock()
+        .unwrap()
+        .get(&instance_id)
+        .map(|l| l.iter().map(|x| x.line.as_str()).collect::<Vec<_>>().join("\n"))
+        .unwrap_or_default();
+    launcher::crash::for_instance(&state.paths, &instance_id, since, s.memory_mb, console).await
+}
+
+/// A mod named in a crash, as a project that can be installed (Modrinth id).
+#[tauri::command]
+async fn crash_find_mod(state: State<'_, AppState>, instance_id: String, mod_id: String, name: String) -> Result<Option<String>> {
+    let inst = instances::get(&state.paths, &instance_id).await?;
+    Ok(modrinth::project_for_mod_id(&inst, &mod_id, &name).await)
+}
+
+/// Open a crash report (only files in an instance's crash-reports folder).
+#[tauri::command]
+async fn open_crash_report(app: AppHandle, state: State<'_, AppState>, path: String) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let p = std::path::PathBuf::from(&path).canonicalize()?;
+    let root = state.paths.instances().canonicalize()?;
+    let ok = p.starts_with(&root) && p.parent().and_then(|d| d.file_name()).is_some_and(|n| n == "crash-reports");
+    if !ok {
+        return Err(Error::msg("That isn't a crash report."));
+    }
+    app.opener().open_path(p.to_string_lossy(), None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }
 
 #[tauri::command]
@@ -1818,6 +1878,12 @@ pub fn run() {
             game_defaults_lines,
             game_defaults_set,
             perf_mods,
+            crash_diagnose,
+            content_missing,
+            content_undo_info,
+            content_undo,
+            crash_find_mod,
+            open_crash_report,
             perf_mods_add,
             perf_mods_undo,
             java_runtimes,

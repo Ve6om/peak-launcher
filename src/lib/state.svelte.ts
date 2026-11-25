@@ -1,6 +1,8 @@
 import { api, on, isTauri } from './api';
 import { view } from './visibility.svelte';
+import type { PeakLink } from './discover.svelte';
 import type {
+  CrashDiagnosis,
   AccountInfo,
   AppInfo,
   BlockedFile,
@@ -21,6 +23,27 @@ interface Toast {
   text: string;
   /** Offer the rage button (a launch failed or the game crashed). */
   rage?: boolean;
+}
+
+/** When each running game started (ms), to find its crash report. */
+const gameStarted: Record<string, number> = {};
+/** Games the crash helper has already spoken up about this run. */
+const crashShown: Record<string, boolean> = {};
+const crashTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+// Errors a mod loader prints while it keeps its own error window open (Fabric's
+// "Incompatible mods found!"), so the game hasn't closed yet.
+const LOAD_ERROR = /Incompatible mods found|FormattedException|Mod resolution failed|Missing or unsupported mandatory dependencies|Mod loading has failed|Failed to load mod|Duplicate, conflicting mods/;
+
+/** Ask the crash helper about a game, once per run. */
+function showCrashHelp(instanceId: string, fallback?: string) {
+  if (crashShown[instanceId]) return;
+  crashShown[instanceId] = true;
+  const since = (gameStarted[instanceId] ?? Date.now()) - 5000;
+  api
+    .crashDiagnose(instanceId, since)
+    .then((diagnosis) => (app.crash = { instanceId, diagnosis }))
+    .catch(() => fallback && toast(fallback, 'error', { rage: true }));
 }
 
 export const app = $state({
@@ -46,6 +69,8 @@ export const app = $state({
   javaPrompt: null as null | ((go: boolean) => void),
   /** Instance whose Optimize dialog is open (from its overview or right-click menu). */
   optimizing: null as Instance | null,
+  /** A game that just crashed, with what the crash helper found. */
+  crash: null as { instanceId: string; diagnosis: CrashDiagnosis } | null,
   /** Instance whose "change modpack version" dialog is open. */
   packVersionFor: null as Instance | null,
   /** Instance being exported as a server pack. */
@@ -340,14 +365,14 @@ export async function init() {
   applyAccent(settings.accent);
 
   // peak:// links from the website's "Play in Peak" buttons.
-  const { openServerLink } = await import('./discover.svelte');
-  await on<string>('open-server-link', (id) => {
+  const { openLink } = await import('./discover.svelte');
+  await on<PeakLink>('open-link', (link) => {
     api.takePendingLink().catch(() => {});
-    openServerLink(id);
+    openLink(link);
   });
   api
     .takePendingLink()
-    .then((id) => id && openServerLink(id))
+    .then((link) => link && openLink(link))
     .catch(() => {});
 
   await on<{ instanceId: string; name: string; files: BlockedFile[] }>('install-blocked', (e) => {
@@ -372,6 +397,12 @@ export async function init() {
   await on<LogLine & { instanceId: string }>('game-log', (l) => {
     const list = (app.logs[l.instanceId] ??= []);
     list.push({ line: l.line, stream: l.stream });
+    // A load error while the game is still open (e.g. behind Fabric's error
+    // window): explain it now, once the whole message has been printed.
+    if (!crashShown[l.instanceId] && LOAD_ERROR.test(l.line)) {
+      clearTimeout(crashTimers[l.instanceId]);
+      crashTimers[l.instanceId] = setTimeout(() => showCrashHelp(l.instanceId), 1500);
+    }
     if (list.length > 5000) list.splice(0, list.length - 5000);
   });
   await on<{ instanceId: string; open: boolean }>('console-window', (e) => {
@@ -386,13 +417,18 @@ export async function init() {
   await on<{ instanceId: string; state: 'running' | 'stopped'; exitCode: number | null }>('game-state', (s) => {
     if (s.state === 'running') {
       if (!app.running.includes(s.instanceId)) app.running.push(s.instanceId);
+      gameStarted[s.instanceId] = Date.now();
+      delete crashShown[s.instanceId];
     } else {
       app.running = app.running.filter((r) => r !== s.instanceId);
       import('./presence.svelte').then((m) => delete m.playingOn[s.instanceId]).catch(() => {});
+      import('./invite.svelte').then((m) => delete m.playingAt[s.instanceId]).catch(() => {});
       if (s.exitCode && s.exitCode !== 0) {
-        toast(`Game exited with code ${s.exitCode}. Check the console for details.`, 'error', { rage: true });
         // Show what went wrong (the pop-out window, if open, already does).
         if (!app.poppedOut[s.instanceId]) go('instance', s.instanceId, 'console');
+        // The crash helper explains it and offers a fix; the plain message if it can't.
+        clearTimeout(crashTimers[s.instanceId]);
+        showCrashHelp(s.instanceId, `Game exited with code ${s.exitCode}. Check the console for details.`);
       }
       refreshInstances();
     }

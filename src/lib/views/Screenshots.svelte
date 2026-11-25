@@ -3,6 +3,8 @@
   // previews, the player's own tags, and copy / save / export, without
   // digging through instance folders.
   import { onMount } from 'svelte';
+  import { instanceIcon } from '$lib/instanceImages';
+  import Select from '$lib/components/Select.svelte';
   import { fade } from 'svelte/transition';
   import { Camera, Copy, Download, FolderOpen, Trash2, X, ChevronLeft, ChevronRight, RefreshCw, Check, Tag, Archive } from '@lucide/svelte';
   import { api, isTauri } from '$lib/api';
@@ -196,12 +198,15 @@
       <p>Every screenshot from your instances, grouped by when you played.</p>
     </div>
     <div class="tools">
-      <select class="input" bind:value={instanceFilter} aria-label="Instance">
-        <option value="all">All instances ({shots?.length ?? 0})</option>
-        {#each app.instances.filter((i) => counts[i.id]) as i (i.id)}
-          <option value={i.id}>{i.name} ({counts[i.id]})</option>
-        {/each}
-      </select>
+      <Select
+        bind:value={() => instanceFilter, (v) => (instanceFilter = v ?? 'all')}
+        ariaLabel="Instance"
+        style="width: auto; min-width: 200px;"
+        options={[
+          { value: 'all', label: 'All instances', hint: String(shots?.length ?? 0) },
+          ...app.instances.filter((i) => counts[i.id]).map((i) => ({ value: i.id, label: i.name, hint: String(counts[i.id]), icon: instanceIcon(i), loader: i.loader }))
+        ]}
+      />
       <button class="btn" onclick={load} title="Look for new screenshots"><RefreshCw size={15} /> Refresh</button>
     </div>
   </header>
@@ -346,10 +351,6 @@
   }
   .tools {
     align-items: center;
-  }
-  .tools select {
-    width: auto;
-    min-width: 200px;
   }
   .muted {
     color: var(--muted);

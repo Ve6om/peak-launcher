@@ -14,6 +14,9 @@
   import OptimizeDialog from '$lib/components/OptimizeDialog.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import PackVersionPanel from '$lib/components/PackVersionPanel.svelte';
+  import CrashDialog from '$lib/components/CrashDialog.svelte';
+  import JoinInviteDialog from '$lib/components/JoinInviteDialog.svelte';
+  import { invite } from '$lib/invite.svelte';
   import JavaChoicePrompt from '$lib/components/JavaChoicePrompt.svelte';
   import ServerPackDialog from '$lib/components/ServerPackDialog.svelte';
   import DependencyDialog from '$lib/components/DependencyDialog.svelte';
@@ -129,6 +132,12 @@
 {/if}
 {#if app.optimizing}
   <OptimizeDialog inst={app.optimizing} onclose={() => (app.optimizing = null)} />
+{/if}
+{#if invite.current}
+  <JoinInviteDialog />
+{/if}
+{#if app.crash}
+  <CrashDialog instanceId={app.crash.instanceId} diagnosis={app.crash.diagnosis} onclose={() => (app.crash = null)} />
 {/if}
 {#if app.packVersionFor}
   {@const inst = app.packVersionFor}

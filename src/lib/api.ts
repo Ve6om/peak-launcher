@@ -3,6 +3,7 @@
 // interface can be designed and tested without the Rust backend.
 import type {
   SideFilter,
+  CrashDiagnosis,
   GameDefaults,
   PerfMods,
   StorageUsage,
@@ -144,6 +145,12 @@ export const api = {
   openDownloadsFolder: () => call<void>('open_downloads_folder'),
   openSharedFolder: () => call<void>('open_shared_folder'),
   openDataFolder: () => call<void>('open_data_folder'),
+  crashDiagnose: (instanceId: string, sinceMs: number) => call<CrashDiagnosis>('crash_diagnose', { instanceId, sinceMs }),
+  crashFindMod: (instanceId: string, modId: string, name: string) => call<string | null>('crash_find_mod', { instanceId, modId, name }),
+  openCrashReport: (path: string) => call<void>('open_crash_report', { path }),
+  contentUndoInfo: (instanceId: string) => call<{ count: number; when: string } | null>('content_undo_info', { instanceId }),
+  contentUndo: (instanceId: string) => call<number>('content_undo', { instanceId }),
+  contentMissing: (instanceId: string) => call<{ fileName: string; missing: string[]; turnedOff: string[] }[]>('content_missing', { instanceId }),
   gameDefaults: () => call<GameDefaults | null>('game_defaults'),
   gameDefaultsSave: (instanceId: string) => call<GameDefaults>('game_defaults_save', { instanceId }),
   gameDefaultsClear: () => call<void>('game_defaults_clear'),
@@ -215,7 +222,7 @@ export const api = {
   serverJoin: (serverId: string, instanceId: string) => call<void>('server_join', { serverId, instanceId }),
   discoverList: () => call<Listing[]>('discover_list'),
   /** A peak:// server link Peak was opened with, if any (only returned once). */
-  takePendingLink: () => call<string | null>('take_pending_link'),
+  takePendingLink: () => call<import('./discover.svelte').PeakLink | null>('take_pending_link'),
   /** Launch an instance straight into a server from the Discover list. */
   discoverJoin: (instanceId: string, address: string, name?: string) => call<void>('discover_join', { instanceId, address, name }),
   instanceServers: (id: string) => call<InstanceServer[]>('instance_servers', { id }),
@@ -346,6 +353,7 @@ const mock = (() => {
     appimageMenuDismissed: false,
     modpackUpdateCheck: true,
     discordPresence: true,
+    discordJoinAnyServer: false,
     lightEffects: false,
     movingGlow: true,
     enableCommands: false,
@@ -575,6 +583,7 @@ const mock = (() => {
     }
   };
   const mockPerfAdded: Record<string, string[]> = {};
+  const mockUndo: Record<string, number> = { 'survival-island': 3 };
   let mockDefaults: GameDefaults | null = null;
   let mockDefaultLines: [string, string][] = [];
   const mockContent: Record<string, InstalledItem[]> = {
@@ -712,6 +721,28 @@ const mock = (() => {
         await sleep(500);
         const n = mockPerfAdded[a.instanceId]?.length ?? 0;
         mockPerfAdded[a.instanceId] = [];
+        return n;
+      }
+      case 'crash_diagnose':
+        return {
+          kind: 'missing-mod',
+          title: 'Sodium is missing',
+          detail: 'Sodium Extra needs Sodium, which isn’t installed.',
+          fix: { action: 'installMod', modId: 'sodium', name: 'Sodium' },
+          report: null,
+          excerpt: []
+        } satisfies CrashDiagnosis;
+      case 'crash_find_mod':
+        return 'AANobbMI';
+      case 'content_missing': {
+        const list = mockContent[a.instanceId + 'mod'] ?? [];
+        return list.length > 1 ? [{ fileName: list[1].fileName, missing: ['fabric-api'], turnedOff: [] }] : [];
+      }
+      case 'content_undo_info':
+        return mockUndo[a.instanceId] ? { count: mockUndo[a.instanceId], when: new Date().toISOString() } : null;
+      case 'content_undo': {
+        const n = mockUndo[a.instanceId] ?? 0;
+        delete mockUndo[a.instanceId];
         return n;
       }
       case 'game_defaults':

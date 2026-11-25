@@ -2,11 +2,14 @@
   // Saved servers with live status, and a Join button that launches an
   // instance straight into the server.
   import { onMount } from 'svelte';
+  import { instanceIcon } from '$lib/instanceImages';
+  import Select from '$lib/components/Select.svelte';
   import { Plus, RefreshCw, FolderInput, Server as ServerIcon, Play, Pencil, Trash2, Users, Copy, LoaderCircle, SignalZero, Bookmark, Compass, Star, ChevronUp, ChevronDown } from '@lucide/svelte';
   import Modal from '$lib/components/Modal.svelte';
   import LoaderIcon from '$lib/components/LoaderIcon.svelte';
   import DiscoverServers from '$lib/components/DiscoverServers.svelte';
   import { serverLink } from '$lib/discover.svelte';
+  import { playingAt } from '$lib/invite.svelte';
   import { api } from '$lib/api';
   import { app, go, toast, errorText, activeAccount, isRunning, isBusy } from '$lib/state.svelte';
   import { motdLines, plain } from '$lib/motd';
@@ -70,6 +73,7 @@
       return;
     }
     app.logs[inst.id] = [];
+    playingAt[inst.id] = { address: s.address, name: s.name };
     try {
       await api.serverJoin(s.id, inst.id);
       s.instanceId = inst.id;
@@ -255,13 +259,15 @@
         <div class="actions">
           <label class="pick" title="Instance to join with">
             {#if inst}<LoaderIcon loader={inst.loader} size={16} />{/if}
-            <select bind:value={() => chosen(s), (v) => (picked[s.id] = v)} disabled={!app.instances.length}>
-              {#each app.instances as x (x.id)}
-                <option value={x.id}>{x.name} · {x.gameVersion}</option>
-              {:else}
-                <option value="">No instances yet</option>
-              {/each}
-            </select>
+            <Select
+              bare
+              bind:value={() => chosen(s), (v) => v && (picked[s.id] = v)}
+              disabled={!app.instances.length}
+              placeholder="No instances yet"
+              ariaLabel="Instance to join with"
+              style="max-width: 170px;"
+              options={app.instances.map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader }))}
+            />
           </label>
           <button class="btn primary" onclick={() => join(s)} disabled={!inst || isRunning(inst.id) || isBusy(inst.id)}>
             <Play size={15} /> Join
@@ -326,11 +332,12 @@
   <Modal title="Import servers" subtitle="Copy the servers saved in an instance's multiplayer list." width={500} onclose={() => (importing = false)}>
     <label class="field">
       <span class="label">From instance</span>
-      <select class="input" bind:value={importFrom} onchange={loadImport}>
-        {#each app.instances as x (x.id)}
-          <option value={x.id}>{x.name} · {x.gameVersion}</option>
-        {/each}
-      </select>
+      <Select
+        bind:value={importFrom}
+        onchange={loadImport}
+        ariaLabel="Instance to import from"
+        options={app.instances.map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader }))}
+      />
     </label>
     <div class="found">
       {#if finding}
@@ -621,18 +628,6 @@
     border-radius: var(--radius-sm);
     border: 1px solid var(--stroke);
     background: rgba(255, 255, 255, 0.03);
-  }
-  .pick select {
-    max-width: 170px;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font: inherit;
-    font-size: 12.5px;
-  }
-  .pick select option {
-    background: #15171c;
   }
   .del.confirm {
     color: #fecaca;
