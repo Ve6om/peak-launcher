@@ -3,6 +3,7 @@
   // Installing one creates a new instance. (Mods, resource packs and shaders
   // are added from each instance's Content tab.)
   import { untrack } from 'svelte';
+  import Select from '$lib/components/Select.svelte';
   import { Search, Download, Heart, Check, LoaderCircle, SearchX, FileUp, KeyRound, ExternalLink } from '@lucide/svelte';
   import ProjectIcon from '$lib/components/ProjectIcon.svelte';
   import ProjectModal from '$lib/components/ProjectModal.svelte';
@@ -118,15 +119,22 @@
       <input bind:value={query} placeholder="Search {SOURCES.find((s) => s.id === source)?.label} modpacks…" />
       {#if loading}<LoaderCircle size={15} class="spin" />{/if}
     </div>
-    <select class="input sort" bind:value={sort}>
-      <option value="relevance">{source === 'ftb' && !query ? 'Featured' : 'Relevance'}</option>
-      <option value="downloads">Most downloaded</option>
-      <option value="follows">{source === 'ftb' || source === 'technic' ? 'Most played' : 'Most followed'}</option>
-      {#if source !== 'technic'}
-        <option value="updated">Recently updated</option>
-        <option value="newest">Newest</option>
-      {/if}
-    </select>
+    <Select
+      bind:value={sort}
+      ariaLabel="Sort"
+      style="width: 180px; height: 40px; flex-shrink: 0;"
+      options={[
+        { value: 'relevance', label: source === 'ftb' && !query ? 'Featured' : 'Relevance' },
+        { value: 'downloads', label: 'Most downloaded' },
+        { value: 'follows', label: source === 'ftb' || source === 'technic' ? 'Most played' : 'Most followed' },
+        ...(source !== 'technic'
+          ? [
+              { value: 'updated', label: 'Recently updated' },
+              { value: 'newest', label: 'Newest' }
+            ]
+          : [])
+      ]}
+    />
   </div>
 
   {#if needsKey}
@@ -275,10 +283,6 @@
     outline: none;
     font-size: 13.5px;
     color: var(--text);
-  }
-  .sort {
-    width: 180px;
-    height: 40px;
   }
   .meta-line {
     min-height: 16px;

@@ -282,6 +282,66 @@ fn scan(dir: &Path) -> Vec<Entry> {
     out
 }
 
+/// An installed mod file: its name and the mod ids it provides.
+#[derive(Debug, Clone)]
+pub struct Installed {
+    pub file_name: String,
+    pub name: String,
+    pub enabled: bool,
+    pub provides: HashSet<String>,
+    pub requires: HashSet<String>,
+}
+
+/// Every mod file in a mods folder, read from its own metadata.
+pub fn installed_mods(dir: &Path) -> Vec<Installed> {
+    scan(dir)
+        .into_iter()
+        .map(|e| Installed {
+            file_name: e.file_name,
+            name: e.name,
+            enabled: e.enabled,
+            provides: e.info.provides,
+            requires: e.info.requires,
+        })
+        .collect()
+}
+
+/// What each mod is missing to run: mod ids it requires that no enabled
+/// file provides. Mods with nothing missing are left out.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Missing {
+    pub file_name: String,
+    /// Required mod ids that aren't there (or are turned off).
+    pub missing: Vec<String>,
+    /// Of those, the ones that are installed but turned off, by file name.
+    pub turned_off: Vec<String>,
+}
+
+pub fn missing_in(mods: &[Installed]) -> Vec<Missing> {
+    let on: HashSet<&String> = mods.iter().filter(|m| m.enabled).flat_map(|m| m.provides.iter()).collect();
+    let mut out = Vec::new();
+    for m in mods.iter().filter(|m| m.enabled) {
+        let mut missing: Vec<String> = m.requires.iter().filter(|r| !on.contains(r)).cloned().collect();
+        if missing.is_empty() {
+            continue;
+        }
+        missing.sort();
+        let turned_off = mods
+            .iter()
+            .filter(|o| !o.enabled && o.provides.iter().any(|p| missing.contains(p)))
+            .map(|o| o.file_name.clone())
+            .collect();
+        out.push(Missing { file_name: m.file_name.clone(), missing, turned_off });
+    }
+    out
+}
+
+/// Normalised mod id, the way the loaders compare them.
+pub fn mod_id(id: &str) -> String {
+    norm(id)
+}
+
 /// The mods that would stop working if `file_name` were disabled or removed,
 /// directly or through another mod. Only enabled mods are listed, and a
 /// dependency still provided by another enabled file doesn't count.
@@ -362,6 +422,27 @@ pub async fn linked(paths: &Paths, inst: &str, file_name: &str, action: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_what_mods_are_missing() {
+        let m = |file: &str, on: bool, provides: &[&str], requires: &[&str]| Installed {
+            file_name: file.into(),
+            name: file.into(),
+            enabled: on,
+            provides: provides.iter().map(|s| s.to_string()).collect(),
+            requires: requires.iter().map(|s| s.to_string()).collect(),
+        };
+        let mods = vec![
+            m("sodium-extra.jar", true, &["sodium-extra"], &["sodium"]),
+            m("sodium.jar.disabled", false, &["sodium"], &[]),
+            m("modmenu.jar", true, &["modmenu"], &["fabric-api"]),
+            m("iris.jar", true, &["iris"], &["sodium"]),
+            m("fabric-api.jar", true, &["fabric-api", "fabric"], &[]),
+        ];
+        let got = missing_in(&mods);
+        assert_eq!(got.len(), 2, "{got:?}");
+        assert_eq!(got[0], Missing { file_name: "sodium-extra.jar".into(), missing: vec!["sodium".into()], turned_off: vec!["sodium.jar.disabled".into()] });
+    }
     use std::io::Write;
 
     fn jar(files: &[(&str, &[u8])]) -> Vec<u8> {

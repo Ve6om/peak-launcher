@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import InstanceServers from '$lib/components/InstanceServers.svelte';
@@ -11,6 +11,8 @@
   import { versionStatus, packUpdates } from '$lib/packUpdates.svelte';
   import PlayButton from '$lib/components/PlayButton.svelte';
   import Progress from '$lib/components/Progress.svelte';
+  import { playingAt, inviteUrl } from '$lib/invite.svelte';
+  import type { Instance } from '$lib/types';
   import { api } from '$lib/api';
   import { app, go, selected, playtime, ago, isBusy, isRunning, toast, repairInstance, openInstanceMenu } from '$lib/state.svelte';
 
@@ -35,6 +37,15 @@
     if (r && !wasRunning && app.settings?.openConsole !== false) app.instanceTab = 'console';
     wasRunning = r;
   });
+
+  async function copyInvite(inst: Instance, at: { address: string; name: string }) {
+    try {
+      await navigator.clipboard.writeText(inviteUrl(inst, at));
+      toast(`Invite link copied. Friends open it to join ${at.name} with the same pack.`, 'success');
+    } catch {
+      toast("Couldn't copy the link", 'error');
+    }
+  }
 </script>
 
 {#if inst}
@@ -60,6 +71,12 @@
         </div>
         <div class="actions">
           <PlayButton {inst} />
+          {#if isRunning(inst.id) && playingAt[inst.id]}
+            {@const at = playingAt[inst.id]}
+            <button class="btn lg" title="Copy a link friends can open to join {at.name} with the same pack" onclick={() => copyInvite(inst, at)}>
+              <UserPlus size={17} /> Invite
+            </button>
+          {/if}
           <button class="btn lg" title="Pick memory, Java flags and Java for this instance" onclick={() => (app.optimizing = inst)}>
             <Sparkles size={17} /> Optimize
           </button>

@@ -51,6 +51,9 @@ pub struct Settings {
     pub modpack_update_check: bool,
     /// Show what the player is doing on their Discord profile.
     pub discord_presence: bool,
+    /// Show a Join button on the Discord status for any server, not only
+    /// ones on Peak's public server list (it shows the server's address).
+    pub discord_join_any_server: bool,
     /// Skip the blur and moving background glow, for slower PCs (and Linux's
     /// web view, where they're costly). Off unless the player turns it on.
     pub light_effects: bool,
@@ -106,6 +109,7 @@ impl Default for Settings {
             appimage_menu_dismissed: false,
             modpack_update_check: true,
             discord_presence: true,
+            discord_join_any_server: false,
             light_effects: false,
             moving_glow: !cfg!(target_os = "linux"),
             enable_commands: false,

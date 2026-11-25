@@ -2,10 +2,11 @@
   // An instance's own multiplayer list (the one in Minecraft's Multiplayer
   // screen): see who's online, join straight in, add, remove and reorder.
   import { onMount } from 'svelte';
-  import { Plus, Play, Trash2, ChevronUp, ChevronDown, Server as ServerIcon, Users, SignalZero, LoaderCircle } from '@lucide/svelte';
+  import { Plus, Play, Trash2, ChevronUp, ChevronDown, Server as ServerIcon, Users, SignalZero, LoaderCircle, UserPlus } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText, activeAccount, go, isRunning, isBusy } from '$lib/state.svelte';
   import { motdLines } from '$lib/motd';
+  import { playingAt, inviteUrl } from '$lib/invite.svelte';
   import type { Instance, InstanceServer, SavedServer, ServerStatus } from '$lib/types';
 
   let { inst }: { inst: Instance } = $props();
@@ -77,6 +78,16 @@
     }
   }
 
+  /** Copy a link friends can open to join this server with this instance's modpack. */
+  async function copyInvite(s: InstanceServer) {
+    try {
+      await navigator.clipboard.writeText(inviteUrl(inst, s));
+      toast(`Invite link to ${s.name} copied. Friends open it to join with the same pack.`, 'success');
+    } catch {
+      toast("Couldn't copy the link", 'error');
+    }
+  }
+
   async function join(s: InstanceServer) {
     if (!activeAccount()) {
       toast('Add an account to start playing', 'info');
@@ -84,6 +95,7 @@
       return;
     }
     app.logs[inst.id] = [];
+    playingAt[inst.id] = { address: s.address, name: s.name };
     try {
       await api.instanceServerJoin(inst.id, s.address);
     } catch (e) {
@@ -129,6 +141,7 @@
               {:else if ready?.online}<Users size={13} /> {ready.playersOnline}/{ready.playersMax}
               {:else}<SignalZero size={13} /> Offline{/if}
             </span>
+            <button class="btn ghost icon" title="Copy an invite link for friends" aria-label="Copy an invite link to {s.name}" onclick={() => copyInvite(s)}><UserPlus size={15} /></button>
             <button class="btn primary" onclick={() => join(s)} disabled={running || isBusy(inst.id)}><Play size={14} /> Join</button>
             <button class="btn ghost icon del" class:confirm={confirmRemove === s.address} title={confirmRemove === s.address ? 'Click again to remove' : 'Remove'} aria-label="Remove {s.name}" disabled={running} onclick={() => remove(s)}>
               <Trash2 size={15} />

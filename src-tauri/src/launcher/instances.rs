@@ -152,6 +152,12 @@ pub struct PackInfo {
     /// The player asked not to be told about updates to this pack.
     #[serde(default)]
     pub no_update_prompts: bool,
+    /// The version this instance was on before its last version change, so
+    /// it can be put back ("Go back to 4.1.8").
+    #[serde(default)]
+    pub previous_version_id: Option<String>,
+    #[serde(default)]
+    pub previous_version_number: Option<String>,
 }
 
 /// Join a world, server or realm straight from the launcher.

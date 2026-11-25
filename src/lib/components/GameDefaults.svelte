@@ -3,6 +3,8 @@
   // Peak, copying them from an instance, or clearing them. With `instance`,
   // copying takes that instance's settings; without, a picker of instances.
   import { onMount } from 'svelte';
+  import { instanceIcon } from '$lib/instanceImages';
+  import Select from './Select.svelte';
   import { Copy, Trash2, Keyboard, Monitor, Pencil } from '@lucide/svelte';
   import DefaultsEditor from './DefaultsEditor.svelte';
   import { api } from '$lib/api';
@@ -90,9 +92,12 @@
       <button class="btn primary" onclick={() => (editing = true)}><Pencil size={14} /> {info ? 'Edit…' : 'Set defaults…'}</button>
       {#if !instance}
         <span class="or">or copy from</span>
-        <select class="input" bind:value={from} aria-label="Instance to copy from">
-          {#each app.instances as i (i.id)}<option value={i.id}>{i.name}</option>{/each}
-        </select>
+        <Select
+          bind:value={from}
+          ariaLabel="Instance to copy from"
+          style="width: auto; min-width: 160px;"
+          options={app.instances.map((i) => ({ value: i.id, label: i.name, icon: instanceIcon(i), loader: i.loader }))}
+        />
       {/if}
       <button class="btn" disabled={busy || (!instance && !from)} onclick={copy}>
         <Copy size={14} />
@@ -164,10 +169,6 @@
   .or {
     font-size: 12px;
     color: var(--faint);
-  }
-  .actions select {
-    width: auto;
-    min-width: 160px;
   }
   .danger:hover {
     color: #fda4af;

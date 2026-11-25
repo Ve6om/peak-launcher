@@ -5,6 +5,7 @@ import { api } from './api';
 import { app } from './state.svelte';
 import { instanceIcon } from './instanceImages';
 import { loaderLabel, packVersion, type Instance } from './types';
+import { playingAt, inviteUrl } from './invite.svelte';
 
 const SITE = 'https://www.peaklauncher.com';
 const launchedAt = Math.floor(Date.now() / 1000);
@@ -42,13 +43,21 @@ export function currentCard(): PresenceCard {
     startedAt[inst.id] ??= Math.floor(Date.now() / 1000);
     const server = playingOn[inst.id];
     const icon = instanceIcon(inst);
+    // Friends can join from the status: listed servers link to their page
+    // (it has Play in Peak); others only if the player chose to share them.
+    const at = playingAt[inst.id];
+    const join = at?.pageUrl
+      ? { buttonLabel: 'Join on Peak', buttonUrl: at.pageUrl }
+      : at && app.settings?.discordJoinAnyServer
+        ? { buttonLabel: 'Join on Peak', buttonUrl: inviteUrl(inst, at) }
+        : getPeak;
     return {
       details: `Playing ${inst.name}`,
       state: server ? `${about(inst)} · on ${server}` : about(inst),
       start: startedAt[inst.id],
       image: icon?.startsWith('https://') ? icon : null,
       imageText: inst.pack?.name ?? inst.name,
-      ...getPeak
+      ...join
     };
   }
   for (const id of Object.keys(startedAt)) if (!app.running.includes(id)) delete startedAt[id];

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import Select from './Select.svelte';
   import { Search, LoaderCircle, Check } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import LoaderIcon from './LoaderIcon.svelte';
@@ -127,11 +128,11 @@
           {:else if !loaderVersions.length}
             <div class="loader-status warn">Not available for Minecraft {version}</div>
           {:else}
-            <select class="input select" bind:value={loaderVersion}>
-              {#each shownLoaderVersions as v (v.id)}
-                <option value={v.id}>{v.id}{v.recommended ? ' (recommended)' : v.stable ? '' : ' (beta)'}</option>
-              {/each}
-            </select>
+            <Select
+              bind:value={loaderVersion}
+              ariaLabel="Loader version"
+              options={shownLoaderVersions.map((v) => ({ value: v.id, label: v.id, hint: v.recommended ? 'recommended' : v.stable ? undefined : 'beta' }))}
+            />
             {#if loaderVersions.some((v) => !v.stable)}
               <label class="unstable"><input type="checkbox" bind:checked={showUnstable} /> Show beta versions</label>
             {/if}

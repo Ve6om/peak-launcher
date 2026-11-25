@@ -2,7 +2,8 @@
   // A modpack instance's pack version: switch to any other version (newer or
   // older) in place, and choose whether Peak mentions updates to this pack.
   import { onMount, untrack } from 'svelte';
-  import { ArrowUpCircle, LoaderCircle, Package, RefreshCw } from '@lucide/svelte';
+  import Select from './Select.svelte';
+  import { ArrowUpCircle, LoaderCircle, Package, RefreshCw, Undo2 } from '@lucide/svelte';
   import Row from './Row.svelte';
   import Switch from './Switch.svelte';
   import { api } from '$lib/api';
@@ -104,6 +105,11 @@
   {#if !plain}<h3><Package size={16} /> Modpack</h3>{/if}
   <div class="rows">
     <Row title={pack.name} desc="Installed version: {packVersion(pack) || pack.versionNumber || 'unknown'}">
+      {#if pack.previousVersionId && pack.previousVersionId !== pack.versionId && !update}
+        <button class="btn" onclick={() => ((selected = pack.previousVersionId!), change())} disabled={busy || running || installing} title="Put the pack back to the version you had before">
+          <Undo2 size={15} /> {confirming && selected === pack.previousVersionId ? 'Click again to go back' : `Go back to ${pack.previousVersionNumber || 'the previous version'}`}
+        </button>
+      {/if}
       {#if update}
         <button class="btn primary" onclick={() => ((selected = update.latestId), change())} disabled={busy || running || installing}>
           <ArrowUpCircle size={15} /> {confirming && selected === update.latestId ? 'Click again to update' : `Update to ${update.latest}`}
@@ -122,9 +128,13 @@
             <span class="hint warn">{loadError}</span>
             <button class="btn ghost icon" title="Try again" aria-label="Try again" onclick={load}><RefreshCw size={14} /></button>
           {:else}
-            <select class="input" bind:value={selected} onchange={() => (confirming = false)}>
-              {#each versions as v (v.id)}<option value={v.id}>{label(v)}</option>{/each}
-            </select>
+            <Select
+              bind:value={() => selected, (v) => v && (selected = v)}
+              onchange={() => (confirming = false)}
+              ariaLabel="Modpack version"
+              style="min-width: 0; flex: 1;"
+              options={versions.map((v) => ({ value: v.id, label: label(v) }))}
+            />
             <button
               class="btn"
               class:confirm={confirming}
@@ -170,10 +180,6 @@
     gap: 8px;
     align-items: center;
     width: 100%;
-  }
-  .pick select {
-    min-width: 0;
-    flex: 1;
   }
   .hint {
     display: inline-flex;

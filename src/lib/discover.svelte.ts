@@ -5,6 +5,7 @@ import { api } from './api';
 import { app, refreshInstances, toast, errorText, activeAccount, go, isBusy, isRunning } from './state.svelte';
 import type { Instance, Listing } from './types';
 import { playingOn } from './presence.svelte';
+import { playingAt, invite, type JoinInvite } from './invite.svelte';
 import { installPack } from './manualPack.svelte';
 
 /** A server-list id from a peak:// link, waiting for Discover to open it. */
@@ -16,8 +17,17 @@ export function openServerLink(id: string) {
   go('servers');
 }
 
+/** A peak:// link: a server-list entry, or a friend's invite to a server. */
+export type PeakLink = ({ kind: 'server'; id: string }) | ({ kind: 'join' } & JoinInvite);
+
+export function openLink(link: PeakLink) {
+  if (link.kind === 'server') return openServerLink(link.id);
+  const { kind: _, ...rest } = link;
+  invite.current = rest;
+}
+
 /** Instance id -> the server to join once it has finished installing. */
-export const pendingJoins = $state<Record<string, { address: string; name: string }>>({});
+export const pendingJoins = $state<Record<string, { address: string; name: string; pageUrl?: string | null }>>({});
 
 let watching = false;
 
@@ -48,16 +58,17 @@ export function watchPendingJoins() {
         }
         if (inst.installed && !isBusy(id) && !isRunning(id)) {
           delete pendingJoins[id];
-          join(inst, target.address, target.name);
+          join(inst, target.address, target.name, target.pageUrl);
         }
       }
     });
   });
 }
 
-async function join(inst: Instance, address: string, serverName: string) {
+async function join(inst: Instance, address: string, serverName: string, pageUrl?: string | null) {
   app.logs[inst.id] = [];
   playingOn[inst.id] = serverName;
+  playingAt[inst.id] = { address, name: serverName, pageUrl };
   try {
     await api.discoverJoin(inst.id, address, serverName);
   } catch (e) {
@@ -162,7 +173,7 @@ export async function installAndJoin(l: Listing): Promise<Instance | null> {
   }
   try {
     const joinWhenReady = (inst: Instance) => {
-      pendingJoins[inst.id] = { address: l.address, name: l.name };
+      pendingJoins[inst.id] = { address: l.address, name: l.name, pageUrl: l.pageUrl };
     };
     const inst = await installPack({ projectId: l.pack.projectId, versionId: l.pack.versionId ?? null }, joinWhenReady);
     // null: the pack has to be downloaded by hand; the dialog takes over and
@@ -183,7 +194,7 @@ export async function installAndJoin(l: Listing): Promise<Instance | null> {
 export async function switchAndJoin(l: Listing, inst: Instance) {
   if (!l.pack?.versionId) return;
   try {
-    pendingJoins[inst.id] = { address: l.address, name: l.name };
+    pendingJoins[inst.id] = { address: l.address, name: l.name, pageUrl: l.pageUrl };
     const { changePackVersion } = await import('./manualPack.svelte');
     // Null: CurseForge wants the file downloaded by hand; that dialog takes
     // over, and Peak still joins once the pack is ready.
@@ -213,10 +224,10 @@ export async function playListing(l: Listing, instanceId: string | 'new' | null)
       if (have) {
         if (isRunning(have.id)) return toast(`${have.name} is already running.`, 'info');
         if (!have.installed || isBusy(have.id)) {
-          pendingJoins[have.id] = { address: l.address, name: l.name };
+          pendingJoins[have.id] = { address: l.address, name: l.name, pageUrl: l.pageUrl };
           return toast(`${have.name} is still installing. Peak joins ${l.name} when it's ready.`, 'info');
         }
-        return join(have, l.address, l.name);
+        return join(have, l.address, l.name, l.pageUrl);
       }
       await installAndJoin(l);
       return;
@@ -228,7 +239,7 @@ export async function playListing(l: Listing, instanceId: string | 'new' | null)
       toast(`Made a new ${l.gameVersion} instance for ${l.name}`, 'success');
     }
     if (isRunning(inst.id)) return toast(`${inst.name} is already running.`, 'info');
-    await join(inst, l.address, l.name);
+    await join(inst, l.address, l.name, l.pageUrl);
   } catch (e) {
     toast(errorText(e), 'error');
   }

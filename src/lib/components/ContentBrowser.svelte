@@ -2,6 +2,7 @@
   // Search Modrinth / CurseForge for mods, resource packs or shaders that fit
   // one instance, and install into it.
   import { Search, Download, Heart, Check, LoaderCircle, SearchX, KeyRound, ExternalLink, SlidersHorizontal } from '@lucide/svelte';
+  import Select from './Select.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
   import ProjectModal from './ProjectModal.svelte';
   import SourceLogo from './SourceLogo.svelte';
@@ -114,26 +115,32 @@
       {#if loading}<LoaderCircle size={15} class="spin" />{/if}
     </div>
     {#if kind === 'mod'}
-      <select
-        class="input sort"
+      <Select
         bind:value={side}
         disabled={!sideFilters}
         title={sideFilters ? 'Where the mod runs' : "CurseForge doesn't say which side mods run on"}
-        aria-label="Runs on"
-      >
-        <option value="any">Any side</option>
-        <option value="client">Client only</option>
-        <option value="server">Server only</option>
-        <option value="both">Client and server</option>
-      </select>
+        ariaLabel="Runs on"
+        style="flex: 0 0 auto; width: auto; min-width: 150px;"
+        options={[
+          { value: 'any', label: 'Any side' },
+          { value: 'client', label: 'Client only' },
+          { value: 'server', label: 'Server only' },
+          { value: 'both', label: 'Client and server' }
+        ]}
+      />
     {/if}
-    <select class="input sort" bind:value={sort}>
-      <option value="relevance">Relevance</option>
-      <option value="downloads">Most downloaded</option>
-      <option value="follows">Most followed</option>
-      <option value="updated">Recently updated</option>
-      <option value="newest">Newest</option>
-    </select>
+    <Select
+      bind:value={sort}
+      ariaLabel="Sort"
+      style="flex: 0 0 auto; width: auto; min-width: 150px;"
+      options={[
+        { value: 'relevance', label: 'Relevance' },
+        { value: 'downloads', label: 'Most downloaded' },
+        { value: 'follows', label: 'Most followed' },
+        { value: 'updated', label: 'Recently updated' },
+        { value: 'newest', label: 'Newest' }
+      ]}
+    />
   </div>
 
   {#if needsKey}
@@ -244,13 +251,6 @@
     outline: none;
     font-size: 13px;
     color: var(--text);
-  }
-  .sort {
-    /* As wide as its longest option, and never squeezed smaller. */
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 150px;
-    height: 38px;
   }
   .list {
     display: flex;

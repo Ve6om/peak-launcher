@@ -2,6 +2,7 @@
   // Edit the default keybinds and game settings inside Peak. Each setting
   // can be left unset, so instances keep their own value for it.
   import { onMount } from 'svelte';
+  import Select from './Select.svelte';
   import { LoaderCircle, X, Undo2 } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import Switch from './Switch.svelte';
@@ -155,9 +156,14 @@
               {:else if o.control.kind === 'toggle'}
                 <Switch disabled={!on} bind:checked={() => (raw ?? o.initial) === 'true', (v) => set(o.key, v ? 'true' : 'false')} label={o.label} />
               {:else}
-                <select class="input" disabled={!on} value={raw ?? o.initial} onchange={(e) => set(o.key, e.currentTarget.value)}>
-                  {#each o.control.options as c (c.value)}<option value={c.value}>{c.label}</option>{/each}
-                </select>
+                <Select
+                  disabled={!on}
+                  value={raw ?? o.initial}
+                  onchange={(v) => v !== null && set(o.key, v)}
+                  ariaLabel={o.label}
+                  style="width: 180px;"
+                  options={o.control.options.map((c) => ({ value: c.value, label: c.label }))}
+                />
               {/if}
             </span>
           </div>
@@ -276,9 +282,6 @@
     text-align: right;
     color: var(--muted);
     white-space: nowrap;
-  }
-  .ctl select {
-    width: 180px;
   }
   .keycap {
     min-width: 170px;

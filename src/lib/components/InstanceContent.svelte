@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List, ArrowDownUp } from '@lucide/svelte';
+  import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List, ArrowDownUp, Undo2 } from '@lucide/svelte';
   import ContentBrowser from './ContentBrowser.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
   import Switch from './Switch.svelte';
   import LinkedModsDialog from './LinkedModsDialog.svelte';
   import ModVersionDialog from './ModVersionDialog.svelte';
   import { api } from '$lib/api';
-  import { toast, errorText, isRunning, requestInstall } from '$lib/state.svelte';
-  import { CONTENT_KINDS, type ContentKind, type Instance, type InstalledItem, type LinkedMod, type UpdateInfo } from '$lib/types';
+  import { toast, errorText, isRunning, requestInstall, ago } from '$lib/state.svelte';
+  import { CONTENT_KINDS, type ContentKind, type Instance, type InstalledItem, type LinkedMod, type ModSide, type UpdateInfo } from '$lib/types';
 
   let { inst }: { inst: Instance } = $props();
 
@@ -28,6 +28,8 @@
     loading = true;
     try {
       items = await api.contentList(inst.id, kind);
+      loadUndo();
+      if (kind === 'mod') loadModInfo();
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -148,6 +150,69 @@
     await refresh();
   }
 
+  // ---- mod info: client-only mods, and mods missing something they need ----
+  let sides = $state<Record<string, ModSide>>({});
+  let missing = $state<Record<string, { missing: string[]; turnedOff: string[] }>>({});
+  let sidesFor = '';
+  async function loadModInfo() {
+    const id = inst.id;
+    api
+      .contentMissing(id)
+      .then((list) => (missing = Object.fromEntries(list.map((m) => [m.fileName, m]))))
+      .catch(() => {});
+    // Which side a mod runs on barely changes; look once per instance visit.
+    if (sidesFor !== id) {
+      sidesFor = id;
+      api
+        .serverPackAnalyze(id)
+        .then((list) => (sides = Object.fromEntries(list.map((s) => [s.fileName, s]))))
+        .catch(() => {});
+    }
+  }
+  const pretty = (id: string) => id.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  /** Put back what a mod needs: turn it on if it's there, else find and install it. */
+  async function provide(item: InstalledItem) {
+    const m = missing[item.fileName];
+    if (!m) return;
+    await withBusy(item.fileName, async () => {
+      if (m.turnedOff.length) {
+        for (const f of m.turnedOff) await api.contentSetEnabled(inst.id, 'mod', f, true);
+        toast(`Turned ${m.turnedOff.length === 1 ? 'it' : 'them'} back on`, 'success');
+        return;
+      }
+      for (const id of m.missing) {
+        const pid = await api.crashFindMod(inst.id, id, pretty(id));
+        if (!pid) {
+          toast(`Couldn't find ${pretty(id)} for this Minecraft version and loader. Try searching under Add mods.`, 'error');
+          continue;
+        }
+        await requestInstall(inst.id, 'mod', pid);
+      }
+    });
+    await refresh();
+  }
+
+  /** The last update in this instance that can be put back. */
+  let undo = $state<{ count: number; when: string } | null>(null);
+  async function loadUndo() {
+    undo = await api.contentUndoInfo(inst.id).catch(() => null);
+  }
+  $effect(() => {
+    inst.id;
+    loadUndo();
+  });
+  async function undoUpdate() {
+    try {
+      const n = await api.contentUndo(inst.id);
+      toast(`Put back ${n} file${n === 1 ? '' : 's'} from before the update`, 'success');
+    } catch (e) {
+      toast(errorText(e), 'error');
+    }
+    await loadUndo();
+    await refresh();
+  }
+
   /** Installed items with an update, in list order. */
   const updatable = $derived(items.filter((i) => updates[i.fileName]));
 
@@ -180,6 +245,11 @@
       <button class="btn" onclick={checkUpdates} disabled={checking || !items.length}>
         {#if checking}<LoaderCircle size={15} class="spin" />{:else}<RefreshCw size={15} />{/if} Check for updates
       </button>
+      {#if undo}
+        <button class="btn" onclick={undoUpdate} disabled={running} title="Put back the {undo.count} file{undo.count === 1 ? '' : 's'} replaced {ago(undo.when).toLowerCase()}">
+          <Undo2 size={15} /> Undo last update
+        </button>
+      {/if}
     {/if}
   </div>
 
@@ -227,7 +297,23 @@
         <div class="item" class:disabled={!item.enabled}>
           <ProjectIcon url={item.iconUrl} title={item.title} size={40} />
           <div class="text">
-            <b>{item.title}{#if item.projectId?.startsWith('cf:')}<span class="src">CurseForge</span>{/if}</b>
+            <b>
+              {item.title}{#if item.projectId?.startsWith('cf:')}<span class="src">CurseForge</span>{/if}
+              {#if kind === 'mod' && sides[item.fileName]?.clientOnly}
+                <span class="tag side" title="{sides[item.fileName].reason}{sides[item.fileName].sure ? '' : ' (best guess)'}">Client only</span>
+              {/if}
+              {#if item.enabled && missing[item.fileName]}
+                {@const m = missing[item.fileName]}
+                <button
+                  class="tag needs"
+                  title={m.turnedOff.length ? `${m.turnedOff.join(', ')} is turned off. Click to turn it back on.` : `Not installed. Click to find and install ${m.missing.map(pretty).join(', ')}.`}
+                  disabled={busy.has(item.fileName)}
+                  onclick={() => provide(item)}
+                >
+                  Needs {m.missing.map(pretty).join(', ')}{m.turnedOff.length ? ' (turned off)' : ''}
+                </button>
+              {/if}
+            </b>
             <span>
               {#if item.projectId}
                 <button class="ver" title="Change version" onclick={() => (changing = item)}>{item.versionNumber ?? 'Unknown version'}</button>
@@ -363,6 +449,29 @@
     color: #fdba74;
     background: rgba(249, 115, 22, 0.12);
     vertical-align: middle;
+  }
+  .tag {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    border: 0;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    vertical-align: middle;
+  }
+  .side {
+    color: #c4b5fd;
+    background: rgba(139, 92, 246, 0.14);
+  }
+  .needs {
+    color: #fde68a;
+    background: rgba(250, 204, 21, 0.14);
+    cursor: pointer;
+  }
+  .needs:hover {
+    background: rgba(250, 204, 21, 0.24);
   }
   .upd {
     height: 30px;

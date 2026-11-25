@@ -3,6 +3,8 @@
   // vote once a day, and join in one click (modded servers install their
   // pack first).
   import { onMount } from 'svelte';
+  import { instanceIcon } from '$lib/instanceImages';
+  import Select from './Select.svelte';
   import {
     Search,
     Users,
@@ -213,21 +215,21 @@
       <button class:active={kind === 'vanilla'} onclick={() => (kind = 'vanilla')}>Vanilla</button>
       <button class:active={kind === 'modded'} onclick={() => (kind = 'modded')}>Modpacks</button>
     </div>
-    <select class="input small" bind:value={tag} aria-label="Tag">
-      <option value="">Any type</option>
-      {#each allTags as t (t)}<option value={t}>{t}</option>{/each}
-    </select>
+    <Select small bind:value={tag} ariaLabel="Tag" style="width: auto;" options={[{ value: '', label: 'Any type' }, ...allTags.map((t) => ({ value: t, label: t }))]} />
     <PackPicker options={allPacks} bind:value={packFilter} />
-    <select class="input small" bind:value={version} aria-label="Minecraft version">
-      <option value="">Any version</option>
-      {#each allVersions as v (v)}<option value={v}>{v}</option>{/each}
-    </select>
+    <Select small bind:value={version} ariaLabel="Minecraft version" style="width: auto;" options={[{ value: '', label: 'Any version' }, ...allVersions.map((v) => ({ value: v, label: v }))]} />
     <label class="check"><input type="checkbox" bind:checked={onlineOnly} /> Online now</label>
-    <select class="input small" bind:value={sort} aria-label="Sort">
-      <option value="votes">Most votes</option>
-      <option value="players">Most players</option>
-      <option value="name">Name</option>
-    </select>
+    <Select
+      small
+      bind:value={sort}
+      ariaLabel="Sort"
+      style="width: auto;"
+      options={[
+        { value: 'votes', label: 'Most votes' },
+        { value: 'players', label: 'Most players' },
+        { value: 'name', label: 'Name' }
+      ]}
+    />
   </div>
 
   {#if !loaded}
@@ -310,10 +312,13 @@
 
           <div class="play">
             {#if !l.pack}
-              <select class="input small" bind:value={() => chosen(l), (v) => (picked[l.id] = v)} aria-label="Instance to join with">
-                {#each vanillaChoices(l) as x (x.id)}<option value={x.id}>{x.name} · {x.gameVersion}</option>{/each}
-                <option value="new">New {l.gameVersion} instance</option>
-              </select>
+              <Select
+                small
+                bind:value={() => chosen(l), (v) => v !== null && (picked[l.id] = v)}
+                ariaLabel="Instance to join with"
+                style="width: auto; max-width: 190px;"
+                options={[...vanillaChoices(l).map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader })), { value: 'new', label: `New ${l.gameVersion} instance` }]}
+              />
             {/if}
             <button class="btn primary" onclick={() => pressPlay(l)} disabled={busyFor(l)}>
               {#if preparing[l.id]}<LoaderCircle size={15} class="spin" />{:else}<Play size={15} />{/if} {playLabel(l)}
@@ -391,10 +396,13 @@
         <button class="btn ghost" onclick={() => toast('Thanks. Reports will go to Peak\'s moderators once the list is live.', 'info')}><Flag size={15} /> Report</button>
         <span class="spacer"></span>
         {#if !l.pack}
-          <select class="input small" bind:value={() => chosen(l), (v) => (picked[l.id] = v)} aria-label="Instance to join with">
-            {#each vanillaChoices(l) as x (x.id)}<option value={x.id}>{x.name} · {x.gameVersion}</option>{/each}
-            <option value="new">New {l.gameVersion} instance</option>
-          </select>
+          <Select
+            small
+            bind:value={() => chosen(l), (v) => v !== null && (picked[l.id] = v)}
+            ariaLabel="Instance to join with"
+            style="width: auto; max-width: 190px;"
+            options={[...vanillaChoices(l).map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader })), { value: 'new', label: `New ${l.gameVersion} instance` }]}
+          />
         {/if}
         <button class="btn primary" onclick={() => { const plan = planFor(l); if (plan.kind === 'join') open = null; pressPlay(l); }} disabled={busyFor(l)}>
           {#if preparing[l.id]}<LoaderCircle size={15} class="spin" />{:else}<Play size={15} />{/if} {playLabel(l)}
@@ -470,17 +478,6 @@
     outline: none;
     background: none;
     user-select: text;
-  }
-  .input.small {
-    width: auto;
-    height: 36px;
-    padding: 0 10px;
-    font-size: 13px;
-  }
-  /* Leave room for the dropdown arrow. */
-  select.input.small {
-    padding-right: 32px;
-    background-position: right 10px center;
   }
   .check {
     display: flex;
@@ -737,9 +734,6 @@
     gap: 8px;
     align-items: center;
     justify-content: flex-end;
-  }
-  .play select {
-    max-width: 190px;
   }
   .empty {
     display: flex;
