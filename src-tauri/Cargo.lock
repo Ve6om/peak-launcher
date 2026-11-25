@@ -3349,7 +3349,7 @@ dependencies = [
 
 [[package]]
 name = "peak-launcher"
-version = "0.1.21"
+version = "0.1.22"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -3362,6 +3362,7 @@ dependencies = [
  "hickory-resolver",
  "image",
  "keyring",
+ "regex",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
