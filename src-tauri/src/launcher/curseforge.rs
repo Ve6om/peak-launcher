@@ -58,6 +58,9 @@ fn class_id(kind: Option<Kind>) -> u32 {
     }
 }
 
+/// CurseForge's class for data packs.
+const DATA_PACKS: u32 = 6945;
+
 fn kind_for_class(class: Option<u32>) -> Kind {
     match class {
         Some(12) => Kind::Resourcepack,
@@ -586,7 +589,17 @@ pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &st
                 }
             }
         };
-        let url = file.download_url.clone().ok_or_else(|| Error::msg(blocked_message(&m.name, &m.slug, k)))?;
+        let url = match file.download_url.clone() {
+            Some(url) => url,
+            // Not for launchers on CurseForge: the identical file from Modrinth, if it's there.
+            None => {
+                let same = match file.sha1() {
+                    Some(h) => modrinth::same_files(std::slice::from_ref(&h)).await.ok().and_then(|found| found.get(&h).map(|f| f.url.clone())),
+                    None => None,
+                };
+                same.ok_or_else(|| Error::msg(blocked_message(&m.name, &m.slug, k)))?
+            }
+        };
         for d in file.dependencies.iter().filter(|d| d.relation_type == REQUIRED_DEPENDENCY) {
             queue.push((d.mod_id, None, Some(m.name.clone())));
         }
@@ -871,37 +884,59 @@ pub async fn populate_modpack(cf: &Client, paths: &Paths, inst: &Instance, zip_p
 
         let mut downloads = Vec::new();
         let mut metas = Vec::new();
+        // Files CurseForge won't hand to launchers, with what they'd be recorded as.
+        let mut held: Vec<(Blocked, Meta)> = Vec::new();
+        let game = instances::game_dir(paths, &inst.id);
         for f in &files {
             let m = mods.get(&f.mod_id);
-            let kind = kind_for_class(m.and_then(|m| m.class_id));
+            let class = m.and_then(|m| m.class_id);
+            let kind = kind_for_class(class);
+            // Data packs go in a datapacks folder (as the CurseForge app and
+            // Modrinth packs do); packs load them with a mod like Paxi.
+            let folder = if class == Some(DATA_PACKS) { "datapacks" } else { kind.folder() };
             let name = m.map(|m| m.name.clone()).unwrap_or_else(|| f.display_name.clone());
+            let meta = Meta {
+                project_id: format!("{PREFIX}{}", f.mod_id),
+                version_id: f.id.to_string(),
+                title: name.clone(),
+                version_number: f.display_name.clone(),
+                icon_url: m.and_then(|m| m.logo.as_ref().and_then(|l| l.thumbnail_url.clone().or(l.url.clone()))),
+            };
             match &f.download_url {
                 Some(url) => {
                     downloads.push(Download::new(
                         url.clone(),
-                        modrinth::content_dir(paths, &inst.id, kind).join(&f.file_name),
+                        game.join(folder).join(&f.file_name),
                         f.sha1(),
                         Some(f.file_length),
                     ));
-                    metas.push((
-                        f.sha1(),
-                        Meta {
-                            project_id: format!("{PREFIX}{}", f.mod_id),
-                            version_id: f.id.to_string(),
-                            title: name,
-                            version_number: f.display_name.clone(),
-                            icon_url: m.and_then(|m| m.logo.as_ref().and_then(|l| l.thumbnail_url.clone().or(l.url.clone()))),
-                        },
-                    ));
+                    metas.push((f.sha1(), meta));
                 }
-                None => blocked.push(Blocked {
-                    url: download_page(kind, m.map(|m| m.slug.as_str()), f.mod_id, f.id),
-                    name,
-                    file_name: f.file_name.clone(),
-                    sha1: f.sha1(),
-                    size: f.file_length,
-                    folder: kind.folder().to_string(),
-                }),
+                None => held.push((
+                    Blocked {
+                        url: download_page(m, f.mod_id, f.id),
+                        name,
+                        file_name: f.file_name.clone(),
+                        sha1: f.sha1(),
+                        size: f.file_length,
+                        folder: folder.to_string(),
+                    },
+                    meta,
+                )),
+            }
+        }
+
+        // The identical file on Modrinth (same SHA-1) can be downloaded
+        // instead; only what isn't there is left for the player.
+        let hashes: Vec<String> = held.iter().filter_map(|(b, _)| b.sha1.clone()).collect();
+        let on_modrinth = modrinth::same_files(&hashes).await.unwrap_or_default();
+        for (b, meta) in held {
+            match b.sha1.as_ref().and_then(|h| on_modrinth.get(h)) {
+                Some(file) => {
+                    downloads.push(Download::new(file.url.clone(), game.join(&b.folder).join(&b.file_name), b.sha1.clone(), Some(b.size)));
+                    metas.push((b.sha1.clone(), meta));
+                }
+                None => blocked.push(b),
             }
         }
         net::download_all(downloads, net::concurrency(), stage(progress, "Downloading modpack")).await?;
@@ -934,18 +969,28 @@ pub async fn populate_modpack(cf: &Client, paths: &Paths, inst: &Instance, zip_p
 }
 
 /// The file's download page on curseforge.com, which starts the download
-/// straight away (the /files/ page only shows details).
-pub fn download_page(kind: Kind, slug: Option<&str>, mod_id: u64, file_id: u64) -> String {
-    match slug.filter(|s| !s.is_empty()) {
-        Some(slug) => format!(
-            "https://www.curseforge.com/minecraft/{}/{slug}/download/{file_id}",
-            match kind {
-                Kind::Resourcepack => "texture-packs",
-                Kind::Shader => "shaders",
-                Kind::Mod => "mc-mods",
-            }
-        ),
-        // Without a slug, send them to the project; curseforge.com redirects by id.
+/// straight away (the /files/ page only shows details). Built from the
+/// project's own page address, so mods, data packs, resource packs and the
+/// rest each get the right section of the site.
+pub fn download_page(m: Option<&CfMod>, mod_id: u64, file_id: u64) -> String {
+    let site = m
+        .and_then(|m| m.links.as_ref()?.website_url.clone())
+        .filter(|u| u.starts_with("https://www.curseforge.com/minecraft/"))
+        .or_else(|| {
+            let m = m.filter(|m| !m.slug.is_empty())?;
+            let section = match m.class_id {
+                Some(12) => "texture-packs",
+                Some(6552) => "shaders",
+                Some(DATA_PACKS) => "data-packs",
+                Some(17) => "worlds",
+                Some(4546) => "customization",
+                _ => "mc-mods",
+            };
+            Some(format!("https://www.curseforge.com/minecraft/{section}/{}", m.slug))
+        });
+    match site {
+        Some(site) => format!("{}/download/{file_id}", site.trim_end_matches('/')),
+        // Without either, send them to the project; curseforge.com redirects by id.
         None => format!("https://www.curseforge.com/projects/{mod_id}"),
     }
 }
@@ -953,6 +998,24 @@ pub fn download_page(kind: Kind, slug: Option<&str>, mod_id: u64, file_id: u64) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn download_links_use_the_right_part_of_the_site() {
+        let m = |v: serde_json::Value| serde_json::from_value::<CfMod>(v).unwrap();
+        let base = |class: u32, site: Option<&str>| {
+            let mut v = serde_json::json!({ "id": 1, "name": "X", "slug": "tierify-prominence-tweaks", "summary": "", "downloadCount": 0,
+                "dateModified": "", "classId": class });
+            if let Some(site) = site {
+                v["links"] = serde_json::json!({ "websiteUrl": site });
+            }
+            v
+        };
+        let with_site = m(base(6945, Some("https://www.curseforge.com/minecraft/data-packs/tierify-prominence-tweaks")));
+        assert_eq!(download_page(Some(&with_site), 1, 8794856), "https://www.curseforge.com/minecraft/data-packs/tierify-prominence-tweaks/download/8794856");
+        let no_site = m(base(6945, None));
+        assert_eq!(download_page(Some(&no_site), 1, 5), "https://www.curseforge.com/minecraft/data-packs/tierify-prominence-tweaks/download/5");
+        assert_eq!(download_page(None, 42, 5), "https://www.curseforge.com/projects/42");
+    }
 
     #[test]
     fn parses_loaders() {
