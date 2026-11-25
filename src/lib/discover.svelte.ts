@@ -126,9 +126,12 @@ export async function installAndJoin(l: Listing): Promise<Instance | null> {
 export async function switchAndJoin(l: Listing, inst: Instance) {
   if (!l.pack?.versionId) return;
   try {
-    await api.modpackChangeVersion(inst.id, l.pack.versionId);
-    await refreshInstances();
     pendingJoins[inst.id] = { address: l.address, name: l.name };
+    const { changePackVersion } = await import('./manualPack.svelte');
+    // Null: CurseForge wants the file downloaded by hand; that dialog takes
+    // over, and Peak still joins once the pack is ready.
+    if (!(await changePackVersion(inst, l.pack.versionId))) return;
+    await refreshInstances();
     go('instance', inst.id);
     toast(`Switching ${inst.name} to ${l.pack.versionName || 'the server\u2019s version'}. Peak joins ${l.name} when it's done.`, 'info');
   } catch (e) {

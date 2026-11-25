@@ -30,6 +30,9 @@ pub mod serversdat;
 pub mod screenshots;
 pub mod serverpack;
 pub mod settings;
+pub mod shared;
+pub mod storage;
+pub mod perfmods;
 pub mod skins;
 pub mod versions;
 

@@ -44,7 +44,49 @@ export interface Instance {
   customIcon?: string | null;
   /** The player's own banner picture (a file in the instance folder). */
   customBanner?: string | null;
+  /** What this instance shares with the others. */
+  shared?: SharedParts;
 }
+
+/** Performance mods the Optimize dialog can add. */
+export interface PerfMods {
+  mods: { projectId: string; title: string; what: string; status: 'add' | 'installed' | 'clash' | 'unavailable'; note: string | null }[];
+  /** Titles of mods added earlier that Undo would take out. */
+  added: string[];
+}
+
+/** What takes up space in Peak's folder. */
+export interface StorageUsage {
+  total: number;
+  parts: { id: string; name: string; bytes: number }[];
+  instances: { id: string; name: string; bytes: number }[];
+  cleanable: { id: string; name: string; desc: string; bytes: number; more: { id: string; label: string; bytes: number } | null }[];
+}
+
+/** The saved default keybinds and game settings. */
+export interface GameDefaults {
+  from: string;
+  savedAt: string;
+  keybinds: number;
+  settings: number;
+  fov: number | null;
+  renderDistance: number | null;
+  guiScale: string | null;
+  /** Changed in Peak since (or instead of) being copied from an instance. */
+  edited: boolean;
+}
+
+/** Default settings and shared packs, per instance. */
+export interface SharedParts {
+  /** Use the default keybinds. */
+  keybinds: boolean;
+  /** Use the default game settings (the rest of options.txt). */
+  options: boolean;
+  resourcepacks: boolean;
+  shaderpacks: boolean;
+}
+
+export const NO_SHARING: SharedParts = { keybinds: false, options: false, resourcepacks: false, shaderpacks: false };
 
 export interface ExportEntry {
   name: string;
@@ -331,6 +373,8 @@ export interface Settings {
   javaVendor: JavaVendor;
   /** Picked a Java build (asked once, on first play). */
   javaVendorChosen: boolean;
+  /** What new instances share with the others. */
+  sharedDefault: SharedParts;
   windowWidth: number;
   windowHeight: number;
   fullscreen: boolean;

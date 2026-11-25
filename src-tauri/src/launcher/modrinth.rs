@@ -525,11 +525,14 @@ pub async fn install_items(paths: &Paths, inst_id: &str, items: &[PlanItem]) -> 
             return Err(Error::msg("Invalid file name"));
         }
     }
-    // One copy per project: remove older files of the same projects.
-    for it in items {
+    // Copies already there (another version of the same project), replaced
+    // only once the new files have downloaded, so a failed download keeps
+    // the old version.
+    let mut old: Vec<(usize, String, bool)> = Vec::new();
+    for (i, it) in items.iter().enumerate() {
         for item in list(paths, inst_id, it.kind).await? {
             if item.project_id.as_deref() == Some(&it.project_id) {
-                let _ = tokio::fs::remove_file(content_dir(paths, inst_id, it.kind).join(&item.file_name)).await;
+                old.push((i, item.file_name, item.enabled));
             }
         }
     }
@@ -538,6 +541,20 @@ pub async fn install_items(paths: &Paths, inst_id: &str, items: &[PlanItem]) -> 
         .map(|it| Download::new(it.url.clone(), content_dir(paths, inst_id, it.kind).join(&it.file_name), it.sha1.clone(), Some(it.size)))
         .collect();
     net::download_all(downloads, net::concurrency(), |_| {}).await?;
+    for (i, file_name, _) in &old {
+        if *file_name != items[*i].file_name {
+            let _ = tokio::fs::remove_file(content_dir(paths, inst_id, items[*i].kind).join(file_name)).await;
+        }
+    }
+    // A disabled mod stays disabled when its version changes.
+    for (i, it) in items.iter().enumerate() {
+        let was_off = old.iter().any(|(j, _, enabled)| *j == i && !enabled);
+        let now_on = !old.iter().any(|(j, _, enabled)| *j == i && *enabled);
+        if was_off && now_on {
+            let dir = content_dir(paths, inst_id, it.kind);
+            let _ = tokio::fs::rename(dir.join(&it.file_name), dir.join(format!("{}.disabled", it.file_name))).await;
+        }
+    }
     let mut store = load_store(paths, inst_id).await?;
     for it in items {
         if let Some(sha) = &it.sha1 {

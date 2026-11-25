@@ -4,6 +4,8 @@
   import { TriangleAlert } from '@lucide/svelte';
   import Row from './Row.svelte';
   import Switch from './Switch.svelte';
+  import SharedSwitches from './SharedSwitches.svelte';
+  import GameDefaults from './GameDefaults.svelte';
   import JavaPicker from './JavaPicker.svelte';
   import JvmPresetPicker from './JvmPresetPicker.svelte';
   import OptimizeDialog from './OptimizeDialog.svelte';
@@ -13,7 +15,7 @@
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
-  import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption, type TuningSuggestion, type DetectedJava } from '$lib/types';
+  import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption, type TuningSuggestion, type DetectedJava, NO_SHARING } from '$lib/types';
   import { javaFolderName } from '$lib/javaNames';
 
   let { inst }: { inst: Instance } = $props();
@@ -323,6 +325,21 @@
   </section>
 
   <section class="panel glass">
+    <h3>Default game settings</h3>
+    <p class="shared-note">
+      Switched on, this instance gets your default keybinds and settings every time it starts. Changes you make while playing aren't saved back, so the defaults stay as they are.
+    </p>
+    <GameDefaults instance={inst} />
+    <SharedSwitches show="defaults" bind:value={() => d.shared ?? NO_SHARING, (v) => (d.shared = v)} />
+  </section>
+
+  <section class="panel glass">
+    <h3>Shared packs</h3>
+    <p class="shared-note">Resource and shader packs kept the same in every instance that shares them.</p>
+    <SharedSwitches show="packs" bind:value={() => d.shared ?? NO_SHARING, (v) => (d.shared = v)} />
+  </section>
+
+  <section class="panel glass">
     <h3>Launch</h3>
     <div class="rows">
       <Row title="Account" desc="Play this instance with a specific account">
@@ -430,6 +447,12 @@
 {/if}
 
 <style>
+  .shared-note {
+    margin: -4px 0 10px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
   .head {
     display: flex;
     align-items: center;

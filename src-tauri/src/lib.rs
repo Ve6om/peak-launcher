@@ -130,8 +130,15 @@ async fn update_instance(state: State<'_, AppState>, instance: Instance) -> Resu
     }
     Loader::parse(&instance.loader)?;
     let mut current = instances::get(&state.paths, &instance.id).await?;
+    let was = current.shared;
     instances::apply_edit(&mut current, instance);
     instances::save(&state.paths, &current).await?;
+    // Sharing turned on: sync now so the packs show straight away. A running
+    // game syncs when it closes instead.
+    if current.shared != was && current.shared.any() && !state.running.lock().unwrap().contains_key(&current.id) {
+        let game = instances::game_dir(&state.paths, &current.id);
+        launcher::shared::turned_on(&state.paths, &game, &current.shared, &current.game_version)?;
+    }
     Ok(current)
 }
 
@@ -299,6 +306,9 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
         }
     }
 
+    if let Err(e) = launcher::shared::before_launch(&paths, &plan.game_dir, &inst.shared, &inst.game_version) {
+        log(format!("[Peak] Couldn't bring in the shared settings and packs: {e}"), "launcher");
+    }
     log(format!("[Peak] {}", launch::redacted(&plan, account.access_token.as_deref())), "launcher");
     let mut cmd = tokio::process::Command::new(&plan.program);
     cmd.args(&plan.args)
@@ -367,6 +377,9 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
         if let Ok(mut fresh) = instances::get(&paths, &id).await {
             fresh.playtime_secs += started.elapsed().as_secs();
             let _ = instances::save(&paths, &fresh).await;
+            if let Err(e) = launcher::shared::after_exit(&paths, &plan.game_dir, &fresh.shared) {
+                eprintln!("Couldn't save the shared settings and packs for {id}: {e}");
+            }
         }
         if let Some(post) = &plan.post_exit {
             let _ = launch::shell_command(post, &inst, &plan, &paths).spawn();
@@ -723,7 +736,14 @@ async fn modpack_mute_updates(state: State<'_, AppState>, id: String, muted: boo
 /// stay; the old mods folder is moved to a backup first (so mods the player
 /// added aren't lost), then the chosen version installs in the background.
 #[tauri::command]
-async fn modpack_change_version(app: AppHandle, state: State<'_, AppState>, id: String, version_id: String) -> Result<Instance> {
+async fn modpack_change_version(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    version_id: String,
+    file_path: Option<String>,
+    remove_file: Option<bool>,
+) -> Result<Instance> {
     if state.running.lock().unwrap().contains_key(&id) {
         return Err(Error::msg("Close the game before changing the modpack version."));
     }
@@ -754,7 +774,15 @@ async fn modpack_change_version(app: AppHandle, state: State<'_, AppState>, id: 
         (t, PackKind::Technic(plan), std::path::PathBuf::new())
     } else if curseforge::is_cf(&pid) {
         let client = cf.as_ref().ok_or_else(|| Error::msg(NEED_CF_KEY))?;
-        let (path, info) = curseforge::fetch_modpack(client, &paths, &pid, Some(&version_id)).await?;
+        let (path, info) = match &file_path {
+            // Downloaded by hand (the pack's author turned off launcher downloads).
+            Some(f) => {
+                let path = std::path::PathBuf::from(f);
+                let info = curseforge::manual_pack_info(client, &pid, &version_id, &path).await?;
+                (path, info)
+            }
+            None => curseforge::fetch_modpack(client, &paths, &pid, Some(&version_id)).await?,
+        };
         let (t, manifest) = curseforge::prepare_modpack(&paths, &path, Some(info)).await?;
         (t, PackKind::CurseForge(manifest), path)
     } else {
@@ -779,7 +807,8 @@ async fn modpack_change_version(app: AppHandle, state: State<'_, AppState>, id: 
 
     launcher::packupdate::back_up_mods(&paths, &id, &old.version_number).await?;
     instances::save(&paths, &inst).await?;
-    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf, None);
+    let cleanup = downloaded_zip(&app, &file_path, remove_file);
+    spawn_pack_install(app, paths, inst.clone(), archive, kind, cf, cleanup);
     Ok(inst)
 }
 
@@ -788,6 +817,21 @@ enum PackKind {
     CurseForge(curseforge::Manifest),
     Ftb(ftb::Manifest),
     Technic(technic::Plan),
+}
+
+/// A pack zip Peak found in Downloads for the player, to tidy away once
+/// it's installed (only ever a .zip directly in the Downloads folder).
+fn downloaded_zip(app: &AppHandle, file_path: &Option<String>, remove_file: Option<bool>) -> Option<std::path::PathBuf> {
+    match (file_path, remove_file) {
+        (Some(f), Some(true)) => {
+            let f = std::path::PathBuf::from(f);
+            let downloads = app.path().download_dir().ok().and_then(|d| d.canonicalize().ok());
+            let parent = f.canonicalize().ok().and_then(|c| c.parent().map(|p| p.to_path_buf()));
+            let is_zip = f.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+            (is_zip && downloads.is_some() && downloads == parent).then_some(f)
+        }
+        _ => None,
+    }
 }
 
 const NEED_CF_KEY: &str = "CurseForge needs an API key. Add yours in Settings > Integrations.";
@@ -805,18 +849,7 @@ async fn modpack_install(
     remove_file: Option<bool>,
 ) -> Result<Instance> {
     let paths = state.paths.clone();
-    // A pack zip Peak found in Downloads for the player: tidy it away once
-    // it's installed (only ever a file directly in the Downloads folder).
-    let cleanup = match (&file_path, remove_file) {
-        (Some(f), Some(true)) => {
-            let f = std::path::PathBuf::from(f);
-            let downloads = app.path().download_dir().ok().and_then(|d| d.canonicalize().ok());
-            let parent = f.canonicalize().ok().and_then(|c| c.parent().map(|p| p.to_path_buf()));
-            let is_zip = f.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip"));
-            (is_zip && downloads.is_some() && downloads == parent).then_some(f)
-        }
-        _ => None,
-    };
+    let cleanup = downloaded_zip(&app, &file_path, remove_file);
     let cf = cf_client(&paths).await.ok();
     if let Some(pid) = project_id.as_deref().filter(|p| ftb::is_ftb(p)) {
         let (manifest, info) = ftb::fetch(pid, version_id.as_deref()).await?;
@@ -1217,6 +1250,77 @@ async fn manual_scan(app: AppHandle, state: State<'_, AppState>, instance_id: St
 #[tauri::command]
 async fn manual_dismiss(state: State<'_, AppState>, instance_id: String) -> Result<()> {
     manual::save(&state.paths, &instance_id, &[]).await
+}
+
+#[tauri::command]
+async fn perf_mods(state: State<'_, AppState>, instance_id: String) -> Result<launcher::perfmods::PerfMods> {
+    launcher::perfmods::suggest(&state.paths, &instance_id).await
+}
+
+#[tauri::command]
+async fn perf_mods_add(state: State<'_, AppState>, instance_id: String, project_ids: Vec<String>) -> Result<Vec<String>> {
+    if state.running.lock().unwrap().contains_key(&instance_id) {
+        return Err(Error::msg("Close the game first."));
+    }
+    launcher::perfmods::add(&state.paths, &instance_id, &project_ids).await
+}
+
+#[tauri::command]
+async fn perf_mods_undo(state: State<'_, AppState>, instance_id: String) -> Result<usize> {
+    if state.running.lock().unwrap().contains_key(&instance_id) {
+        return Err(Error::msg("Close the game first."));
+    }
+    launcher::perfmods::undo(&state.paths, &instance_id).await
+}
+
+#[tauri::command]
+fn game_defaults(state: State<'_, AppState>) -> Option<launcher::shared::DefaultsInfo> {
+    launcher::shared::defaults_info(&state.paths)
+}
+
+#[tauri::command]
+async fn game_defaults_save(state: State<'_, AppState>, instance_id: String) -> Result<launcher::shared::DefaultsInfo> {
+    let inst = instances::get(&state.paths, &instance_id).await?;
+    launcher::shared::save_defaults(&state.paths, &instances::game_dir(&state.paths, &inst.id), &inst.name)
+}
+
+#[tauri::command]
+fn game_defaults_lines(state: State<'_, AppState>) -> Vec<(String, String)> {
+    launcher::shared::defaults_lines(&state.paths)
+}
+
+#[tauri::command]
+fn game_defaults_set(state: State<'_, AppState>, lines: Vec<(String, String)>) -> Result<launcher::shared::DefaultsInfo> {
+    launcher::shared::set_defaults(&state.paths, lines)
+}
+
+#[tauri::command]
+fn game_defaults_clear(state: State<'_, AppState>) -> Result<()> {
+    launcher::shared::clear_defaults(&state.paths)
+}
+
+#[tauri::command]
+async fn storage_usage(state: State<'_, AppState>) -> Result<launcher::storage::Usage> {
+    launcher::storage::usage(&state.paths).await
+}
+
+#[tauri::command]
+async fn storage_clean(state: State<'_, AppState>, what: String) -> Result<u64> {
+    launcher::storage::clean(&state.paths, &what).await
+}
+
+#[tauri::command]
+async fn open_data_folder(app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_path(state.paths.root.to_string_lossy(), None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+#[tauri::command]
+async fn open_shared_folder(app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = launcher::shared::dir(&state.paths);
+    tokio::fs::create_dir_all(&dir).await?;
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| Error::msg(e.to_string()))
 }
 
 #[tauri::command]
@@ -1704,6 +1808,18 @@ pub fn run() {
             manual_scan,
             manual_dismiss,
             open_downloads_folder,
+            open_shared_folder,
+            open_data_folder,
+            storage_usage,
+            storage_clean,
+            game_defaults,
+            game_defaults_save,
+            game_defaults_clear,
+            game_defaults_lines,
+            game_defaults_set,
+            perf_mods,
+            perf_mods_add,
+            perf_mods_undo,
             java_runtimes,
             installed_java,
             screenshots_list,

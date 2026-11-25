@@ -13,9 +13,32 @@
   import JvmPresetPicker from '$lib/components/JvmPresetPicker.svelte';
   import JavaVendorPicker from '$lib/components/JavaVendorPicker.svelte';
   import JavaDownloads from '$lib/components/JavaDownloads.svelte';
+  import SharedSwitches from '$lib/components/SharedSwitches.svelte';
+  import GameDefaults from '$lib/components/GameDefaults.svelte';
+  import StoragePanel from '$lib/components/StoragePanel.svelte';
   import type { Settings } from '$lib/types';
 
   let s = $state<Settings>(JSON.parse(JSON.stringify(app.settings)));
+
+  let applyingShare = $state(false);
+  // Give every instance the sharing chosen above (and save it as the default).
+  async function shareWithAll() {
+    applyingShare = true;
+    try {
+      app.settings = await api.saveSettings({ ...$state.snapshot(app.settings!), sharedDefault: $state.snapshot(s.sharedDefault) });
+      let n = 0;
+      for (const inst of app.instances) {
+        const updated = await api.updateInstance({ ...$state.snapshot(inst), shared: $state.snapshot(s.sharedDefault) });
+        app.instances = app.instances.map((x) => (x.id === updated.id ? updated : x));
+        n++;
+      }
+      toast(`Updated ${n} instance${n === 1 ? '' : 's'}`, 'success');
+    } catch (e) {
+      toast(errorText(e), 'error');
+    } finally {
+      applyingShare = false;
+    }
+  }
   const dirty = $derived(JSON.stringify(s) !== JSON.stringify(app.settings));
   const maxMem = $derived(Math.max(4096, Math.floor((app.info?.totalMemoryMb ?? 16384) / 512) * 512));
   const linux = $derived(app.info?.os === 'linux');
@@ -38,7 +61,7 @@
   }
 
   // Each one is its own tab; the last one opened is remembered.
-  const sections = ['General', 'Appearance', 'Java & memory', 'Game', 'Commands', 'Network', 'Integrations', 'About'] as const;
+  const sections = ['General', 'Appearance', 'Java & memory', 'Game', 'Defaults', 'Storage', 'Commands', 'Network', 'Integrations', 'About'] as const;
   type Section = (typeof sections)[number];
   let showKey = $state(false);
   let current = $state<Section>(lastTab());
@@ -334,6 +357,26 @@
         </div>
       </section>
 
+      <section id="sec-Defaults" class="panel glass" hidden={current !== 'Defaults'}>
+        <h3>Default game settings</h3>
+        <p class="sub">
+          Keybinds and options saved from one instance. Instances with them switched on get them every time they start; each instance has the switches in its own Settings tab.
+        </p>
+        {#if current === 'Defaults'}<GameDefaults />{/if}
+        <h4 class="minor">New instances</h4>
+        <SharedSwitches show="defaults" bind:value={s.sharedDefault} />
+        <SharedSwitches show="packs" bind:value={s.sharedDefault} />
+        <div class="share-actions">
+          <button class="btn" disabled={applyingShare} onclick={shareWithAll}>Use these for all instances now</button>
+          <button class="btn ghost" onclick={() => api.openSharedFolder()}>Open shared packs folder</button>
+        </div>
+      </section>
+
+      <section id="sec-Storage" class="panel glass" hidden={current !== 'Storage'}>
+        <h3>Storage</h3>
+        {#if current === 'Storage'}<StoragePanel />{/if}
+      </section>
+
       <section id="sec-Commands" class="panel glass" hidden={current !== 'Commands'}>
         <h3>Commands</h3>
         <p class="sub">
@@ -467,6 +510,17 @@
 {/if}
 
 <style>
+  .minor {
+    margin: 18px 0 4px;
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .share-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
   .confirm-reset {
     color: #fecaca;
     background: rgba(239, 68, 68, 0.2);

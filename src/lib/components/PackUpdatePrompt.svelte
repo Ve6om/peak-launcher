@@ -6,6 +6,7 @@
   import { api } from '$lib/api';
   import { refreshInstances, toast, errorText, go } from '$lib/state.svelte';
   import { packUpdates } from '$lib/packUpdates.svelte';
+  import { changePackVersion } from '$lib/manualPack.svelte';
 
   const p = $derived(packUpdates.prompt);
   let busy = $state(false);
@@ -26,12 +27,16 @@
     busy = true;
     const { inst, update } = p;
     try {
-      await api.modpackChangeVersion(inst.id, update.latestId);
+      const started = await changePackVersion(inst, update.latestId, () => {
+        packUpdates.list = packUpdates.list.filter((u) => u.instanceId !== inst.id);
+      });
+      finish(false);
+      // Null: CurseForge wants the file downloaded by hand; that dialog takes over.
+      if (!started) return;
       packUpdates.list = packUpdates.list.filter((u) => u.instanceId !== inst.id);
       await refreshInstances();
       go('instance', inst.id);
       toast(`Updating ${update.packName} to ${update.latest}. Press Play when it's done.`, 'success');
-      finish(false);
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {

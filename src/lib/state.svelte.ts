@@ -46,6 +46,8 @@ export const app = $state({
   javaPrompt: null as null | ((go: boolean) => void),
   /** Instance whose Optimize dialog is open (from its overview or right-click menu). */
   optimizing: null as Instance | null,
+  /** Instance whose "change modpack version" dialog is open. */
+  packVersionFor: null as Instance | null,
   /** Instance being exported as a server pack. */
   serverPack: null as Instance | null,
   /** Instance whose manual-download dialog is open. */

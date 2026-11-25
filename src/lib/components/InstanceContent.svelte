@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List } from '@lucide/svelte';
+  import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List, ArrowDownUp } from '@lucide/svelte';
   import ContentBrowser from './ContentBrowser.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
   import Switch from './Switch.svelte';
   import LinkedModsDialog from './LinkedModsDialog.svelte';
+  import ModVersionDialog from './ModVersionDialog.svelte';
   import { api } from '$lib/api';
   import { toast, errorText, isRunning, requestInstall } from '$lib/state.svelte';
   import { CONTENT_KINDS, type ContentKind, type Instance, type InstalledItem, type LinkedMod, type UpdateInfo } from '$lib/types';
@@ -44,7 +45,6 @@
   const shown = $derived(
     items.filter((i) => !filter.trim() || i.title.toLowerCase().includes(filter.toLowerCase()) || i.fileName.toLowerCase().includes(filter.toLowerCase()))
   );
-  const updateCount = $derived(Object.keys(updates).length);
 
   async function withBusy(key: string, fn: () => Promise<unknown>) {
     busy = new Set([...busy, key]);
@@ -135,8 +135,24 @@
     await refresh();
   }
 
+  /** Installed item whose version is being changed. */
+  let changing = $state<InstalledItem | null>(null);
+
+  async function switchVersion(item: InstalledItem, versionId: string) {
+    changing = null;
+    let ok = false;
+    await withBusy(item.fileName, async () => {
+      ok = await requestInstall(inst.id, kind, item.projectId!, versionId);
+    });
+    if (ok) delete updates[item.fileName];
+    await refresh();
+  }
+
+  /** Installed items with an update, in list order. */
+  const updatable = $derived(items.filter((i) => updates[i.fileName]));
+
   async function updateAll() {
-    for (const item of items.filter((i) => updates[i.fileName])) await update(item);
+    for (const item of updatable) await update(item);
     toast('Updates installed', 'success');
   }
 
@@ -161,18 +177,34 @@
         <input bind:value={filter} placeholder="Filter {label.label.toLowerCase()}" />
       </div>
       <button class="btn" title="Open folder" onclick={() => api.openContentFolder(inst.id, kind)}><FolderOpen size={15} /></button>
-      {#if updateCount}
-        <button class="btn" onclick={updateAll} disabled={running}><CircleArrowUp size={15} /> Update all ({updateCount})</button>
-      {:else}
-        <button class="btn" onclick={checkUpdates} disabled={checking || !items.length}>
-          {#if checking}<LoaderCircle size={15} class="spin" />{:else}<RefreshCw size={15} />{/if} Check for updates
-        </button>
-      {/if}
+      <button class="btn" onclick={checkUpdates} disabled={checking || !items.length}>
+        {#if checking}<LoaderCircle size={15} class="spin" />{:else}<RefreshCw size={15} />{/if} Check for updates
+      </button>
     {/if}
   </div>
 
   {#if running}
     <p class="note">The game is running. Changes apply the next time you launch.</p>
+  {/if}
+
+  {#if mode === 'installed' && updatable.length}
+    <div class="updates glass">
+      <div class="updates-head">
+        <b>{updatable.length} update{updatable.length > 1 ? 's' : ''} available</b>
+        <button class="btn ghost" onclick={() => (updates = {})}>Hide</button>
+        <button class="btn primary" onclick={updateAll} disabled={running}><CircleArrowUp size={15} /> Update all</button>
+      </div>
+      {#each updatable as item (item.fileName)}
+        <div class="urow">
+          <ProjectIcon url={item.iconUrl} title={item.title} size={28} />
+          <span class="uname">{item.title}</span>
+          <span class="uver">{item.versionNumber ?? 'Unknown'} <span class="arrow">→</span> <b>{updates[item.fileName].versionNumber}</b></span>
+          <button class="btn upd" disabled={busy.has(item.fileName)} onclick={() => update(item)}>
+            {#if busy.has(item.fileName)}<LoaderCircle size={14} class="spin" />{:else}<CircleArrowUp size={14} />{/if} Update
+          </button>
+        </div>
+      {/each}
+    </div>
   {/if}
 
   {#if mode === 'browse'}
@@ -196,11 +228,23 @@
           <ProjectIcon url={item.iconUrl} title={item.title} size={40} />
           <div class="text">
             <b>{item.title}{#if item.projectId?.startsWith('cf:')}<span class="src">CurseForge</span>{/if}</b>
-            <span>{item.versionNumber ?? 'Unknown version'} · {item.fileName.replace(/\.disabled$/, '')} · {size(item.size)}</span>
+            <span>
+              {#if item.projectId}
+                <button class="ver" title="Change version" onclick={() => (changing = item)}>{item.versionNumber ?? 'Unknown version'}</button>
+              {:else}
+                {item.versionNumber ?? 'Unknown version'}
+              {/if}
+              · {item.fileName.replace(/\.disabled$/, '')} · {size(item.size)}
+            </span>
           </div>
           {#if updates[item.fileName]}
             <button class="btn upd" disabled={busy.has(item.fileName)} onclick={() => update(item)}>
               <CircleArrowUp size={14} /> {updates[item.fileName].versionNumber}
+            </button>
+          {/if}
+          {#if item.projectId}
+            <button class="btn ghost icon swap" title="Change version" aria-label="Change version of {item.title}" disabled={busy.has(item.fileName)} onclick={() => (changing = item)}>
+              <ArrowDownUp size={15} />
             </button>
           {/if}
           <Switch disabled={busy.has(item.fileName)} label="Enable {item.title}" bind:checked={() => item.enabled, (v) => toggle(item, v)} />
@@ -213,6 +257,11 @@
     <p class="count">{items.length} {items.length === 1 ? label.single : label.label.toLowerCase()} · {items.filter((i) => !i.enabled).length} disabled</p>
   {/if}
 </div>
+
+{#if changing}
+  {@const item = changing}
+  <ModVersionDialog instanceId={inst.id} {kind} {item} onpick={(v) => switchVersion(item, v)} onclose={() => (changing = null)} />
+{/if}
 
 {#if linkPrompt}
   <LinkedModsDialog action={linkPrompt.action} name={linkPrompt.item.title} links={linkPrompt.links} onchoose={linkPrompt.resolve} />
@@ -322,8 +371,78 @@
     border-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
     background: color-mix(in srgb, var(--accent-2) 10%, transparent);
   }
-  .del {
+  .updates {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .updates-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 4px 8px 8px;
+  }
+  .updates-head b {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+  .urow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 6px 5px 8px;
+    border-radius: 10px;
+  }
+  .urow:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .uname {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 550;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .uver {
+    max-width: 45%;
+    font-size: 11.5px;
     color: var(--faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .uver b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .arrow {
+    margin: 0 3px;
+  }
+  .del,
+  .swap {
+    color: var(--faint);
+  }
+  .swap:hover {
+    color: var(--text);
+  }
+  .ver {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+  }
+  .ver:hover {
+    color: var(--text);
   }
   .del:hover {
     color: #fda4af;

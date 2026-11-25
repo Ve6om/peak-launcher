@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import InstanceServers from '$lib/components/InstanceServers.svelte';
@@ -8,7 +8,7 @@
   import { loaderLabel, packVersion } from '$lib/types';
   import InstanceArt from '$lib/components/InstanceArt.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
-  import { versionStatus } from '$lib/packUpdates.svelte';
+  import { versionStatus, packUpdates } from '$lib/packUpdates.svelte';
   import PlayButton from '$lib/components/PlayButton.svelte';
   import Progress from '$lib/components/Progress.svelte';
   import { api } from '$lib/api';
@@ -63,6 +63,29 @@
           <button class="btn lg" title="Pick memory, Java flags and Java for this instance" onclick={() => (app.optimizing = inst)}>
             <Sparkles size={17} /> Optimize
           </button>
+          {#if inst.pack?.projectId}
+            {@const upd = packUpdates.list.find((u) => u.instanceId === inst.id)}
+            {#if upd}
+              <button
+                class="btn lg has-update"
+                title="Update to {upd.latest}, or pick another version"
+                disabled={isRunning(inst.id) || isBusy(inst.id)}
+                onclick={() => (app.packVersionFor = inst)}
+              >
+                <CircleArrowUp size={17} /> Update
+              </button>
+            {:else}
+              <button
+                class="btn lg icon-lg"
+                title="Change modpack version"
+                aria-label="Change modpack version"
+                disabled={isRunning(inst.id) || isBusy(inst.id)}
+                onclick={() => (app.packVersionFor = inst)}
+              >
+                <ArrowDownUp size={18} />
+              </button>
+            {/if}
+          {/if}
           <button class="btn lg icon-lg" title="Open folder" aria-label="Open folder" onclick={() => api.openFolder(inst.id)}>
             <FolderOpen size={18} />
           </button>
@@ -220,6 +243,11 @@
     width: 48px;
     padding: 0;
   }
+  .has-update {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    color: var(--accent);
+  }
+
   .progress {
     position: relative;
     padding: 0 28px 24px;

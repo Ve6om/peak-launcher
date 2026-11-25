@@ -6,8 +6,35 @@ import { refreshInstances, toast, errorText, go } from './state.svelte';
 import type { Instance, ManualPack } from './types';
 
 export const manualPack = $state<{
-  current: { info: ManualPack; projectId: string; then?: (inst: Instance) => void } | null;
+  current: {
+    info: ManualPack;
+    projectId: string;
+    then?: (inst: Instance) => void;
+    /** Changing this instance's pack version, rather than installing a new one. */
+    changeFor?: string;
+  } | null;
 }>({ current: null });
+
+/**
+ * Change an instance's modpack version. If CurseForge won't let launchers
+ * download that version, opens the "download it yourself" dialog instead
+ * and returns null (the dialog finishes the change once the file arrives).
+ */
+export async function changePackVersion(inst: Instance, versionId: string, then?: (inst: Instance) => void): Promise<Instance | null> {
+  try {
+    return await api.modpackChangeVersion(inst.id, versionId);
+  } catch (e) {
+    const projectId = inst.pack?.projectId;
+    if (projectId?.startsWith('cf:')) {
+      const info = await api.modpackManualInfo(projectId, versionId).catch(() => null);
+      if (info) {
+        manualPack.current = { info, projectId, then, changeFor: inst.id };
+        return null;
+      }
+    }
+    throw e;
+  }
+}
 
 /**
  * Install a modpack. If CurseForge won't let launchers download it, opens
@@ -43,10 +70,12 @@ export async function installDownloaded(path: string, found = false): Promise<bo
   if (!cur || busy) return false;
   busy = true;
   try {
-    const inst = await api.modpackInstall({ projectId: cur.projectId, versionId: cur.info.fileId, filePath: path, removeFile: found });
+    const inst = cur.changeFor
+      ? await api.modpackChangeVersion(cur.changeFor, cur.info.fileId, path, found)
+      : await api.modpackInstall({ projectId: cur.projectId, versionId: cur.info.fileId, filePath: path, removeFile: found });
     manualPack.current = null;
     await refreshInstances();
-    toast(`Installing ${inst.name}…`, 'info');
+    toast(cur.changeFor ? `Switching ${inst.name} to ${cur.info.version}…` : `Installing ${inst.name}…`, 'info');
     go('instance', inst.id);
     cur.then?.(inst);
     return true;

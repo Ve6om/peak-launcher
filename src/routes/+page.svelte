@@ -12,6 +12,8 @@
   import ImportDialog from '$lib/components/ImportDialog.svelte';
   import ExportDialog from '$lib/components/ExportDialog.svelte';
   import OptimizeDialog from '$lib/components/OptimizeDialog.svelte';
+  import Modal from '$lib/components/Modal.svelte';
+  import PackVersionPanel from '$lib/components/PackVersionPanel.svelte';
   import JavaChoicePrompt from '$lib/components/JavaChoicePrompt.svelte';
   import ServerPackDialog from '$lib/components/ServerPackDialog.svelte';
   import DependencyDialog from '$lib/components/DependencyDialog.svelte';
@@ -127,6 +129,12 @@
 {/if}
 {#if app.optimizing}
   <OptimizeDialog inst={app.optimizing} onclose={() => (app.optimizing = null)} />
+{/if}
+{#if app.packVersionFor}
+  {@const inst = app.packVersionFor}
+  <Modal title="Modpack version" subtitle={inst.name} width={600} onclose={() => (app.packVersionFor = null)}>
+    <PackVersionPanel {inst} plain onchanged={() => (app.packVersionFor = null)} />
+  </Modal>
 {/if}
 {#if pending.plan}
   <DependencyDialog />

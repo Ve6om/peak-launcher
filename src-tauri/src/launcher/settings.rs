@@ -33,6 +33,9 @@ pub struct Settings {
     /// The player has picked a Java build (asked once, the first time they play).
     pub java_vendor_chosen: bool,
 
+    /// What new instances share with the others (keybinds, settings, packs).
+    pub shared_default: super::shared::Shared,
+
     // Game window & launching
     pub window_width: u32,
     pub window_height: u32,
@@ -93,6 +96,7 @@ impl Default for Settings {
             java_path: String::new(),
             java_vendor: "mojang".into(),
             java_vendor_chosen: false,
+            shared_default: super::shared::Shared { keybinds: true, options: true, ..Default::default() },
             window_width: 1280,
             window_height: 720,
             fullscreen: false,
