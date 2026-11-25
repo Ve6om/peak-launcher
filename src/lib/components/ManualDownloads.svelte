@@ -15,7 +15,7 @@
   let loading = $state(true);
   const inst = $derived(app.instances.find((i) => i.id === instanceId));
   const remaining = $derived(files.filter((f) => !f.done).length);
-  const where: Record<string, string> = { mods: 'Mods', resourcepacks: 'Resource packs', shaderpacks: 'Shaders' };
+  const where: Record<string, string> = { mods: 'Mods', resourcepacks: 'Resource packs', shaderpacks: 'Shaders', datapacks: 'Data packs' };
 
   async function scan() {
     try {

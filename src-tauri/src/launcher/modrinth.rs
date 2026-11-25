@@ -362,6 +362,31 @@ pub async fn list(paths: &Paths, inst: &str, kind: Kind) -> Result<Vec<Installed
     Ok(out)
 }
 
+/// The exact same files on Modrinth (by SHA-1), keyed by hash. Used for
+/// CurseForge files their authors don't let launchers download: when the
+/// identical file is also on Modrinth, it can come from there instead.
+pub async fn same_files(hashes: &[String]) -> Result<HashMap<String, VersionFile>> {
+    if hashes.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let versions: HashMap<String, Version> = net::client()
+        .post(format!("{API}/version_files"))
+        .json(&json!({ "hashes": hashes, "algorithm": "sha1" }))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    Ok(versions
+        .into_iter()
+        .filter_map(|(hash, v)| {
+            let file = v.files.into_iter().find(|f| f.hashes.get("sha1").is_some_and(|h| h.eq_ignore_ascii_case(&hash)))?;
+            // Only ever Modrinth's own file host.
+            file.url.starts_with("https://cdn.modrinth.com/").then_some((hash, file))
+        })
+        .collect())
+}
+
 /// Look up files on Modrinth by SHA-1 and return metadata for the ones found.
 async fn identify(hashes: &[String]) -> Result<HashMap<String, Meta>> {
     let versions: HashMap<String, Version> = net::client()
@@ -659,6 +684,18 @@ pub async fn check_updates(paths: &Paths, inst_id: &str, kind: Kind) -> Result<V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A CurseForge file that launchers can't download (Entity Culling for
+    /// CobbleVerse) is the same file on Modrinth.
+    /// cargo test -- --ignored --nocapture finds_same_file_on_modrinth
+    #[tokio::test]
+    #[ignore = "network"]
+    async fn finds_same_file_on_modrinth() {
+        let h = "1a28b70786ba203b160a406080232ef9834e500c".to_string();
+        let found = same_files(&[h.clone(), "0000000000000000000000000000000000000000".into()]).await.unwrap();
+        assert_eq!(found.len(), 1);
+        assert!(found[&h].url.starts_with("https://cdn.modrinth.com/data/NNAgCjsB/"));
+    }
 
     /// cargo test -- --ignored --nocapture modrinth_plan_reasons
     #[tokio::test]

@@ -72,10 +72,64 @@ export function vanillaChoices(l: Listing): Instance[] {
   return [...app.instances].filter((i) => !i.pack).sort((a, b) => score(b) - score(a));
 }
 
+// ---- the same pack from the other site ----
+// Many packs are on both CurseForge and Modrinth. When the name and version
+// match, an instance from either site can join (e.g. Prominence II v4.1.9 is
+// the same on both). Versions marked for one site, like "1.8.0 [CF]", are a
+// different build, so they only ever match their own site (e.g. CobbleVerse).
+
+const site = (projectId: string) => (projectId.startsWith('cf:') ? 'curseforge' : /^(ftb|technic):/.test(projectId) ? null : 'modrinth');
+
+/** "Prominence™ II: Hasturian Era" and "Prominence II: Hasturian Era" are the same. */
+export const sameName = (a: string, b: string) => {
+  const n = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return !!n(a) && n(a) === n(b);
+};
+
+/**
+ * The version numbers in a version name ("…Hasturian Era v4.1.9" -> "4.1.9";
+ * "Pack 1.20.1 v3.0" -> "1.20.1,3.0"), or null if it's marked for one site.
+ * All of them have to agree, so a Minecraft version in the name can't be
+ * mistaken for the pack's.
+ */
+export function versionKey(v: string | null | undefined): string | null {
+  if (!v) return null;
+  if (/[[(]\s*(cf|curseforge|mr|modrinth)\s*[\])]|\b(curseforge|modrinth)\b|[-_ ]cf$/i.test(v)) return null;
+  const nums = v.match(/\d+(?:\.\d+)+[a-z]?/gi);
+  return nums ? nums.map((x) => x.toLowerCase()).join(',') : null;
+}
+
+/** Whether an instance from the other site has exactly the pack the listing wants. */
+function sameFromOtherSite(l: Listing, i: Instance): boolean {
+  const want = l.pack!;
+  const from = site(want.projectId);
+  const mine = i.pack?.projectId ? site(i.pack.projectId) : null;
+  if (!from || !mine || from === mine || !sameName(want.name, i.pack!.name)) return false;
+  const have = versionKey(i.pack!.versionNumber);
+  // A server that names its version needs that exact one; one that doesn't
+  // takes any build that isn't marked as being for one site only.
+  return want.versionName ? !!have && have === versionKey(want.versionName) : !!have;
+}
+
+/**
+ * The installed instance for a modded listing's pack, if there is one:
+ * this site's pack at the right version, else the same pack and version from
+ * the other site (`cross`), else this site's pack at another version.
+ */
+export function packMatch(l: Listing): { inst: Instance; cross: boolean } | null {
+  if (!l.pack) return null;
+  const own = app.instances.filter((i) => i.pack?.projectId === l.pack!.projectId);
+  const want = l.pack.versionId;
+  const exact = own.find((i) => !want || i.pack?.versionId === want);
+  if (exact) return { inst: exact, cross: false };
+  const other = app.instances.find((i) => sameFromOtherSite(l, i));
+  if (other) return { inst: other, cross: true };
+  return own[0] ? { inst: own[0], cross: false } : null;
+}
+
 /** The installed instance for a modded listing's pack, if there is one. */
 export function packInstance(l: Listing): Instance | null {
-  if (!l.pack) return null;
-  return app.instances.find((i) => i.pack?.projectId === l.pack!.projectId) ?? null;
+  return packMatch(l)?.inst ?? null;
 }
 
 /** What pressing Play on a listing will do, so the page can ask first. */
@@ -86,8 +140,11 @@ export type PlayPlan =
 
 export function planFor(l: Listing): PlayPlan {
   if (!l.pack) return { kind: 'join' };
-  const have = packInstance(l);
-  if (!have) return { kind: 'install' };
+  const match = packMatch(l);
+  if (!match) return { kind: 'install' };
+  // The same pack and version from the other site: nothing to change.
+  if (match.cross) return { kind: 'join' };
+  const have = match.inst;
   const wanted = l.pack.versionId;
   if (wanted && have.pack?.versionId && have.pack.versionId !== wanted && have.installed && !isBusy(have.id)) {
     return { kind: 'switch', inst: have, from: have.pack.versionNumber || 'yours', to: l.pack.versionName || 'the server\u2019s version' };
