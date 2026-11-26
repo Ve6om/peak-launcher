@@ -15,6 +15,7 @@
   import Modal from '$lib/components/Modal.svelte';
   import PackVersionPanel from '$lib/components/PackVersionPanel.svelte';
   import CrashDialog from '$lib/components/CrashDialog.svelte';
+  import ModSearchDialog from '$lib/components/ModSearchDialog.svelte';
   import JoinInviteDialog from '$lib/components/JoinInviteDialog.svelte';
   import { invite } from '$lib/invite.svelte';
   import JavaChoicePrompt from '$lib/components/JavaChoicePrompt.svelte';
@@ -135,6 +136,11 @@
 {/if}
 {#if invite.current}
   <JoinInviteDialog />
+{/if}
+{#if app.modSearchFor}
+  {#key app.modSearchFor}
+    <ModSearchDialog instanceId={app.modSearchFor.instanceId} guess={app.modSearchFor.guess} onclose={() => (app.modSearchFor = null)} />
+  {/key}
 {/if}
 {#if app.crash}
   <CrashDialog instanceId={app.crash.instanceId} diagnosis={app.crash.diagnosis} onclose={() => (app.crash = null)} />

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus, Bug } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import InstanceServers from '$lib/components/InstanceServers.svelte';
@@ -113,6 +113,22 @@
       {/if}
     </section>
 
+    {#if app.modSearches[inst.id]}
+      {@const s = app.modSearches[inst.id]}
+      <button class="searching glass" onclick={() => (app.modSearchFor = { instanceId: inst.id, guess: null })}>
+        <Bug size={16} />
+        <span>
+          <b>Finding the broken mod</b>
+          {s.phase === 'found'
+            ? `Found: ${s.culprits.map((c) => c.name).join(', ')}`
+            : s.phase === 'notAMod'
+              ? 'Not caused by a mod'
+              : `Test ${s.test} of about ${s.tests} · ${s.off} mod${s.off === 1 ? '' : 's'} off for now`}
+        </span>
+        <em>Open</em>
+      </button>
+    {/if}
+
     <div class="tabs">
       <button class:active={app.instanceTab === 'overview'} onclick={() => (app.instanceTab = 'overview')}><LayoutGrid size={15} /> Overview</button>
       <button class:active={app.instanceTab === 'content'} onclick={() => (app.instanceTab = 'content')}><Puzzle size={15} /> Content</button>
@@ -157,6 +173,11 @@
           <div class="manage">
             <button class="btn" disabled={isBusy(inst.id) || isRunning(inst.id)} onclick={() => repairInstance(inst)}><Wrench size={16} /> Verify & repair files</button>
             <button class="btn" onclick={() => api.openFolder(inst.id)}><FolderOpen size={16} /> Open folder</button>
+            {#if inst.loader !== 'vanilla'}
+              <button class="btn" disabled={isRunning(inst.id)} onclick={() => (app.modSearchFor = { instanceId: inst.id, guess: null })}>
+                <Bug size={16} /> Find a broken mod
+              </button>
+            {/if}
             <button class="btn" onclick={() => (app.exporting = inst)}><PackageOpen size={16} /> Export as modpack</button>
             <button class="btn" onclick={() => (app.serverPack = inst)}><Server size={16} /> Export as server pack</button>
             <button class="btn danger" disabled={isRunning(inst.id)} onclick={() => (app.deleting = inst)}><Trash2 size={16} /> Delete instance</button>
@@ -269,6 +290,37 @@
     position: relative;
     padding: 0 28px 24px;
     max-width: 480px;
+  }
+  .searching {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+    text-align: left;
+    cursor: pointer;
+  }
+  .searching span {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .searching b {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .searching em {
+    font-style: normal;
+    font-size: 12.5px;
+    font-weight: 600;
   }
   .tabs {
     display: flex;

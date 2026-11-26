@@ -33,6 +33,7 @@ pub mod settings;
 pub mod shared;
 pub mod storage;
 pub mod perfmods;
+pub mod bisect;
 pub mod crash;
 pub mod undo;
 pub mod skins;

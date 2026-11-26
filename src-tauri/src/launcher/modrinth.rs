@@ -529,6 +529,10 @@ pub struct PlanItem {
     #[serde(default)]
     pub sha1: Option<String>,
     pub size: u64,
+    /// Its author doesn't allow launcher downloads: `url` is the page to
+    /// download it from in the browser.
+    #[serde(default)]
+    pub manual: bool,
 }
 
 /// Projects currently installed (by files on disk), across all content kinds.
@@ -546,6 +550,10 @@ pub(crate) async fn installed_projects(paths: &Paths, inst_id: &str) -> Result<H
 pub async fn plan(paths: &Paths, inst_id: &str, kind: Kind, project_id: &str, version_id: Option<&str>) -> Result<Vec<PlanItem>> {
     let inst = instances::get(paths, inst_id).await?;
     let installed = installed_projects(paths, inst_id).await?;
+    // Mod ids in the mods folder, to spot dependencies installed from
+    // CurseForge (or by hand) that Modrinth doesn't know are there.
+    let mods_dir = content_dir(paths, inst_id, Kind::Mod);
+    let keys = tokio::task::spawn_blocking(move || super::moddeps::installed_keys(&mods_dir)).await.unwrap_or_default();
 
     // (project, pinned version, kind, required by)
     let mut queue: Vec<(String, Option<String>, Kind, Option<String>)> =
@@ -562,6 +570,13 @@ pub async fn plan(paths: &Paths, inst_id: &str, kind: Kind, project_id: &str, ve
         // always (re)installed so picking another version works.
         if !is_root && installed.contains(&pid) {
             continue;
+        }
+        if !is_root && k == Kind::Mod {
+            if let Ok(p) = project(&pid).await {
+                if super::moddeps::is_installed(&keys, &p.slug, &p.title) {
+                    continue;
+                }
+            }
         }
         let version: Version = match vid {
             Some(v) => net::get_json(&format!("{API}/version/{v}")).await?,
@@ -603,6 +618,7 @@ pub async fn plan(paths: &Paths, inst_id: &str, kind: Kind, project_id: &str, ve
             file_name: file.filename.clone(),
             sha1: file.hashes.get("sha1").cloned(),
             size: file.size,
+            manual: false,
         });
     }
     Ok(out)
@@ -613,6 +629,30 @@ const CONTENT_HOSTS: &[&str] = &["cdn.modrinth.com", "edge.forgecdn.net", "media
 
 /// Install exactly these items (no extra dependency resolution). Returns titles.
 pub async fn install_items(paths: &Paths, inst_id: &str, items: &[PlanItem]) -> Result<Vec<String>> {
+    // Files launchers aren't allowed to download go on the instance's
+    // "download it yourself" list; the app opens that next.
+    let (by_hand, items): (Vec<&PlanItem>, Vec<&PlanItem>) = items.iter().partition(|it| it.manual);
+    if !by_hand.is_empty() {
+        let mut list = super::manual::load(paths, inst_id).await?;
+        for it in by_hand {
+            if !it.url.starts_with("https://www.curseforge.com/") || it.file_name.contains(['/', '\\']) || it.file_name.contains("..") {
+                return Err(Error::msg(format!("Refusing to send {} to {}", it.title, it.url)));
+            }
+            list.retain(|f| f.file_name != it.file_name);
+            list.push(super::manual::ManualFile {
+                name: it.title.clone(),
+                url: it.url.clone(),
+                file_name: it.file_name.clone(),
+                sha1: it.sha1.clone(),
+                size: it.size,
+                folder: it.kind.folder().to_string(),
+                done: false,
+            });
+        }
+        super::manual::save(paths, inst_id, &list).await?;
+    }
+    let items: Vec<PlanItem> = items.into_iter().cloned().collect();
+    let items = &items[..];
     for it in items {
         let host_ok = reqwest::Url::parse(&it.url)
             .ok()

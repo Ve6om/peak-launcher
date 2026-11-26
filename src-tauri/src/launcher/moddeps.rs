@@ -306,6 +306,34 @@ pub fn installed_mods(dir: &Path) -> Vec<Installed> {
         .collect()
 }
 
+/// A name or id squashed for loose matching across sites: lower case,
+/// letters and digits only, without bracketed parts ("Chunky (Fabric)",
+/// "fabric-api" and "Fabric API" become "chunky", "fabricapi", "fabricapi").
+pub fn squash(s: &str) -> String {
+    let mut out = String::new();
+    let mut depth = 0u32;
+    for c in s.chars() {
+        match c {
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth = depth.saturating_sub(1),
+            c if depth == 0 && c.is_ascii_alphanumeric() => out.push(c.to_ascii_lowercase()),
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Every mod id in a mods folder (on or off), squashed, so a project from
+/// either site can be recognised as installed whichever site its file came from.
+pub fn installed_keys(dir: &Path) -> HashSet<String> {
+    scan(dir).into_iter().flat_map(|e| e.info.provides).map(|id| squash(&id)).filter(|k| !k.is_empty()).collect()
+}
+
+/// Is a project (by its slug or title) one of the installed mods?
+pub fn is_installed(keys: &HashSet<String>, slug: &str, title: &str) -> bool {
+    [squash(slug), squash(title)].iter().any(|k| !k.is_empty() && keys.contains(k))
+}
+
 /// What each mod is missing to run: mod ids it requires that no enabled
 /// file provides. Mods with nothing missing are left out.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -422,6 +450,16 @@ pub async fn linked(paths: &Paths, inst: &str, file_name: &str, action: &str) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn matches_mods_across_sites() {
+        let keys: HashSet<String> = ["fabric-api", "fabric", "chunky"].iter().map(|s| squash(s)).collect();
+        assert!(is_installed(&keys, "fabric-api", "Fabric API"));
+        assert!(is_installed(&keys, "chunky-pregenerator", "Chunky (Fabric)"));
+        assert!(is_installed(&keys, "chunky", "Chunky"));
+        assert!(!is_installed(&keys, "chunky-gui", "Chunky GUI"));
+        assert!(!is_installed(&keys, "", "[Fabric]"));
+    }
 
     #[test]
     fn finds_what_mods_are_missing() {

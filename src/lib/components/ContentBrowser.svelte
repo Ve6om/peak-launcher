@@ -29,12 +29,21 @@
   const label = $derived(CONTENT_KINDS.find((k) => k.id === kind)!);
   const needsKey = $derived(source === 'curseforge' && !app.info?.curseforgeBuiltIn && !app.settings?.curseforgeApiKey?.trim());
 
+  /** Squashed mod ids and titles of what's installed, to recognise a mod
+   *  installed from the other site (or by hand). */
+  let installedKeys = $state(new Set<string>());
+  const squash = (s: string) => s.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/[^a-z0-9]/g, '');
+  const isInstalled = (hit: SearchHit) =>
+    installed.has(hit.project_id) || [hit.slug, hit.title].some((s) => s && installedKeys.has(squash(s)));
+
   async function refreshInstalled() {
     try {
-      const list = await api.contentList(inst.id, kind);
+      const [list, ids] = await Promise.all([api.contentList(inst.id, kind), kind === 'mod' ? api.contentModKeys(inst.id) : Promise.resolve([])]);
       installed = new Set(list.map((i) => i.projectId).filter(Boolean) as string[]);
+      installedKeys = new Set([...ids, ...list.map((i) => squash(i.title))].filter(Boolean));
     } catch {
       installed = new Set();
+      installedKeys = new Set();
     }
   }
 
@@ -179,7 +188,7 @@
             </div>
           </div>
           <div class="action">
-            {#if installed.has(hit.project_id)}
+            {#if isInstalled(hit)}
               <span class="installed"><Check size={15} /> Installed</span>
             {:else}
               <button class="btn primary" disabled={installing.has(hit.project_id)} onclick={() => install(hit)}>
@@ -203,7 +212,7 @@
     projectId={open}
     instanceId={inst.id}
     {kind}
-    installed={installed.has(open)}
+    installed={installed.has(open) || hits.some((h) => h.project_id === open && isInstalled(h))}
     onclose={() => (open = null)}
     oninstalled={() => {
       refreshInstalled();
