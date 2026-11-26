@@ -1367,6 +1367,12 @@ fn game_defaults_clear(state: State<'_, AppState>) -> Result<()> {
 }
 
 #[tauri::command]
+async fn instance_reset_keybinds(state: State<'_, AppState>, instance_id: String) -> Result<usize> {
+    let inst = instances::get(&state.paths, &instance_id).await?;
+    launcher::shared::reset_keybinds(&instances::game_dir(&state.paths, &inst.id))
+}
+
+#[tauri::command]
 async fn storage_usage(state: State<'_, AppState>) -> Result<launcher::storage::Usage> {
     launcher::storage::usage(&state.paths).await
 }
@@ -1884,6 +1890,7 @@ pub fn run() {
             game_defaults_clear,
             game_defaults_lines,
             game_defaults_set,
+            instance_reset_keybinds,
             perf_mods,
             crash_diagnose,
             content_missing,

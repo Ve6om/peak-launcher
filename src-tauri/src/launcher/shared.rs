@@ -66,6 +66,29 @@ pub struct DefaultsInfo {
     pub gui_scale: Option<String>,
     /// Changed in Peak since (or instead of) being copied from an instance.
     pub edited: bool,
+    /// Keybinds left out when copying, because the instance stores keys as
+    /// numbers (Minecraft 1.12 and older). Only set on the copy itself.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub skipped_keybinds: usize,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
+/// A keybind value in the form Minecraft 1.13+ reads: "key.keyboard.w",
+/// "key.mouse.left" (Forge adds ":NONE" and the like after it). Old versions
+/// write numbers instead, which newer ones read as "not bound".
+fn names_a_key(value: &str) -> bool {
+    value.starts_with("key.keyboard.") || value.starts_with("key.mouse.")
+}
+
+/// Drop keybinds that aren't in the named form, so they can never unbind
+/// every key in a newer instance. Returns how many went.
+fn drop_numbered_keys(lines: &mut Vec<(String, String)>) -> usize {
+    let before = lines.len();
+    lines.retain(|(k, v)| !k.starts_with("key_") || names_a_key(v));
+    before - lines.len()
 }
 
 fn applies(key: &str, s: &Shared) -> bool {
@@ -123,7 +146,9 @@ pub fn names_keys(game_version: &str) -> bool {
 
 /// Put the defaults (the parts switched on) into an instance.
 fn defaults_in(paths: &Paths, game: &Path, s: &Shared, game_version: &str) -> Result<()> {
-    let Some(defaults) = read_options(&defaults_file(paths)) else { return Ok(()) };
+    let Some(mut defaults) = read_options(&defaults_file(paths)) else { return Ok(()) };
+    // Defaults saved before this was checked may still hold numbered keys.
+    drop_numbered_keys(&mut defaults);
     let s = &Shared { keybinds: s.keybinds && names_keys(game_version), ..*s };
     if !s.keybinds && !s.options {
         return Ok(());
@@ -147,12 +172,13 @@ pub fn save_defaults(paths: &Paths, game: &Path, from: &str) -> Result<DefaultsI
         .filter(|l| !l.is_empty())
         .ok_or_else(|| Error::msg("This instance has no settings yet. Play it once, set things up, then save."))?;
     let all = Shared { keybinds: true, options: true, ..Default::default() };
-    let lines: Vec<(String, String)> = mine.into_iter().filter(|(k, _)| k == "version" || applies(k, &all)).collect();
+    let mut lines: Vec<(String, String)> = mine.into_iter().filter(|(k, _)| k == "version" || applies(k, &all)).collect();
+    let skipped = drop_numbered_keys(&mut lines);
     std::fs::create_dir_all(&paths.root)?;
     std::fs::write(defaults_file(paths), render(&lines))?;
     let info = DefaultsInfo { from: from.to_string(), saved_at: chrono::Utc::now().to_rfc3339(), ..describe(&lines) };
     std::fs::write(defaults_meta(paths), serde_json::to_vec_pretty(&info)?)?;
-    Ok(info)
+    Ok(DefaultsInfo { skipped_keybinds: skipped, ..info })
 }
 
 fn describe(lines: &[(String, String)]) -> DefaultsInfo {
@@ -190,7 +216,8 @@ pub fn set_defaults(paths: &Paths, lines: Vec<(String, String)>) -> Result<Defau
         if k.is_empty() || k.contains([':', '\n', '\r']) || v.contains(['\n', '\r']) {
             return Err(Error::msg(format!("\"{k}\" isn't a valid setting")));
         }
-        if (k == "version" || applies(&k, &all)) && !clean.iter().any(|(x, _)| *x == k) {
+        let numbered_key = k.starts_with("key_") && !names_a_key(&v);
+        if (k == "version" || applies(&k, &all)) && !numbered_key && !clean.iter().any(|(x, _)| *x == k) {
             clean.push((k, v));
         }
     }
@@ -214,6 +241,23 @@ pub fn clear_defaults(paths: &Paths) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Put an instance's keys back to Minecraft's own (mods' keys too): the
+/// keybind lines are taken out of options.txt and the game fills them in
+/// next time it starts. The old file is kept beside it, just in case.
+/// Returns how many keybinds were reset.
+pub fn reset_keybinds(game: &Path) -> Result<usize> {
+    let target = game.join("options.txt");
+    let Some(mut lines) = read_options(&target) else { return Ok(0) };
+    let before = lines.len();
+    lines.retain(|(k, _)| !k.starts_with("key_"));
+    let gone = before - lines.len();
+    if gone > 0 {
+        std::fs::copy(&target, game.join("options-before-key-reset.txt"))?;
+        std::fs::write(&target, render(&lines))?;
+    }
+    Ok(gone)
 }
 
 fn names(dir: &Path) -> BTreeSet<String> {
@@ -379,6 +423,24 @@ mod tests {
         std::fs::write(old.join("options.txt"), "key_key.jump:57\n").unwrap();
         before_launch(&paths, &old, &only_keys, "1.12.2").unwrap();
         assert_eq!(std::fs::read_to_string(old.join("options.txt")).unwrap(), "key_key.jump:57\n");
+
+        // Copied from an old instance: its numbered keys stay out of the
+        // defaults, and old defaults that have them don't unbind anything.
+        std::fs::write(old.join("options.txt"), "key_key.jump:57\nkey_key.drop:16\nfov:0.5\n").unwrap();
+        let info = save_defaults(&paths, &old, "Old").unwrap();
+        assert_eq!((info.keybinds, info.skipped_keybinds), (0, 2));
+        std::fs::write(defaults_file(&paths), "key_key.jump:57\nkey_key.drop:key.keyboard.q\n").unwrap();
+        std::fs::write(b.join("options.txt"), "key_key.jump:key.keyboard.space\n").unwrap();
+        before_launch(&paths, &b, &only_keys, "1.21.4").unwrap();
+        let b_opts = std::fs::read_to_string(b.join("options.txt")).unwrap();
+        assert!(b_opts.contains("key_key.jump:key.keyboard.space") && b_opts.contains("key_key.drop:key.keyboard.q"), "{b_opts}");
+        let info = set_defaults(&paths, vec![("key_key.jump".into(), "57".into()), ("fov".into(), "0.0".into())]).unwrap();
+        assert_eq!(info.keybinds, 0);
+
+        // Resetting an instance's keys takes the key lines out, keeping a copy.
+        assert_eq!(reset_keybinds(&b).unwrap(), 2);
+        assert!(!std::fs::read_to_string(b.join("options.txt")).unwrap().contains("key_"));
+        assert!(b.join("options-before-key-reset.txt").exists());
 
         // Edited in Peak: bad lines refused, game-only lines dropped.
         assert!(set_defaults(&paths, vec![("bad:key".into(), "1".into())]).is_err());

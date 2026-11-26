@@ -91,6 +91,8 @@ export interface GameDefaults {
   guiScale: string | null;
   /** Changed in Peak since (or instead of) being copied from an instance. */
   edited: boolean;
+  /** Keybinds left out of a copy from Minecraft 1.12 or older. */
+  skippedKeybinds?: number;
 }
 
 /** Default settings and shared packs, per instance. */
