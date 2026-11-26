@@ -121,6 +121,11 @@
     }
   }
 
+  function findMod() {
+    onclose();
+    app.modSearchFor = { instanceId, guess: null };
+  }
+
   function openConsole() {
     onclose();
     go('instance', instanceId, 'console');
@@ -159,6 +164,17 @@
         <button class="btn ghost" onclick={() => api.openCrashReport(diagnosis.report!)}><FileText size={14} /> Crash report</button>
       {/if}
       <button class="btn ghost" onclick={openConsole}><Terminal size={14} /> Console</button>
+      {#if inst && inst.loader !== 'vanilla'}
+        <button
+          class="btn"
+          class:primary={!fix && !undo && !previous}
+          title="Turn mods off in batches until the one causing this is found"
+          disabled={busy || open}
+          onclick={findMod}
+        >
+          <Search size={14} /> Find the broken mod
+        </button>
+      {/if}
       <span class="spacer"></span>
       {#if fix && (fix.action === 'changeVersion' || fix.action === 'disableMod')}
         {#if fix.action === 'changeVersion'}
@@ -176,7 +192,7 @@
           {fixLabel}
         </button>
       {:else if !undo && !previous}
-        <button class="btn primary" onclick={onclose}>Close</button>
+        <button class="btn" class:primary={inst?.loader === 'vanilla'} onclick={onclose}>Close</button>
       {/if}
     </div>
   </Modal>

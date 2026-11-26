@@ -536,18 +536,6 @@ pub async fn modpack_versions(cf: &Client, id: &str) -> Result<Vec<Version>> {
     Ok(files(cf, raw_id(id)?, None).await?.iter().map(to_version).collect())
 }
 
-fn blocked_message(name: &str, slug: &str, kind: Kind) -> String {
-    let section = match kind {
-        Kind::Mod => "mc-mods",
-        Kind::Resourcepack => "texture-packs",
-        Kind::Shader => "shaders",
-    };
-    format!(
-        "{name} can't be downloaded by launchers (its author turned this off). Download it from https://www.curseforge.com/minecraft/{section}/{slug} and put it in the {} folder.",
-        kind.folder()
-    )
-}
-
 // ---------------------------------------------------------------- install into an instance
 
 /// What installing a CurseForge project involves: the project plus any
@@ -556,6 +544,8 @@ fn blocked_message(name: &str, slug: &str, kind: Kind) -> String {
 pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &str, file_id: Option<&str>) -> Result<Vec<PlanItem>> {
     let inst = instances::get(paths, inst_id).await?;
     let installed = modrinth::installed_projects(paths, inst_id).await?;
+    let mods_dir = modrinth::content_dir(paths, inst_id, Kind::Mod);
+    let keys = tokio::task::spawn_blocking(move || super::moddeps::installed_keys(&mods_dir)).await.unwrap_or_default();
     let root = raw_id(id)?;
     let first_file = file_id.map(|f| f.parse::<u64>()).transpose().map_err(|_| Error::msg("Bad file id"))?;
 
@@ -574,6 +564,10 @@ pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &st
         }
         let m: CfMod = cf.get(&format!("/mods/{mid}"), &[]).await?;
         let k = if is_root { kind } else { kind_for_class(m.class_id) };
+        // A dependency already there from Modrinth (or added by hand).
+        if !is_root && k == Kind::Mod && super::moddeps::is_installed(&keys, &m.slug, &m.name) {
+            continue;
+        }
         let file: CfFile = match fid {
             Some(f) => cf.get(&format!("/mods/{mid}/files/{f}"), &[]).await?,
             None => {
@@ -589,15 +583,19 @@ pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &st
                 }
             }
         };
-        let url = match file.download_url.clone() {
-            Some(url) => url,
-            // Not for launchers on CurseForge: the identical file from Modrinth, if it's there.
+        let (url, manual) = match file.download_url.clone() {
+            Some(url) => (url, false),
+            // Not for launchers on CurseForge: the identical file from
+            // Modrinth if it's there, else downloaded in the browser.
             None => {
                 let same = match file.sha1() {
                     Some(h) => modrinth::same_files(std::slice::from_ref(&h)).await.ok().and_then(|found| found.get(&h).map(|f| f.url.clone())),
                     None => None,
                 };
-                same.ok_or_else(|| Error::msg(blocked_message(&m.name, &m.slug, k)))?
+                match same {
+                    Some(url) => (url, false),
+                    None => (download_page(Some(&m), mid, file.id), true),
+                }
             }
         };
         for d in file.dependencies.iter().filter(|d| d.relation_type == REQUIRED_DEPENDENCY) {
@@ -616,6 +614,7 @@ pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &st
             file_name: file.file_name.clone(),
             sha1: file.sha1(),
             size: file.file_length,
+            manual,
         });
     }
     Ok(out)

@@ -566,6 +566,14 @@ async fn content_install_items(state: State<'_, AppState>, instance_id: String, 
     modrinth::install_items(&state.paths, &instance_id, &items).await
 }
 
+/// Mod ids in an instance's mods folder (squashed), to show projects from
+/// either site as installed.
+#[tauri::command]
+async fn content_mod_keys(state: State<'_, AppState>, instance_id: String) -> Result<Vec<String>> {
+    let dir = modrinth::content_dir(&state.paths, &instance_id, Kind::Mod);
+    Ok(tokio::task::spawn_blocking(move || moddeps::installed_keys(&dir).into_iter().collect()).await.unwrap_or_default())
+}
+
 #[tauri::command]
 async fn content_list(state: State<'_, AppState>, instance_id: String, kind: String) -> Result<Vec<InstalledItem>> {
     modrinth::list(&state.paths, &instance_id, Kind::parse(&kind)?).await
@@ -1366,6 +1374,43 @@ fn game_defaults_clear(state: State<'_, AppState>) -> Result<()> {
     launcher::shared::clear_defaults(&state.paths)
 }
 
+/// Mod searches going on, by instance id.
+#[tauri::command]
+async fn mod_search_all(state: State<'_, AppState>) -> Result<HashMap<String, launcher::bisect::View>> {
+    let mut out = HashMap::new();
+    for inst in instances::list(&state.paths).await? {
+        if let Some(v) = launcher::bisect::current(&state.paths, &inst.id) {
+            out.insert(inst.id, v);
+        }
+    }
+    Ok(out)
+}
+
+fn not_while_running(state: &AppState, instance_id: &str) -> Result<()> {
+    if state.running.lock().unwrap().contains_key(instance_id) {
+        return Err(Error::msg("Close the game first."));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn mod_search_start(state: State<'_, AppState>, instance_id: String) -> Result<launcher::bisect::View> {
+    not_while_running(&state, &instance_id)?;
+    launcher::bisect::start(&state.paths, &instance_id)
+}
+
+#[tauri::command]
+fn mod_search_answer(state: State<'_, AppState>, instance_id: String, crashed: bool) -> Result<launcher::bisect::View> {
+    not_while_running(&state, &instance_id)?;
+    launcher::bisect::answer(&state.paths, &instance_id, crashed)
+}
+
+#[tauri::command]
+fn mod_search_finish(state: State<'_, AppState>, instance_id: String, keep_off: bool) -> Result<()> {
+    not_while_running(&state, &instance_id)?;
+    launcher::bisect::finish(&state.paths, &instance_id, keep_off)
+}
+
 #[tauri::command]
 async fn instance_reset_keybinds(state: State<'_, AppState>, instance_id: String) -> Result<usize> {
     let inst = instances::get(&state.paths, &instance_id).await?;
@@ -1872,6 +1917,7 @@ pub fn run() {
             content_plan,
             content_install_items,
             content_list,
+            content_mod_keys,
             content_set_enabled,
             content_remove,
             content_updates,
@@ -1891,6 +1937,10 @@ pub fn run() {
             game_defaults_lines,
             game_defaults_set,
             instance_reset_keybinds,
+            mod_search_all,
+            mod_search_start,
+            mod_search_answer,
+            mod_search_finish,
             perf_mods,
             crash_diagnose,
             content_missing,

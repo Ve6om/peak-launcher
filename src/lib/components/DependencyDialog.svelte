@@ -47,7 +47,7 @@
       <ProjectIcon url={root.iconUrl} title={root.title} size={36} />
       <div class="text">
         <b>{root.title}</b>
-        <span>{root.versionNumber} · {size(root.size)}</span>
+        <span>{root.versionNumber} · {size(root.size)}{root.manual ? ' · Download in browser' : ''}</span>
       </div>
       <span class="chip">Requested</span>
     </div>
@@ -59,7 +59,7 @@
         <ProjectIcon url={d.iconUrl} title={d.title} size={32} />
         <div class="text">
           <b>{d.title}</b>
-          <span class="reason"><Link2 size={11} /> Required by {d.requiredBy}</span>
+          <span class="reason"><Link2 size={11} /> Required by {d.requiredBy}{d.manual ? ' · Download in browser' : ''}</span>
         </div>
         <span class="ver">{d.versionNumber}</span>
       </button>

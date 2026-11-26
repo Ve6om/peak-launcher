@@ -49,6 +49,20 @@ export interface Instance {
 }
 
 /** What the crash helper found after a game closed with an error. */
+/** A search for the mod that breaks an instance (see ModSearchDialog). */
+export interface ModSearch {
+  phase: 'allOff' | 'halves' | 'found' | 'notAMod';
+  /** The test being run now (1-based). */
+  test: number;
+  /** Roughly how many tests it takes in all. */
+  tests: number;
+  mods: number;
+  suspects: number;
+  off: number;
+  culprits: { fileName: string; name: string }[];
+  needsIt: { fileName: string; name: string }[];
+}
+
 export interface CrashDiagnosis {
   kind: 'missing-mod' | 'wrong-version' | 'java' | 'memory' | 'duplicate' | 'mod-crash' | 'unknown';
   title: string;
@@ -524,6 +538,8 @@ export interface PlanItem {
   fileName: string;
   sha1: string | null;
   size: number;
+  /** Launchers can't download it: `url` is the page to get it from in the browser. */
+  manual?: boolean;
 }
 /** CurseForge ids are prefixed with "cf:". */
 export const isCurseForge = (id: string | null | undefined) => !!id?.startsWith('cf:');

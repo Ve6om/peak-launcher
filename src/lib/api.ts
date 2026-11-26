@@ -4,6 +4,7 @@
 import type {
   SideFilter,
   CrashDiagnosis,
+  ModSearch,
   GameDefaults,
   PerfMods,
   StorageUsage,
@@ -90,6 +91,7 @@ export const api = {
     call<PlanItem[]>('content_plan', { instanceId, kind, projectId, versionId }),
   contentInstallItems: (instanceId: string, items: PlanItem[]) => call<string[]>('content_install_items', { instanceId, items }),
   contentList: (instanceId: string, kind: ContentKind) => call<InstalledItem[]>('content_list', { instanceId, kind }),
+  contentModKeys: (instanceId: string) => call<string[]>('content_mod_keys', { instanceId }),
   contentSetEnabled: (instanceId: string, kind: ContentKind, fileName: string, enabled: boolean) =>
     call<void>('content_set_enabled', { instanceId, kind, fileName, enabled }),
   contentLinked: (instanceId: string, fileName: string, action: 'disable' | 'remove' | 'enable') =>
@@ -157,6 +159,10 @@ export const api = {
   gameDefaultsLines: () => call<[string, string][]>('game_defaults_lines'),
   gameDefaultsSet: (lines: [string, string][]) => call<GameDefaults>('game_defaults_set', { lines }),
   instanceResetKeybinds: (instanceId: string) => call<number>('instance_reset_keybinds', { instanceId }),
+  modSearchAll: () => call<Record<string, ModSearch>>('mod_search_all'),
+  modSearchStart: (instanceId: string) => call<ModSearch>('mod_search_start', { instanceId }),
+  modSearchAnswer: (instanceId: string, crashed: boolean) => call<ModSearch>('mod_search_answer', { instanceId, crashed }),
+  modSearchFinish: (instanceId: string, keepOff: boolean) => call<void>('mod_search_finish', { instanceId, keepOff }),
   storageUsage: () => call<StorageUsage>('storage_usage'),
   perfMods: (instanceId: string) => call<PerfMods>('perf_mods', { instanceId }),
   perfModsAdd: (instanceId: string, projectIds: string[]) => call<string[]>('perf_mods_add', { instanceId, projectIds }),

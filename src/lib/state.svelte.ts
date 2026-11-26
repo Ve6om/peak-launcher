@@ -3,6 +3,7 @@ import { view } from './visibility.svelte';
 import type { PeakLink } from './discover.svelte';
 import type {
   CrashDiagnosis,
+  ModSearch,
   AccountInfo,
   AppInfo,
   BlockedFile,
@@ -30,6 +31,8 @@ const gameStarted: Record<string, number> = {};
 /** Games the crash helper has already spoken up about this run. */
 const crashShown: Record<string, boolean> = {};
 const crashTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+/** A load error was printed during this run (for a broken-mod search test). */
+const loadErrorSeen: Record<string, boolean> = {};
 
 // Errors a mod loader prints while it keeps its own error window open (Fabric's
 // "Incompatible mods found!"), so the game hasn't closed yet.
@@ -71,6 +74,11 @@ export const app = $state({
   optimizing: null as Instance | null,
   /** A game that just crashed, with what the crash helper found. */
   crash: null as { instanceId: string; diagnosis: CrashDiagnosis } | null,
+  /** Broken-mod searches going on, by instance id. */
+  modSearches: {} as Record<string, ModSearch>,
+  /** Instance whose broken-mod search dialog is open, and the answer Peak
+   *  expects for the test just played (from how the game closed). */
+  modSearchFor: null as { instanceId: string; guess: 'crashed' | 'worked' | null } | null,
   /** Instance whose "change modpack version" dialog is open. */
   packVersionFor: null as Instance | null,
   /** Instance being exported as a server pack. */
@@ -172,8 +180,14 @@ export async function installItems(instanceId: string, items: PlanItem[]) {
   if (!items.length) return false;
   try {
     const names = await api.contentInstallItems(instanceId, items);
-    toast(names.length > 1 ? `Installed ${names[0]} and ${names.length - 1} more` : `Installed ${names[0]}`, 'success');
-    return true;
+    if (names.length) toast(names.length > 1 ? `Installed ${names[0]} and ${names.length - 1} more` : `Installed ${names[0]}`, 'success');
+    // Files launchers aren't allowed to download: the browser download window.
+    const byHand = items.filter((i) => i.manual);
+    if (byHand.length) {
+      toast(`${byHand.map((i) => i.title).join(', ')} ${byHand.length === 1 ? 'has' : 'have'} to be downloaded in your browser. Peak moves ${byHand.length === 1 ? 'it' : 'them'} into place.`, 'info');
+      app.manualFor = instanceId;
+    }
+    return names.length > 0 || byHand.length > 0;
   } catch (e) {
     toast(errorText(e), 'error');
     return false;
@@ -363,6 +377,7 @@ export async function init() {
   ]);
   Object.assign(app, { instances, accounts, settings, info, running });
   applyAccent(settings.accent);
+  api.modSearchAll().then((m) => (app.modSearches = m)).catch(() => {});
 
   // peak:// links from the website's "Play in Peak" buttons.
   const { openLink } = await import('./discover.svelte');
@@ -399,7 +414,10 @@ export async function init() {
     list.push({ line: l.line, stream: l.stream });
     // A load error while the game is still open (e.g. behind Fabric's error
     // window): explain it now, once the whole message has been printed.
-    if (!crashShown[l.instanceId] && LOAD_ERROR.test(l.line)) {
+    if (app.modSearches[l.instanceId]) {
+      // Mid-search: the search asks about it when the game closes.
+      if (LOAD_ERROR.test(l.line)) loadErrorSeen[l.instanceId] = true;
+    } else if (!crashShown[l.instanceId] && LOAD_ERROR.test(l.line)) {
       clearTimeout(crashTimers[l.instanceId]);
       crashTimers[l.instanceId] = setTimeout(() => showCrashHelp(l.instanceId), 1500);
     }
@@ -419,11 +437,16 @@ export async function init() {
       if (!app.running.includes(s.instanceId)) app.running.push(s.instanceId);
       gameStarted[s.instanceId] = Date.now();
       delete crashShown[s.instanceId];
+      delete loadErrorSeen[s.instanceId];
     } else {
       app.running = app.running.filter((r) => r !== s.instanceId);
       import('./presence.svelte').then((m) => delete m.playingOn[s.instanceId]).catch(() => {});
       import('./invite.svelte').then((m) => delete m.playingAt[s.instanceId]).catch(() => {});
-      if (s.exitCode && s.exitCode !== 0) {
+      if (app.modSearches[s.instanceId]) {
+        // A test of a broken-mod search: ask how it went instead.
+        const crashed = (s.exitCode !== null && s.exitCode !== 0) || loadErrorSeen[s.instanceId];
+        app.modSearchFor = { instanceId: s.instanceId, guess: crashed ? 'crashed' : 'worked' };
+      } else if (s.exitCode && s.exitCode !== 0) {
         // Show what went wrong (the pop-out window, if open, already does).
         if (!app.poppedOut[s.instanceId]) go('instance', s.instanceId, 'console');
         // The crash helper explains it and offers a fix; the plain message if it can't.
@@ -457,9 +480,10 @@ export async function play(inst: Instance) {
     go('accounts');
     return;
   }
-  // A modpack with a newer version: ask now (not at start-up).
+  // A modpack with a newer version: ask now (not at start-up). Not while
+  // searching for a broken mod, which an update would throw off.
   const { askBeforePlay } = await import('./packUpdates.svelte');
-  if (!(await askBeforePlay(inst))) return;
+  if (!app.modSearches[inst.id] && !(await askBeforePlay(inst))) return;
   if (!(await askJavaOnce(inst))) return;
   app.logs[inst.id] = [];
   try {
