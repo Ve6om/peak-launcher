@@ -156,6 +156,7 @@ export const api = {
   gameDefaultsClear: () => call<void>('game_defaults_clear'),
   gameDefaultsLines: () => call<[string, string][]>('game_defaults_lines'),
   gameDefaultsSet: (lines: [string, string][]) => call<GameDefaults>('game_defaults_set', { lines }),
+  instanceResetKeybinds: (instanceId: string) => call<number>('instance_reset_keybinds', { instanceId }),
   storageUsage: () => call<StorageUsage>('storage_usage'),
   perfMods: (instanceId: string) => call<PerfMods>('perf_mods', { instanceId }),
   perfModsAdd: (instanceId: string, projectIds: string[]) => call<string[]>('perf_mods_add', { instanceId, projectIds }),

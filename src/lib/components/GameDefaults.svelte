@@ -5,7 +5,7 @@
   import { onMount } from 'svelte';
   import { instanceIcon } from '$lib/instanceImages';
   import Select from './Select.svelte';
-  import { Copy, Trash2, Keyboard, Monitor, Pencil } from '@lucide/svelte';
+  import { Copy, Trash2, Keyboard, Monitor, Pencil, RotateCcw } from '@lucide/svelte';
   import DefaultsEditor from './DefaultsEditor.svelte';
   import { api } from '$lib/api';
   import { app, ago, toast, errorText } from '$lib/state.svelte';
@@ -17,7 +17,7 @@
   let loaded = $state(false);
   let from = $state('');
   let busy = $state(false);
-  let confirm = $state<'copy' | 'clear' | null>(null);
+  let confirm = $state<'copy' | 'clear' | 'keys' | null>(null);
   let editing = $state(false);
 
   onMount(async () => {
@@ -31,8 +31,8 @@
   });
 
   /** Ask once more before replacing or clearing defaults that exist. */
-  function sure(what: 'copy' | 'clear') {
-    if (!info || confirm === what) {
+  function sure(what: 'copy' | 'clear' | 'keys') {
+    if ((!info && what !== 'keys') || confirm === what) {
       confirm = null;
       return true;
     }
@@ -47,7 +47,33 @@
     busy = true;
     try {
       info = await api.gameDefaultsSave(id);
-      toast(`Copied ${info.from}'s keybinds and settings as the defaults`, 'success');
+      if (info.skippedKeybinds) {
+        toast(`Copied ${info.from}'s settings as the defaults. Its keybinds were left out: Minecraft 1.12 and older stores keys in a way newer versions can't read.`, 'success');
+      } else {
+        toast(`Copied ${info.from}'s keybinds and settings as the defaults`, 'success');
+      }
+    } catch (e) {
+      toast(errorText(e), 'error');
+    } finally {
+      busy = false;
+    }
+  }
+
+  /** Put this instance's keys back to Minecraft's own. */
+  async function resetKeys() {
+    if (!instance || !sure('keys')) return;
+    busy = true;
+    try {
+      const n = await api.instanceResetKeybinds(instance.id);
+      const usesDefaults = instance.shared?.keybinds && info && info.keybinds > 0;
+      toast(
+        n === 0
+          ? 'This instance has no keybinds saved yet'
+          : usesDefaults
+            ? "Keys reset. Your default keybinds still go in when it starts; switch off 'Use default keybinds' to keep Minecraft's own."
+            : "Keys reset to Minecraft's own. Mods' keys go back to theirs too.",
+        n === 0 ? 'info' : 'success'
+      );
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -103,8 +129,15 @@
         <Copy size={14} />
         {confirm === 'copy' ? 'Click again to replace' : instance ? 'Copy from this instance' : 'Copy'}
       </button>
-      {#if info && !instance}
-        <button class="btn ghost danger" onclick={clear}><Trash2 size={14} /> {confirm === 'clear' ? 'Click again to clear' : 'Clear'}</button>
+      {#if info}
+        <button class="btn ghost danger" title="Remove the defaults (instances keep what they have now)" onclick={clear}>
+          <Trash2 size={14} /> {confirm === 'clear' ? 'Click again to clear' : instance ? 'Clear defaults' : 'Clear'}
+        </button>
+      {/if}
+      {#if instance}
+        <button class="btn ghost" title="Put this instance's keys back to Minecraft's own" disabled={busy} onclick={resetKeys}>
+          <RotateCcw size={14} /> {confirm === 'keys' ? 'Click again to reset keys' : 'Reset keybinds'}
+        </button>
       {/if}
     </div>
   </div>
