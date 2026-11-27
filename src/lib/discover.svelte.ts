@@ -18,12 +18,25 @@ export function openServerLink(id: string) {
 }
 
 /** A peak:// link: a server-list entry, or a friend's invite to a server. */
-export type PeakLink = ({ kind: 'server'; id: string }) | ({ kind: 'join' } & JoinInvite);
+export type PeakLink = ({ kind: 'server'; id: string }) | ({ kind: 'play'; id: string }) | ({ kind: 'join' } & JoinInvite);
 
 export function openLink(link: PeakLink) {
   if (link.kind === 'server') return openServerLink(link.id);
+  if (link.kind === 'play') return playFromShortcut(link.id);
   const { kind: _, ...rest } = link;
   invite.current = rest;
+}
+
+/** A desktop shortcut started Peak (or was opened while it ran): play that instance. */
+async function playFromShortcut(id: string) {
+  const { app, play, go, toast, isRunning } = await import('./state.svelte');
+  const inst = app.instances.find((i) => i.id === id);
+  if (!inst) {
+    toast("That shortcut's instance isn't in Peak any more.", 'error');
+    return;
+  }
+  go('instance', inst.id);
+  if (!isRunning(inst.id)) await play(inst);
 }
 
 /** Instance id -> the server to join once it has finished installing. */

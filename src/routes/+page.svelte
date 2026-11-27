@@ -16,6 +16,7 @@
   import PackVersionPanel from '$lib/components/PackVersionPanel.svelte';
   import CrashDialog from '$lib/components/CrashDialog.svelte';
   import ModSearchDialog from '$lib/components/ModSearchDialog.svelte';
+  import GroupDialog from '$lib/components/GroupDialog.svelte';
   import JoinInviteDialog from '$lib/components/JoinInviteDialog.svelte';
   import { invite } from '$lib/invite.svelte';
   import JavaChoicePrompt from '$lib/components/JavaChoicePrompt.svelte';
@@ -136,6 +137,9 @@
 {/if}
 {#if invite.current}
   <JoinInviteDialog />
+{/if}
+{#if app.grouping}
+  <GroupDialog inst={app.grouping} onclose={() => (app.grouping = null)} />
 {/if}
 {#if app.modSearchFor}
   {#key app.modSearchFor}

@@ -1,6 +1,6 @@
 [package]
 name = "peak-launcher"
-version = "0.1.26"
+version = "0.1.27"
 description = "Peak Launcher - a fast, modern Minecraft launcher"
 authors = ["Peak Launcher contributors"]
 license = "GPL-3.0-or-later"

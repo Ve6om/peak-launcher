@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Search, Layers, Package, FileUp, FolderInput } from '@lucide/svelte';
+  import { Plus, Search, Layers, Package, FileUp, FolderInput, ChevronDown } from '@lucide/svelte';
   import InstanceCard from '$lib/components/InstanceCard.svelte';
   import { app, browseFor, importModpack } from '$lib/state.svelte';
 
@@ -13,6 +13,38 @@
     if (sort === 'version') return [...list].sort((a, b) => b.gameVersion.localeCompare(a.gameVersion, undefined, { numeric: true }));
     return list;
   });
+
+  /** Groups in name order, then instances not in one. One section, without a
+   *  heading, when nothing is grouped. */
+  const sections = $derived.by(() => {
+    const names = [...new Set(shown.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) => a.localeCompare(b));
+    if (!names.length) return [{ name: null as string | null, items: shown }];
+    const out = names.map((name) => ({ name: name as string | null, items: shown.filter((i) => i.group === name) }));
+    const rest = shown.filter((i) => !i.group);
+    if (rest.length) out.push({ name: 'Not in a group', items: rest });
+    return out;
+  });
+
+  // Collapsed groups are remembered on this computer.
+  const KEY = 'peak.collapsedGroups';
+  let collapsed = $state<string[]>(read());
+  function read(): string[] {
+    try {
+      return JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    } catch {
+      return [];
+    }
+  }
+  function toggle(name: string) {
+    collapsed = collapsed.includes(name) ? collapsed.filter((n) => n !== name) : [...collapsed, name];
+    try {
+      localStorage.setItem(KEY, JSON.stringify(collapsed));
+    } catch {
+      // Not remembered; fine.
+    }
+  }
+  /** Searching opens every group, so matches aren't hidden. */
+  const isOpen = (name: string | null) => !name || !!query.trim() || !collapsed.includes(name);
 </script>
 
 <div class="library">
@@ -39,11 +71,24 @@
   </header>
 
   {#if shown.length}
-    <div class="grid">
-      {#each shown as inst, i (inst.id)}
-        <InstanceCard {inst} index={i} />
-      {/each}
-    </div>
+    {#each sections as sec (sec.name ?? '')}
+      <section class="section">
+        {#if sec.name}
+          <button class="heading" aria-expanded={isOpen(sec.name)} onclick={() => toggle(sec.name!)}>
+            <span class="chev" class:shut={!isOpen(sec.name)}><ChevronDown size={16} /></span>
+            <span class="title">{sec.name}</span>
+            <span class="count">{sec.items.length}</span>
+          </button>
+        {/if}
+        {#if isOpen(sec.name)}
+          <div class="grid">
+            {#each sec.items as inst, i (inst.id)}
+              <InstanceCard {inst} index={i} />
+            {/each}
+          </div>
+        {/if}
+      </section>
+    {/each}
   {:else}
     <div class="empty glass">
       <Layers size={30} />
@@ -115,6 +160,41 @@
   .seg button.active {
     background: rgba(255, 255, 255, 0.09);
     color: var(--text);
+  }
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 4px 8px 4px 2px;
+    border-radius: 8px;
+    color: var(--muted);
+  }
+  .heading:hover {
+    color: var(--text);
+  }
+  .heading .title {
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--text);
+  }
+  .heading .count {
+    padding: 1px 7px;
+    border-radius: 7px;
+    font-size: 11.5px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .chev {
+    display: grid;
+    transition: transform 0.18s;
+  }
+  .chev.shut {
+    transform: rotate(-90deg);
   }
   .grid {
     display: grid;
