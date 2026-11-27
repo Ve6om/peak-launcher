@@ -38,6 +38,11 @@ export interface Instance {
   wrapperCommand: string | null;
   useSystemGlfw: boolean | null;
   useSystemOpenal: boolean | null;
+  gamemode?: boolean | null;
+  mangohud?: boolean | null;
+  discreteGpu?: boolean | null;
+  /** KEY=value per line, added to (and overriding) the ones in Settings. */
+  envVars?: string | null;
   pack: PackInfo | null;
   importedFrom: string | null;
   /** The player's own logo picture (a file in the instance folder). */
@@ -51,6 +56,16 @@ export interface Instance {
 }
 
 /** What the crash helper found after a game closed with an error. */
+/** One service in "Check my connection". */
+export interface NetCheck {
+  name: string;
+  usedFor: string;
+  host: string;
+  ok: boolean;
+  ms: number | null;
+  error: string | null;
+}
+
 /** A single-player world in an instance. */
 export interface WorldInfo {
   folder: string;
@@ -472,6 +487,12 @@ export interface Settings {
   gamemode: boolean;
   useSystemGlfw: boolean;
   useSystemOpenal: boolean;
+  /** MangoHud's performance overlay (Linux). */
+  mangohud: boolean;
+  /** Dedicated graphics card on laptops with two (Linux). */
+  discreteGpu: boolean;
+  /** KEY=value per line, for the game. */
+  envVars: string;
   concurrentDownloads: number;
   connectionTimeout: number;
   proxyEnabled: boolean;

@@ -66,6 +66,16 @@ pub struct Instance {
     pub use_system_glfw: Option<bool>,
     #[serde(default)]
     pub use_system_openal: Option<bool>,
+    #[serde(default)]
+    pub gamemode: Option<bool>,
+    #[serde(default)]
+    pub mangohud: Option<bool>,
+    #[serde(default)]
+    pub discrete_gpu: Option<bool>,
+    /// Environment variables for this instance, added to (and overriding)
+    /// the ones in Settings.
+    #[serde(default)]
+    pub env_vars: Option<String>,
     /// Set when the instance was created from a modpack.
     #[serde(default)]
     pub pack: Option<PackInfo>,
@@ -270,6 +280,10 @@ pub async fn create(paths: &Paths, name: &str, game_version: &str, loader: &str,
         wrapper_command: None,
         use_system_glfw: None,
         use_system_openal: None,
+        gamemode: None,
+        mangohud: None,
+        discrete_gpu: None,
+        env_vars: None,
         pack: None,
         imported_from: None,
         custom_icon: None,
@@ -364,5 +378,9 @@ pub fn apply_edit(current: &mut Instance, edit: Instance) {
     current.wrapper_command = blank(edit.wrapper_command);
     current.use_system_glfw = edit.use_system_glfw;
     current.use_system_openal = edit.use_system_openal;
+    current.gamemode = edit.gamemode;
+    current.mangohud = edit.mangohud;
+    current.discrete_gpu = edit.discrete_gpu;
+    current.env_vars = blank(edit.env_vars);
     current.shared = edit.shared;
 }

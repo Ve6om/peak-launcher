@@ -22,6 +22,8 @@ pub struct LaunchPlan {
     pub game_dir: PathBuf,
     pub pre_launch: Option<String>,
     pub post_exit: Option<String>,
+    /// Environment variables for the game (and the launch commands).
+    pub env: Vec<(String, String)>,
 }
 
 /// Options after combining global settings with the instance's overrides.
@@ -39,6 +41,54 @@ pub struct Effective {
     pub wrapper: String,
     pub system_glfw: bool,
     pub system_openal: bool,
+    pub gamemode: bool,
+    pub mangohud: bool,
+    pub discrete_gpu: bool,
+    pub env: Vec<(String, String)>,
+}
+
+/// KEY=value lines (blank lines and # comments skipped). Keys must be plain
+/// names; anything else is left out.
+pub fn parse_env(text: &str) -> Vec<(String, String)> {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter_map(|l| l.split_once('='))
+        .map(|(k, v)| (k.trim().trim_start_matches("export ").trim().to_string(), v.trim().to_string()))
+        .filter(|(k, _)| {
+            let mut c = k.chars();
+            c.next().is_some_and(|f| f.is_ascii_alphabetic() || f == '_') && c.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        })
+        .collect()
+}
+
+/// Settings' variables, then the instance's (a key set in both takes the instance's).
+fn merged_env(global: &str, own: Option<&str>) -> Vec<(String, String)> {
+    let mut out = parse_env(global);
+    for (k, v) in parse_env(own.unwrap_or("")) {
+        out.retain(|(x, _)| *x != k);
+        out.push((k, v));
+    }
+    out
+}
+
+/// Is a program on the PATH?
+fn on_path(program: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(program).is_file()))
+}
+
+/// Variables that put the game on the dedicated graphics card (Linux
+/// laptops with two): NVIDIA's offload when its driver is loaded, else Mesa's.
+fn discrete_gpu_env() -> Vec<(String, String)> {
+    if std::path::Path::new("/proc/driver/nvidia/version").exists() {
+        vec![
+            ("__NV_PRIME_RENDER_OFFLOAD".into(), "1".into()),
+            ("__GLX_VENDOR_LIBRARY_NAME".into(), "nvidia".into()),
+            ("__VK_LAYER_NV_optimus".into(), "NVIDIA_only".into()),
+        ]
+    } else {
+        vec![("DRI_PRIME".into(), "1".into())]
+    }
 }
 
 pub fn effective(inst: &Instance, s: &Settings) -> Effective {
@@ -57,6 +107,10 @@ pub fn effective(inst: &Instance, s: &Settings) -> Effective {
         wrapper: pick(&inst.wrapper_command, &s.wrapper_command),
         system_glfw: inst.use_system_glfw.unwrap_or(s.use_system_glfw),
         system_openal: inst.use_system_openal.unwrap_or(s.use_system_openal),
+        gamemode: inst.gamemode.unwrap_or(s.gamemode),
+        mangohud: inst.mangohud.unwrap_or(s.mangohud),
+        discrete_gpu: inst.discrete_gpu.unwrap_or(s.discrete_gpu),
+        env: merged_env(&s.env_vars, inst.env_vars.as_deref()),
     }
 }
 
@@ -318,13 +372,32 @@ pub async fn plan(
     args.push(version.main_class.clone());
     args.extend(game.iter().map(|a| substitute(a, &vars)));
 
-    // Prefix with a wrapper command and/or Feral GameMode (Linux).
+    // Prefix with a wrapper command, MangoHud and/or Feral GameMode (Linux).
     let mut prefix: Vec<String> = Vec::new();
     if fx.commands {
         prefix.extend(fx.wrapper.split_whitespace().map(String::from));
     }
-    if cfg!(target_os = "linux") && settings.gamemode {
-        prefix.insert(0, "gamemoderun".into());
+    let mut env = fx.env.clone();
+    if cfg!(target_os = "linux") {
+        if fx.mangohud {
+            if !on_path("mangohud") {
+                return Err(Error::msg("MangoHud is switched on but isn't installed. Install it from your distro's packages, or switch it off."));
+            }
+            prefix.insert(0, "mangohud".into());
+        }
+        if fx.gamemode {
+            if !on_path("gamemoderun") {
+                return Err(Error::msg("GameMode is switched on but isn't installed. Install it (often the gamemode package), or switch it off."));
+            }
+            prefix.insert(0, "gamemoderun".into());
+        }
+        if fx.discrete_gpu {
+            for (k, v) in discrete_gpu_env() {
+                if !env.iter().any(|(x, _)| *x == k) {
+                    env.push((k, v));
+                }
+            }
+        }
     }
     let (program, args) = if prefix.is_empty() {
         (s(&java), args)
@@ -343,6 +416,7 @@ pub async fn plan(
         game_dir,
         pre_launch: cmd(&fx.pre_launch),
         post_exit: cmd(&fx.post_exit),
+        env,
     })
 }
 
@@ -378,7 +452,7 @@ pub fn shell_command(command: &str, inst: &Instance, plan: &LaunchPlan, paths: &
         c.arg("-c").arg(&expanded);
         c
     };
-    cmd.envs(env).current_dir(&plan.game_dir);
+    cmd.envs(plan.env.iter().cloned()).envs(env).current_dir(&plan.game_dir);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);
     cmd
@@ -426,5 +500,25 @@ mod stop_live {
         let r = tokio::time::timeout(std::time::Duration::from_secs(10), waiter).await;
         println!("stop took {:?}: {:?}", t.elapsed(), r.as_ref().map(|j| j.as_ref().map(|s| s.as_str()).unwrap_or("join error")));
         assert!(r.is_ok(), "the hung game did not stop within 10s");
+    }
+}
+
+#[cfg(test)]
+mod env_tests {
+    use super::*;
+
+    #[test]
+    fn reads_environment_lines() {
+        let got = parse_env("# comment\nMESA_GL_VERSION_OVERRIDE=4.5\n\nexport FOO = bar baz\nbad key=1\n1X=2\nEMPTY=\nno_equals\n");
+        assert_eq!(
+            got,
+            vec![
+                ("MESA_GL_VERSION_OVERRIDE".to_string(), "4.5".to_string()),
+                ("FOO".to_string(), "bar baz".to_string()),
+                ("EMPTY".to_string(), String::new()),
+            ]
+        );
+        let merged = merged_env("A=1\nB=2", Some("B=3\nC=4"));
+        assert_eq!(merged, vec![("A".into(), "1".into()), ("B".into(), "3".into()), ("C".into(), "4".into())]);
     }
 }

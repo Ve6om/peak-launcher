@@ -5,6 +5,7 @@ import type {
   SideFilter,
   CrashDiagnosis,
   ModSearch,
+  NetCheck,
   WorldInfo,
   WorldBackup,
   Datapack,
@@ -85,6 +86,7 @@ export const api = {
   worlds: (id: string) => call<string[]>('list_worlds', { id }),
   /** Put a shortcut that starts this instance on the desktop. */
   instanceSetGroup: (id: string, group: string | null) => call<Instance>('instance_set_group', { id, group }),
+  networkCheck: () => call<NetCheck[]>('network_check'),
   createShortcut: (instanceId: string) => call<string>('create_shortcut', { instanceId }),
   worldsList: (instanceId: string) => call<WorldInfo[]>('worlds_list', { instanceId }),
   worldRename: (instanceId: string, folder: string, name: string) => call<void>('world_rename', { instanceId, folder, name }),
@@ -390,6 +392,9 @@ const mock = (() => {
     discordJoinAnyServer: false,
     lightEffects: false,
     movingGlow: true,
+    mangohud: false,
+    discreteGpu: false,
+    envVars: '',
     worldBackupsAuto: false,
     worldBackupsKeep: 5,
     enableCommands: false,
@@ -1274,6 +1279,14 @@ const mock = (() => {
         instances = instances.map((i) => (i.id === a.id ? { ...i, group: a.group } : i));
         return instances.find((i) => i.id === a.id);
       }
+      case 'network_check':
+        await new Promise((r) => setTimeout(r, 900));
+        return [
+          { name: 'Minecraft versions', usedFor: 'Installing and updating Minecraft', host: 'piston-meta.mojang.com', ok: true, ms: 84, error: null },
+          { name: 'Microsoft sign-in', usedFor: 'Signing in', host: 'login.microsoftonline.com', ok: true, ms: 132, error: null },
+          { name: 'Modrinth', usedFor: 'Mods and modpacks', host: 'api.modrinth.com', ok: true, ms: 61, error: null },
+          { name: 'CurseForge downloads', usedFor: 'Mods and modpacks', host: 'mediafilez.forgecdn.net', ok: false, ms: null, error: 'Timed out' }
+        ];
       case 'create_shortcut':
         return 'C:/Users/you/Desktop/Survival Island.lnk';
       case 'duplicate_instance': {

@@ -415,6 +415,15 @@
       <Row title="Wrapper command" desc="Prefixed to the Java command, e.g. prime-run or mangohud" override={d.wrapperCommand !== null} onoverride={(on) => (d.wrapperCommand = on ? g.wrapperCommand : null)}>
         <input class="input mono" value={d.wrapperCommand ?? g.wrapperCommand} oninput={(e) => (d.wrapperCommand = e.currentTarget.value)} />
       </Row>
+      <Row
+        title="Environment variables"
+        desc="One KEY=value per line, added to the ones in Settings (a name set in both uses this one)"
+        override={d.envVars != null}
+        onoverride={(on) => (d.envVars = on ? '' : null)}
+        wide
+      >
+        <textarea class="input mono" rows="3" spellcheck="false" placeholder="MESA_GL_VERSION_OVERRIDE=4.5" disabled={d.envVars == null} value={d.envVars ?? ''} oninput={(e) => (d.envVars = e.currentTarget.value)}></textarea>
+      </Row>
     </div>
   </section>
 
@@ -427,6 +436,15 @@
         </Row>
         <Row title="Use system OpenAL" override={d.useSystemOpenal !== null} onoverride={(on) => (d.useSystemOpenal = on ? true : null)} globalHint={g.useSystemOpenal ? 'on' : 'off'}>
           <Switch bind:checked={() => d.useSystemOpenal ?? g.useSystemOpenal, (v) => (d.useSystemOpenal = v)} label="System OpenAL" />
+        </Row>
+        <Row title="Feral GameMode" override={d.gamemode != null} onoverride={(on) => (d.gamemode = on ? !g.gamemode : null)} globalHint={g.gamemode ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.gamemode ?? g.gamemode, (v) => (d.gamemode = v)} label="GameMode" />
+        </Row>
+        <Row title="MangoHud" desc="FPS and frame-time overlay" override={d.mangohud != null} onoverride={(on) => (d.mangohud = on ? !g.mangohud : null)} globalHint={g.mangohud ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.mangohud ?? g.mangohud, (v) => (d.mangohud = v)} label="MangoHud" />
+        </Row>
+        <Row title="Use the dedicated graphics card" override={d.discreteGpu != null} onoverride={(on) => (d.discreteGpu = on ? !g.discreteGpu : null)} globalHint={g.discreteGpu ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.discreteGpu ?? g.discreteGpu, (v) => (d.discreteGpu = v)} label="Dedicated graphics card" />
         </Row>
       </div>
     </section>

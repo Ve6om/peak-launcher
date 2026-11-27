@@ -77,6 +77,12 @@ pub struct Settings {
     pub gamemode: bool,
     pub use_system_glfw: bool,
     pub use_system_openal: bool,
+    /// Show MangoHud's performance overlay (Linux).
+    pub mangohud: bool,
+    /// Run on the dedicated graphics card in laptops with two (Linux).
+    pub discrete_gpu: bool,
+    /// Extra environment variables for the game, one KEY=value per line.
+    pub env_vars: String,
 
     // Network
     pub concurrent_downloads: u32,
@@ -127,6 +133,9 @@ impl Default for Settings {
             gamemode: false,
             use_system_glfw: false,
             use_system_openal: false,
+            mangohud: false,
+            discrete_gpu: false,
+            env_vars: String::new(),
             concurrent_downloads: 24,
             connection_timeout: 30,
             proxy_enabled: false,

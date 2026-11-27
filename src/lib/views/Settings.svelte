@@ -17,6 +17,7 @@
   import SharedSwitches from '$lib/components/SharedSwitches.svelte';
   import GameDefaults from '$lib/components/GameDefaults.svelte';
   import StoragePanel from '$lib/components/StoragePanel.svelte';
+  import NetworkCheck from '$lib/components/NetworkCheck.svelte';
   import type { Settings } from '$lib/types';
 
   let s = $state<Settings>(JSON.parse(JSON.stringify(app.settings)));
@@ -348,6 +349,12 @@
             <Row title="Feral GameMode" desc="Run the game through gamemoderun for better performance">
               <Switch bind:checked={s.gamemode} label="GameMode" />
             </Row>
+            <Row title="MangoHud" desc="Show FPS, frame times and GPU use over the game (needs MangoHud installed)">
+              <Switch bind:checked={s.mangohud} label="MangoHud" />
+            </Row>
+            <Row title="Use the dedicated graphics card" desc="On laptops with two graphics chips, run the game on the faster one (NVIDIA PRIME or DRI_PRIME)">
+              <Switch bind:checked={s.discreteGpu} label="Dedicated graphics card" />
+            </Row>
             <Row title="Use system GLFW" desc="Use your distro's GLFW instead of Minecraft's (helps on Wayland and ARM)">
               <Switch bind:checked={s.useSystemGlfw} label="System GLFW" />
             </Row>
@@ -355,6 +362,9 @@
               <Switch bind:checked={s.useSystemOpenal} label="System OpenAL" />
             </Row>
           {/if}
+          <Row title="Environment variables" desc="For every game, one KEY=value per line. Instances can add their own." wide>
+            <textarea class="input mono" rows="3" spellcheck="false" placeholder="MESA_GL_VERSION_OVERRIDE=4.5" bind:value={s.envVars}></textarea>
+          </Row>
         </div>
       </section>
 
@@ -458,6 +468,7 @@
             </Row>
           {/if}
         </div>
+        <NetworkCheck />
       </section>
 
       <section id="sec-Integrations" class="panel glass" hidden={current !== 'Integrations'}>
