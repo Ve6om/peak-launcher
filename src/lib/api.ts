@@ -87,6 +87,9 @@ export const api = {
   /** Put a shortcut that starts this instance on the desktop. */
   instanceSetGroup: (id: string, group: string | null) => call<Instance>('instance_set_group', { id, group }),
   networkCheck: () => call<NetCheck[]>('network_check'),
+  contentChangelog: (projectId: string, versionId: string) => call<{ text: string | null; html: boolean; url: string }>('content_changelog', { projectId, versionId }),
+  /** Upload an instance's log to mclo.gs (cleaned first); returns the link. */
+  logShare: (instanceId: string) => call<string>('log_share', { instanceId }),
   createShortcut: (instanceId: string) => call<string>('create_shortcut', { instanceId }),
   worldsList: (instanceId: string) => call<WorldInfo[]>('worlds_list', { instanceId }),
   worldRename: (instanceId: string, folder: string, name: string) => call<void>('world_rename', { instanceId, folder, name }),
@@ -1279,6 +1282,11 @@ const mock = (() => {
         instances = instances.map((i) => (i.id === a.id ? { ...i, group: a.group } : i));
         return instances.find((i) => i.id === a.id);
       }
+      case 'log_share':
+        await new Promise((r) => setTimeout(r, 700));
+        return 'https://mclo.gs/aBcD123';
+      case 'content_changelog':
+        return { text: '## 0.6.5\n- Fixed a crash with some shaders\n- Faster chunk loading on low-end GPUs', html: false, url: 'https://modrinth.com/project/x/version/y' };
       case 'network_check':
         await new Promise((r) => setTimeout(r, 900));
         return [

@@ -620,6 +620,17 @@ pub async fn plan(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &st
     Ok(out)
 }
 
+/// What changed in a file (HTML), and its page. The changelog may be
+/// unavailable (e.g. through an older proxy); the page always comes back.
+pub async fn changelog(cf: &Client, id: &str, file_id: &str) -> Result<(Option<String>, String)> {
+    let mid = raw_id(id)?;
+    let fid: u64 = file_id.parse().map_err(|_| Error::msg("Bad file id"))?;
+    let m: Option<CfMod> = cf.get(&format!("/mods/{mid}"), &[]).await.ok();
+    let page = download_page(m.as_ref(), mid, fid).replace(&format!("/download/{fid}"), &format!("/files/{fid}"));
+    let text: Option<String> = cf.get::<String>(&format!("/mods/{mid}/files/{fid}/changelog"), &[]).await.ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    Ok((text, page))
+}
+
 /// Install a CurseForge project and all of its missing required dependencies.
 pub async fn install(cf: &Client, paths: &Paths, inst_id: &str, kind: Kind, id: &str, file_id: Option<&str>) -> Result<Vec<String>> {
     let items = plan(cf, paths, inst_id, kind, id, file_id).await?;

@@ -762,6 +762,17 @@ pub struct UpdateInfo {
     pub version_number: String,
 }
 
+/// What changed in a version (Markdown), and its page.
+pub async fn changelog(project_id: &str, version_id: &str) -> Result<(Option<String>, String)> {
+    let ok = |s: &str| !s.is_empty() && s.len() <= 64 && s.chars().all(|c| c.is_ascii_alphanumeric());
+    if !ok(project_id) || !ok(version_id) {
+        return Err(Error::msg("Bad version id"));
+    }
+    let v: Value = net::get_json(&format!("{API}/version/{version_id}")).await?;
+    let text = v["changelog"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(String::from);
+    Ok((text, format!("https://modrinth.com/project/{project_id}/version/{version_id}")))
+}
+
 /// Newer compatible versions for installed files (one request for all of them).
 pub async fn check_updates(paths: &Paths, inst_id: &str, kind: Kind) -> Result<Vec<UpdateInfo>> {
     let inst = instances::get(paths, inst_id).await?;

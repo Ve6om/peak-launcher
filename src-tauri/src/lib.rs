@@ -1409,6 +1409,42 @@ async fn worlds_list(state: State<'_, AppState>, instance_id: String) -> Result<
     Ok(tokio::task::spawn_blocking(move || launcher::worlds::list(&paths, &instance_id)).await.unwrap_or_default())
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Changelog {
+    text: Option<String>,
+    /// CurseForge changelogs are HTML; Modrinth's are Markdown.
+    html: bool,
+    url: String,
+}
+
+/// What changed in a version of a mod (for the update list).
+#[tauri::command]
+async fn content_changelog(state: State<'_, AppState>, project_id: String, version_id: String) -> Result<Changelog> {
+    if curseforge::is_cf(&project_id) {
+        let cf = cf_client(&state.paths).await?;
+        let (text, url) = curseforge::changelog(&cf, &project_id, &version_id).await?;
+        return Ok(Changelog { text, html: true, url });
+    }
+    let (text, url) = modrinth::changelog(&project_id, &version_id).await?;
+    Ok(Changelog { text, html: false, url })
+}
+
+/// Upload an instance's log to mclo.gs (cleaned of the player's names and
+/// home folder) and return the link.
+#[tauri::command]
+async fn log_share(app: AppHandle, state: State<'_, AppState>, instance_id: String) -> Result<String> {
+    // This run's console, else the game's last log file.
+    let mut text: String = state.logs.lock().unwrap().get(&instance_id).map(|l| l.iter().map(|x| x.line.as_str()).collect::<Vec<_>>().join("\n")).unwrap_or_default();
+    if text.trim().is_empty() {
+        text = tokio::fs::read_to_string(instances::game_dir(&state.paths, &instance_id).join("logs").join("latest.log")).await.unwrap_or_default();
+    }
+    let names: Vec<String> = accounts::load(&state.paths).await.map(|s| s.accounts.into_iter().map(|a| a.username).collect()).unwrap_or_default();
+    let home = app.path().home_dir().ok().map(|h| h.display().to_string());
+    let clean = launcher::logshare::clean(&text, home.as_deref(), &names);
+    launcher::logshare::upload(&clean).await
+}
+
 #[tauri::command]
 async fn network_check() -> Vec<launcher::netcheck::Check> {
     launcher::netcheck::run().await
@@ -2072,6 +2108,8 @@ pub fn run() {
             instance_reset_keybinds,
             create_shortcut,
             network_check,
+            content_changelog,
+            log_share,
             instance_set_group,
             worlds_list,
             world_rename,

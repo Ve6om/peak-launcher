@@ -1,11 +1,11 @@
 <script lang="ts">
   // Shown when a game closes with an error: what went wrong, in plain words,
   // and a button that fixes it when Peak can.
-  import { Wrench, FileText, Terminal, Power, Undo2, LoaderCircle, Search } from '@lucide/svelte';
+  import { Wrench, FileText, Terminal, Power, Undo2, LoaderCircle, Search, Share2 } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import ModVersionDialog from './ModVersionDialog.svelte';
   import { api } from '$lib/api';
-  import { app, go, toast, errorText, refreshInstances, requestInstall, isRunning } from '$lib/state.svelte';
+  import { app, go, toast, errorText, refreshInstances, requestInstall, isRunning, shareLog } from '$lib/state.svelte';
   import { changePackVersion } from '$lib/manualPack.svelte';
   import type { CrashDiagnosis, InstalledItem } from '$lib/types';
 
@@ -121,6 +121,20 @@
     }
   }
 
+  let confirmShare = $state(false);
+  let sharing = $state(false);
+  async function share() {
+    if (!confirmShare) {
+      confirmShare = true;
+      setTimeout(() => (confirmShare = false), 4000);
+      return;
+    }
+    confirmShare = false;
+    sharing = true;
+    await shareLog(instanceId);
+    sharing = false;
+  }
+
   function findMod() {
     onclose();
     app.modSearchFor = { instanceId, guess: null };
@@ -164,6 +178,15 @@
         <button class="btn ghost" onclick={() => api.openCrashReport(diagnosis.report!)}><FileText size={14} /> Crash report</button>
       {/if}
       <button class="btn ghost" onclick={openConsole}><Terminal size={14} /> Console</button>
+      <button
+        class="btn ghost"
+        title={confirmShare ? 'Click again to upload. The link is public; Peak hides your user name, Minecraft name and sign-in token first.' : 'Upload the log and copy a link to send when asking for help'}
+        disabled={sharing}
+        onclick={share}
+      >
+        {#if sharing}<LoaderCircle size={14} class="spin" />{:else}<Share2 size={14} />{/if}
+        {confirmShare ? 'Click again to upload' : 'Share log'}
+      </button>
       {#if inst && inst.loader !== 'vanilla'}
         <button
           class="btn"

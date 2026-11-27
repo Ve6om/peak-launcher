@@ -13,6 +13,7 @@ pub mod java;
 pub mod jvmflags;
 pub mod launch;
 pub mod loaders;
+pub mod logshare;
 pub mod manual;
 pub mod moddeps;
 pub mod msbrowser;

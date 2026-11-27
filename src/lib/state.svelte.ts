@@ -263,6 +263,19 @@ export async function duplicateInstance(inst: Instance) {
   }
 }
 
+/** Upload an instance's log and copy the link. */
+export async function shareLog(instanceId: string) {
+  try {
+    const url = await api.logShare(instanceId);
+    await navigator.clipboard.writeText(url).catch(() => {});
+    toast(`Log uploaded and its link copied: ${url}`, 'success');
+    return url;
+  } catch (e) {
+    toast(errorText(e), 'error');
+    return null;
+  }
+}
+
 export async function createShortcut(inst: Instance) {
   try {
     await api.createShortcut(inst.id);
