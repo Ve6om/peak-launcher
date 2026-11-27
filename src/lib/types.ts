@@ -49,6 +49,35 @@ export interface Instance {
 }
 
 /** What the crash helper found after a game closed with an error. */
+/** A single-player world in an instance. */
+export interface WorldInfo {
+  folder: string;
+  name: string;
+  mode: 'survival' | 'creative' | 'adventure' | 'spectator' | null;
+  hardcore: boolean;
+  cheats: boolean;
+  lastPlayed: number | null;
+  seed: string | null;
+  version: string | null;
+  size: number;
+  icon: string | null;
+  datapacks: number;
+  backups: number;
+}
+
+export interface WorldBackup {
+  fileName: string;
+  created: number;
+  size: number;
+  auto: boolean;
+}
+
+export interface Datapack {
+  fileName: string;
+  size: number;
+  folder: boolean;
+}
+
 /** A search for the mod that breaks an instance (see ModSearchDialog). */
 export interface ModSearch {
   phase: 'allOff' | 'halves' | 'found' | 'notAMod';
@@ -430,6 +459,10 @@ export interface Settings {
   lightEffects: boolean;
   /** The aurora glow drifts slowly (off by default on Linux). */
   movingGlow: boolean;
+  /** Back up the worlds played in a session when the game closes. */
+  worldBackupsAuto: boolean;
+  /** Automatic backups kept per world. */
+  worldBackupsKeep: number;
   enableCommands: boolean;
   preLaunchCommand: string;
   postExitCommand: string;

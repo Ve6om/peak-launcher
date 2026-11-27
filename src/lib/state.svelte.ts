@@ -98,7 +98,7 @@ export const app = $state({
   /** Instance waiting for delete confirmation. */
   deleting: null as Instance | null,
   /** Tab to show when an instance page opens. */
-  instanceTab: 'overview' as 'overview' | 'content' | 'servers' | 'settings' | 'console',
+  instanceTab: 'overview' as 'overview' | 'content' | 'worlds' | 'servers' | 'settings' | 'console',
   /** Browse page target. */
   browse: { instanceId: null as string | null, kind: 'mod' as BrowseKind, source: 'modrinth' as Source },
   /** Modpack files whose authors block launcher downloads, per instance. */
@@ -426,6 +426,10 @@ export async function init() {
   await on<{ instanceId: string; open: boolean }>('console-window', (e) => {
     if (e.open) app.poppedOut[e.instanceId] = true;
     else delete app.poppedOut[e.instanceId];
+  });
+  await on<{ instanceId: string; count: number }>('worlds-backed-up', (e) => {
+    const name = app.instances.find((i) => i.id === e.instanceId)?.name ?? 'the instance';
+    toast(`Backed up ${e.count} world${e.count === 1 ? '' : 's'} from ${name}`, 'success');
   });
   // "Quit Peak" from the tray icon: same as closing the window.
   await on('tray-quit', () => requestClose());

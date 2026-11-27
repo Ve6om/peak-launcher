@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus, Bug } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus, Bug, Globe } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import InstanceServers from '$lib/components/InstanceServers.svelte';
+  import InstanceWorlds from '$lib/components/InstanceWorlds.svelte';
   import ConsolePanel from '$lib/components/ConsolePanel.svelte';
   import { Puzzle } from '@lucide/svelte';
   import { loaderLabel, packVersion } from '$lib/types';
@@ -132,6 +133,7 @@
     <div class="tabs">
       <button class:active={app.instanceTab === 'overview'} onclick={() => (app.instanceTab = 'overview')}><LayoutGrid size={15} /> Overview</button>
       <button class:active={app.instanceTab === 'content'} onclick={() => (app.instanceTab = 'content')}><Puzzle size={15} /> Content</button>
+      <button class:active={app.instanceTab === 'worlds'} onclick={() => (app.instanceTab = 'worlds')}><Globe size={15} /> Worlds</button>
       <button class:active={app.instanceTab === 'servers'} onclick={() => (app.instanceTab = 'servers')}><ServerIcon size={15} /> Servers</button>
       <button class:active={app.instanceTab === 'settings'} onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> Settings</button>
       <button class:active={app.instanceTab === 'console'} onclick={() => (app.instanceTab = 'console')}>
@@ -186,6 +188,8 @@
       </div>
     {:else if app.instanceTab === 'content'}
       <InstanceContent {inst} />
+    {:else if app.instanceTab === 'worlds'}
+      {#key inst.id}<InstanceWorlds {inst} />{/key}
     {:else if app.instanceTab === 'servers'}
       {#key inst.id}<InstanceServers {inst} />{/key}
     {:else if app.instanceTab === 'settings'}
