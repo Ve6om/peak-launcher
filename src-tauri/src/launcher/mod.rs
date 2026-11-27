@@ -36,6 +36,7 @@ pub mod shared;
 pub mod shortcut;
 pub mod storage;
 pub mod perfmods;
+pub mod releases;
 pub mod bisect;
 pub mod crash;
 pub mod undo;

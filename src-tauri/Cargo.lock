@@ -3349,7 +3349,7 @@ dependencies = [
 
 [[package]]
 name = "peak-launcher"
-version = "0.1.29"
+version = "0.1.30"
 dependencies = [
  "arboard",
  "base64 0.22.1",
