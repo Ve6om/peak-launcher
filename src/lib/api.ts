@@ -83,6 +83,9 @@ export const api = {
   createInstance: (name: string, gameVersion: string, loader: LoaderId, loaderVersion: string | null) =>
     call<Instance>('create_instance', { name, gameVersion, loader, loaderVersion }),
   worlds: (id: string) => call<string[]>('list_worlds', { id }),
+  /** Put a shortcut that starts this instance on the desktop. */
+  instanceSetGroup: (id: string, group: string | null) => call<Instance>('instance_set_group', { id, group }),
+  createShortcut: (instanceId: string) => call<string>('create_shortcut', { instanceId }),
   worldsList: (instanceId: string) => call<WorldInfo[]>('worlds_list', { instanceId }),
   worldRename: (instanceId: string, folder: string, name: string) => call<void>('world_rename', { instanceId, folder, name }),
   worldCopy: (instanceId: string, folder: string) => call<string>('world_copy', { instanceId, folder }),
@@ -1267,6 +1270,12 @@ const mock = (() => {
       case 'update_instance':
         instances = instances.map((i) => (i.id === a.instance.id ? { ...a.instance } : i));
         return instances.find((i) => i.id === a.instance.id);
+      case 'instance_set_group': {
+        instances = instances.map((i) => (i.id === a.id ? { ...i, group: a.group } : i));
+        return instances.find((i) => i.id === a.id);
+      }
+      case 'create_shortcut':
+        return 'C:/Users/you/Desktop/Survival Island.lnk';
       case 'duplicate_instance': {
         const src = instances.find((i) => i.id === a.id)!;
         const copy = { ...src, id: src.id + '-copy' + (Date.now() % 1000), name: `${src.name} (copy)`, lastPlayed: null, playtimeSecs: 0 };

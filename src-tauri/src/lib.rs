@@ -150,6 +150,11 @@ async fn instance_set_picture(state: State<'_, AppState>, id: String, kind: Stri
 }
 
 #[tauri::command]
+async fn instance_set_group(state: State<'_, AppState>, id: String, group: Option<String>) -> Result<Instance> {
+    instances::set_group(&state.paths, &id, group.as_deref()).await
+}
+
+#[tauri::command]
 async fn duplicate_instance(state: State<'_, AppState>, id: String) -> Result<Instance> {
     instances::duplicate(&state.paths, &id).await
 }
@@ -1403,6 +1408,31 @@ async fn worlds_list(state: State<'_, AppState>, instance_id: String) -> Result<
     Ok(tokio::task::spawn_blocking(move || launcher::worlds::list(&paths, &instance_id)).await.unwrap_or_default())
 }
 
+/// Put a shortcut on the desktop that starts this instance.
+#[tauri::command]
+async fn create_shortcut(app: AppHandle, state: State<'_, AppState>, instance_id: String) -> Result<String> {
+    let inst = instances::get(&state.paths, &instance_id).await?;
+    // The instance's own logo, else its modpack's.
+    let mut picture = match inst.custom_icon.as_deref().filter(|n| !n.contains(['/', '\\'])) {
+        Some(name) => tokio::fs::read(state.paths.instance(&inst.id).join(name)).await.ok(),
+        None => None,
+    };
+    if picture.is_none() {
+        if let Some(url) = inst.pack.as_ref().and_then(|p| p.icon_url.clone()).filter(|u| u.starts_with("https://")) {
+            if let Ok(res) = net::client().get(&url).send().await.and_then(|r| r.error_for_status()) {
+                picture = res.bytes().await.ok().map(|b| b.to_vec()).filter(|b| b.len() < 10 << 20);
+            }
+        }
+    }
+    let exe = std::env::current_exe()?;
+    let desktop = app.path().desktop_dir().map_err(|e| Error::msg(format!("Couldn't find the desktop: {e}")))?;
+    let paths = state.paths.clone();
+    let made = tokio::task::spawn_blocking(move || launcher::shortcut::create(&paths, &inst, picture.as_deref(), &exe, &desktop))
+        .await
+        .map_err(|e| Error::msg(e.to_string()))??;
+    Ok(made.display().to_string())
+}
+
 #[tauri::command]
 fn world_rename(state: State<'_, AppState>, instance_id: String, folder: String, name: String) -> Result<()> {
     world_unlocked(&state, &instance_id)?;
@@ -1885,7 +1915,7 @@ pub fn run() {
         // its link to this one and exits.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             window::show_main(app);
-            links::handle(app, argv);
+            links::handle_args(app, argv);
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
@@ -1912,6 +1942,10 @@ pub fn run() {
                 eprintln!("Tray icon unavailable: {e}");
             }
             app.manage(links::PendingLink::default());
+            // Started by a desktop shortcut: play that instance once the window is up.
+            if let Some(id) = launcher::shortcut::play_arg(&std::env::args().collect::<Vec<_>>()) {
+                *app.state::<links::PendingLink>().0.lock().unwrap() = Some(links::Link::Play { id });
+            }
             app.manage(presence::Presence::default());
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
@@ -2030,6 +2064,8 @@ pub fn run() {
             game_defaults_lines,
             game_defaults_set,
             instance_reset_keybinds,
+            create_shortcut,
+            instance_set_group,
             worlds_list,
             world_rename,
             world_copy,

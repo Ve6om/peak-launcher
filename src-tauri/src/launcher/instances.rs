@@ -78,6 +78,9 @@ pub struct Instance {
     /// The player's own banner picture: a file name in the instance folder.
     #[serde(default)]
     pub custom_banner: Option<String>,
+    /// The group it's filed under in the Library ("Modded", "Servers"...).
+    #[serde(default)]
+    pub group: Option<String>,
     /// What this instance shares with others (keybinds, settings, packs).
     #[serde(default)]
     pub shared: super::shared::Shared,
@@ -210,6 +213,18 @@ pub async fn get(paths: &Paths, id: &str) -> Result<Instance> {
         .ok_or_else(|| Error::msg(format!("Instance '{id}' not found")))
 }
 
+/// File an instance under a group, or (None / blank) take it out of one.
+pub async fn set_group(paths: &Paths, id: &str, group: Option<&str>) -> Result<Instance> {
+    let mut inst = get(paths, id).await?;
+    let group = group.map(|g| g.split_whitespace().collect::<Vec<_>>().join(" ")).filter(|g| !g.is_empty());
+    if group.as_ref().is_some_and(|g| g.chars().count() > 40) {
+        return Err(Error::msg("Keep group names to 40 characters."));
+    }
+    inst.group = group;
+    save(paths, &inst).await?;
+    Ok(inst)
+}
+
 pub async fn save(paths: &Paths, inst: &Instance) -> Result<()> {
     paths::write_json(&paths.instance(&inst.id).join(FILE), inst).await
 }
@@ -259,6 +274,7 @@ pub async fn create(paths: &Paths, name: &str, game_version: &str, loader: &str,
         imported_from: None,
         custom_icon: None,
         custom_banner: None,
+        group: None,
         shared: super::settings::load(paths).await.map(|s| s.shared_default).unwrap_or_default(),
     };
     tokio::fs::create_dir_all(game_dir(paths, &id)).await?;

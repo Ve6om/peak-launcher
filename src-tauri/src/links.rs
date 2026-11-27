@@ -31,6 +31,9 @@ pub enum Link {
         version: Option<String>,
         version_name: Option<String>,
     },
+    /// Start an instance: only ever from a desktop shortcut's arguments
+    /// (see launcher::shortcut), never from a peak:// link.
+    Play { id: String },
 }
 
 /// The listing id in a peak:// link, if it's one Peak understands.
@@ -89,6 +92,19 @@ pub fn parse(url: &str) -> Option<Link> {
 /// Bring Peak forward and tell the window what to open.
 pub fn handle(app: &AppHandle, urls: impl IntoIterator<Item = String>) {
     let Some(link) = urls.into_iter().find_map(|u| parse(&u)) else { return };
+    send(app, link);
+}
+
+/// A copy of Peak started with these arguments: a desktop shortcut's
+/// `--play <id>`, or a peak:// link.
+pub fn handle_args(app: &AppHandle, args: Vec<String>) {
+    match crate::launcher::shortcut::play_arg(&args) {
+        Some(id) => send(app, Link::Play { id }),
+        None => handle(app, args),
+    }
+}
+
+fn send(app: &AppHandle, link: Link) {
     crate::window::show_main(app);
     if let Some(pending) = app.try_state::<PendingLink>() {
         *pending.0.lock().unwrap() = Some(link.clone());

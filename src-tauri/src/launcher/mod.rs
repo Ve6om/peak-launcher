@@ -31,6 +31,7 @@ pub mod screenshots;
 pub mod serverpack;
 pub mod settings;
 pub mod shared;
+pub mod shortcut;
 pub mod storage;
 pub mod perfmods;
 pub mod bisect;

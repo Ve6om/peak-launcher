@@ -2,11 +2,11 @@
   // Right-click menu for an instance (cards, sidebar, hero).
   import { tick } from 'svelte';
   import { scale } from 'svelte/transition';
-  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server, Sparkles, ArrowDownUp } from '@lucide/svelte';
+  import { Play, Square, ExternalLink, SlidersHorizontal, FolderOpen, Copy, Wrench, Trash2, PackageOpen, Server, Sparkles, ArrowDownUp, MonitorPlay, FolderTree } from '@lucide/svelte';
   import { api } from '$lib/api';
   import type { Instance } from '$lib/types';
   import { packUpdates } from '$lib/packUpdates.svelte';
-  import { app, go, play, stop, isRunning, isBusy, duplicateInstance, repairInstance } from '$lib/state.svelte';
+  import { app, go, play, stop, isRunning, isBusy, duplicateInstance, repairInstance, createShortcut } from '$lib/state.svelte';
 
   const inst = $derived(app.instances.find((i) => i.id === app.menu?.id) ?? null);
   let el = $state<HTMLDivElement>();
@@ -83,6 +83,8 @@
     <button role="menuitem" onclick={run((i) => api.openFolder(i.id))}><FolderOpen size={15} /> Open folder</button>
     <div class="sep"></div>
     <button role="menuitem" onclick={run((i) => duplicateInstance(i))}><Copy size={15} /> Duplicate</button>
+    <button role="menuitem" onclick={run((i) => createShortcut(i))}><MonitorPlay size={15} /> Desktop shortcut</button>
+    <button role="menuitem" onclick={run((i) => (app.grouping = i))}><FolderTree size={15} /> {inst.group ? 'Change group…' : 'Add to group…'}</button>
     <button role="menuitem" onclick={run((i) => (app.exporting = i))}><PackageOpen size={15} /> Export as modpack…</button>
     <button role="menuitem" onclick={run((i) => (app.serverPack = i))}><Server size={15} /> Export as server pack…</button>
     <button role="menuitem" disabled={busy || running} onclick={run((i) => repairInstance(i))}><Wrench size={15} /> Verify & repair</button>

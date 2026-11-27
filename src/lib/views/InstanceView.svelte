@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus, Bug, Globe } from '@lucide/svelte';
+  import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus, Bug, Globe, MonitorPlay } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
   import InstanceServers from '$lib/components/InstanceServers.svelte';
@@ -15,7 +15,7 @@
   import { playingAt, inviteUrl } from '$lib/invite.svelte';
   import type { Instance } from '$lib/types';
   import { api } from '$lib/api';
-  import { app, go, selected, playtime, ago, isBusy, isRunning, toast, repairInstance, openInstanceMenu } from '$lib/state.svelte';
+  import { app, go, selected, playtime, ago, isBusy, isRunning, toast, repairInstance, openInstanceMenu, createShortcut } from '$lib/state.svelte';
 
   const inst = $derived(selected());
 
@@ -180,6 +180,7 @@
                 <Bug size={16} /> Find a broken mod
               </button>
             {/if}
+            <button class="btn" onclick={() => createShortcut(inst)}><MonitorPlay size={16} /> Desktop shortcut</button>
             <button class="btn" onclick={() => (app.exporting = inst)}><PackageOpen size={16} /> Export as modpack</button>
             <button class="btn" onclick={() => (app.serverPack = inst)}><Server size={16} /> Export as server pack</button>
             <button class="btn danger" disabled={isRunning(inst.id)} onclick={() => (app.deleting = inst)}><Trash2 size={16} /> Delete instance</button>

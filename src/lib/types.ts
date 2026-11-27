@@ -42,6 +42,8 @@ export interface Instance {
   importedFrom: string | null;
   /** The player's own logo picture (a file in the instance folder). */
   customIcon?: string | null;
+  /** The Library group it's filed under. */
+  group?: string | null;
   /** The player's own banner picture (a file in the instance folder). */
   customBanner?: string | null;
   /** What this instance shares with the others. */

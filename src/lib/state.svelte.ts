@@ -72,6 +72,8 @@ export const app = $state({
   javaPrompt: null as null | ((go: boolean) => void),
   /** Instance whose Optimize dialog is open (from its overview or right-click menu). */
   optimizing: null as Instance | null,
+  /** Instance being moved to a Library group. */
+  grouping: null as Instance | null,
   /** A game that just crashed, with what the crash helper found. */
   crash: null as { instanceId: string; diagnosis: CrashDiagnosis } | null,
   /** Broken-mod searches going on, by instance id. */
@@ -256,6 +258,15 @@ export async function duplicateInstance(inst: Instance) {
     const copy = await api.duplicateInstance(inst.id);
     await refreshInstances();
     toast(`Created ${copy.name}`, 'success');
+  } catch (e) {
+    toast(errorText(e), 'error');
+  }
+}
+
+export async function createShortcut(inst: Instance) {
+  try {
+    await api.createShortcut(inst.id);
+    toast(`Added a shortcut to ${inst.name} on your desktop`, 'success');
   } catch (e) {
     toast(errorText(e), 'error');
   }
