@@ -1,7 +1,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { Copy, Check, Eraser, FolderOpen, Search, SquareArrowOutUpRight, Pin, PinOff, Play, OctagonX, WrapText, ArrowDownToLine } from '@lucide/svelte';
+  import { Copy, Check, Eraser, FolderOpen, Search, SquareArrowOutUpRight, Pin, PinOff, Play, OctagonX, WrapText, ArrowDownToLine, Share2, LoaderCircle, X } from '@lucide/svelte';
   import { api } from '$lib/api';
+  import { shareLog } from '$lib/state.svelte';
   import type { LogLine } from '$lib/types';
   import { parseColors, type Segment } from '$lib/ansi';
 
@@ -34,6 +35,47 @@
   let level = $state<'all' | 'warn' | 'error'>('all');
   let copied = $state(false);
   let confirmKill = $state(false);
+  let searchEl = $state<HTMLInputElement>();
+  /** Share asks once more first: the link is public. */
+  let confirmShare = $state(false);
+  let sharing = $state(false);
+  let shareTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function share() {
+    if (!confirmShare) {
+      confirmShare = true;
+      clearTimeout(shareTimer);
+      shareTimer = setTimeout(() => (confirmShare = false), 4000);
+      return;
+    }
+    confirmShare = false;
+    sharing = true;
+    await shareLog(instanceId);
+    sharing = false;
+  }
+
+  /** A line split around what the filter matched, for highlighting. */
+  function pieces(text: string, q: string) {
+    const out: { t: string; hit: boolean }[] = [];
+    const low = text.toLowerCase();
+    let at = 0;
+    for (let i = low.indexOf(q); i >= 0 && q; i = low.indexOf(q, i + q.length)) {
+      if (i > at) out.push({ t: text.slice(at, i), hit: false });
+      out.push({ t: text.slice(i, i + q.length), hit: true });
+      at = i + q.length;
+    }
+    if (at < text.length) out.push({ t: text.slice(at), hit: false });
+    return out;
+  }
+  const needle = $derived(query.trim().toLowerCase());
+
+  function onkey(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      searchEl?.focus();
+      searchEl?.select();
+    }
+  }
   let killTimer: ReturnType<typeof setTimeout> | undefined;
 
   interface Row {
@@ -108,13 +150,19 @@
   }
 </script>
 
+<svelte:window onkeydown={onkey} />
+
 <div class="console" class:windowed>
   <div class="bar">
     <span class="status" class:on={running}><i></i>{running ? 'Running' : 'Stopped'}</span>
 
     <label class="search">
       <Search size={14} />
-      <input placeholder="Filter output" bind:value={query} spellcheck="false" />
+      <input placeholder="Filter output (Ctrl+F)" bind:value={query} bind:this={searchEl} spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (query = '')} />
+      {#if needle}
+        <span class="hits">{shown.length}</span>
+        <button class="clear" aria-label="Clear filter" onclick={() => (query = '')}><X size={12} /></button>
+      {/if}
     </label>
 
     <div class="seg" role="group" aria-label="Show">
@@ -128,6 +176,16 @@
     <button class="btn ghost icon" class:on={wrap} title="Wrap long lines" aria-label="Wrap long lines" onclick={() => (wrap = !wrap)}><WrapText size={15} /></button>
     <button class="btn ghost icon" title={copied ? 'Copied' : 'Copy log'} aria-label="Copy log" disabled={!shown.length} onclick={copy}>
       {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
+    </button>
+    <button
+      class="btn ghost icon share"
+      class:armed={confirmShare}
+      title={confirmShare ? 'Click again to upload. The link is public; Peak hides your user name, Minecraft name and sign-in token first.' : 'Share log as a link (mclo.gs)'}
+      aria-label="Share log"
+      disabled={sharing}
+      onclick={share}
+    >
+      {#if sharing}<LoaderCircle size={15} class="spin" />{:else if confirmShare}<Check size={15} />{:else}<Share2 size={15} />{/if}
     </button>
     <button class="btn ghost icon" title="Clear" aria-label="Clear" disabled={!logs.length} onclick={onclear}><Eraser size={15} /></button>
     <button class="btn ghost icon" title="Open instance folder" aria-label="Open instance folder" onclick={() => api.openFolder(instanceId)}><FolderOpen size={15} /></button>
@@ -149,7 +207,7 @@
   <div class="log" class:nowrap={!wrap} bind:this={el} {onscroll}>
     {#each shown as l, i (i)}
       <!-- One line on purpose: lines keep their whitespace. -->
-      <div class="line {l.stream}" class:warn={l.warn} class:err={l.err}>{#if l.segs}{#each l.segs as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}{:else}{l.text}{/if}</div>
+      <div class="line {l.stream}" class:warn={l.warn} class:err={l.err}>{#if needle}{#each pieces(l.text, needle) as p, j (j)}{#if p.hit}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}{:else if l.segs}{#each l.segs as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}{:else}{l.text}{/if}</div>
     {:else}
       <div class="empty">
         {#if logs.length}No lines match.{:else if running}Waiting for output…{:else}Game output will appear here when you press Play.{/if}
@@ -224,6 +282,31 @@
     border: 1px solid var(--stroke);
     color: var(--faint);
     width: 190px;
+  }
+  .hits {
+    font-size: 11px;
+    color: var(--faint);
+  }
+  .clear {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    color: var(--faint);
+  }
+  .clear:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .line :global(mark) {
+    border-radius: 2px;
+    color: inherit;
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .share.armed {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
   }
   .search input {
     flex: 1;

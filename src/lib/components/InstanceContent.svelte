@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List, ArrowDownUp, Undo2 } from '@lucide/svelte';
+  import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List, ArrowDownUp, Undo2, ScrollText, ExternalLink } from '@lucide/svelte';
   import ContentBrowser from './ContentBrowser.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
   import Switch from './Switch.svelte';
@@ -16,6 +16,40 @@
   let mode = $state<'installed' | 'browse'>('installed');
   let items = $state<InstalledItem[]>([]);
   let updates = $state<Record<string, UpdateInfo>>({});
+  /** Changelogs shown in the update list, by file name ('loading' while fetched). */
+  let notes = $state<Record<string, { text: string; url: string } | 'loading'>>({});
+
+  /** Plain text from a changelog: CurseForge sends HTML, Modrinth Markdown. */
+  function readable(text: string, html: boolean) {
+    if (html) {
+      const doc = new DOMParser().parseFromString(text.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|li|h\d|div)>/gi, '\n'), 'text/html');
+      return (doc.body.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+    return text
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/(\*\*|__)(.*?)\1/g, '$2')
+      .replace(/^\s*[-*]\s+/gm, '• ')
+      .trim();
+  }
+
+  async function toggleNotes(item: InstalledItem) {
+    if (notes[item.fileName]) {
+      delete notes[item.fileName];
+      return;
+    }
+    const u = updates[item.fileName];
+    if (!u) return;
+    notes[item.fileName] = 'loading';
+    try {
+      const c = await api.contentChangelog(u.projectId, u.versionId);
+      notes[item.fileName] = { text: c.text ? readable(c.text, c.html) : '', url: c.url };
+    } catch (e) {
+      delete notes[item.fileName];
+      toast(errorText(e), 'error');
+    }
+  }
   let loading = $state(true);
   let checking = $state(false);
   let busy = $state(new Set<string>());
@@ -269,10 +303,20 @@
           <ProjectIcon url={item.iconUrl} title={item.title} size={28} />
           <span class="uname">{item.title}</span>
           <span class="uver">{item.versionNumber ?? 'Unknown'} <span class="arrow">→</span> <b>{updates[item.fileName].versionNumber}</b></span>
+          <button class="btn ghost icon" class:on={!!notes[item.fileName]} title="What's new" aria-label="What's new in {item.title}" onclick={() => toggleNotes(item)}>
+            {#if notes[item.fileName] === 'loading'}<LoaderCircle size={14} class="spin" />{:else}<ScrollText size={14} />{/if}
+          </button>
           <button class="btn upd" disabled={busy.has(item.fileName)} onclick={() => update(item)}>
             {#if busy.has(item.fileName)}<LoaderCircle size={14} class="spin" />{:else}<CircleArrowUp size={14} />{/if} Update
           </button>
         </div>
+        {@const n = notes[item.fileName]}
+        {#if n && n !== 'loading'}
+          <div class="notes">
+            {#if n.text}<p>{n.text.length > 4000 ? `${n.text.slice(0, 4000)}…` : n.text}</p>{:else}<p class="none">No changelog was given for this version.</p>{/if}
+            <button class="link" onclick={() => api.openUrl(n.url)}><ExternalLink size={12} /> Open its page</button>
+          </div>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -485,7 +529,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 300px;
+    max-height: 420px;
     overflow-y: auto;
   }
   .updates-head {
@@ -517,6 +561,34 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .notes {
+    margin: 0 8px 6px 46px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--stroke);
+  }
+  .notes p {
+    margin: 0;
+    max-height: 160px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--muted);
+  }
+  .notes .none {
+    color: var(--faint);
+  }
+  .notes .link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--accent);
   }
   .uver {
     max-width: 45%;
