@@ -1445,6 +1445,12 @@ async fn log_share(app: AppHandle, state: State<'_, AppState>, instance_id: Stri
     launcher::logshare::upload(&clean).await
 }
 
+/// Peak's release notes for every version after `from`, up to `to`.
+#[tauri::command]
+async fn release_notes(from: String, to: String) -> Result<Vec<launcher::releases::ReleaseNote>> {
+    launcher::releases::notes_between(&from, &to).await
+}
+
 #[tauri::command]
 async fn network_check() -> Vec<launcher::netcheck::Check> {
     launcher::netcheck::run().await
@@ -2108,6 +2114,7 @@ pub fn run() {
             instance_reset_keybinds,
             create_shortcut,
             network_check,
+            release_notes,
             content_changelog,
             log_share,
             instance_set_group,

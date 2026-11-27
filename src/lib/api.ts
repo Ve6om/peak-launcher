@@ -87,6 +87,7 @@ export const api = {
   /** Put a shortcut that starts this instance on the desktop. */
   instanceSetGroup: (id: string, group: string | null) => call<Instance>('instance_set_group', { id, group }),
   networkCheck: () => call<NetCheck[]>('network_check'),
+  releaseNotes: (from: string, to: string) => call<{ version: string; date: string | null; notes: string }[]>('release_notes', { from, to }),
   contentChangelog: (projectId: string, versionId: string) => call<{ text: string | null; html: boolean; url: string }>('content_changelog', { projectId, versionId }),
   /** Upload an instance's log to mclo.gs (cleaned first); returns the link. */
   logShare: (instanceId: string) => call<string>('log_share', { instanceId }),

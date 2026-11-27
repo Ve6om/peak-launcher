@@ -1,7 +1,7 @@
 // In-app updates. Releases are published on GitHub with a short description;
 // Peak checks for them, shows the version and patch notes, and installs the
 // update when the user agrees.
-import { isTauri } from './api';
+import { isTauri, api } from './api';
 import { app } from './state.svelte';
 
 export interface AvailableUpdate {
@@ -9,6 +9,17 @@ export interface AvailableUpdate {
   currentVersion: string;
   date: string | null;
   notes: string;
+  /** Every release since the installed one, newest first (when GitHub answered). */
+  releases: { version: string; date: string | null; notes: string }[];
+}
+
+/** Notes for each version in between, so skipped releases aren't missed. */
+async function notesBetween(from: string, to: string) {
+  try {
+    return await api.releaseNotes(from, to);
+  } catch {
+    return [];
+  }
 }
 
 export const updates = $state({
@@ -69,7 +80,11 @@ async function findUpdate(): Promise<AvailableUpdate | null> {
         currentVersion: '0.1.0',
         date: new Date().toISOString(),
         notes:
-          '### New\n- Technic modpacks on the Modpacks page\n- Pack artwork on cards and banners\n\n### Fixed\n- Manual downloads now move files out of Downloads automatically'
+          '### New\n- Technic modpacks on the Modpacks page\n- Pack artwork on cards and banners\n\n### Fixed\n- Manual downloads now move files out of Downloads automatically',
+        releases: [
+          { version: '0.2.0', date: new Date().toISOString(), notes: '### New\n- Technic modpacks on the Modpacks page\n- Pack artwork on cards and banners' },
+          { version: '0.1.9', date: new Date(Date.now() - 4 * 86400_000).toISOString(), notes: '### Fixed\n- Manual downloads now move files out of Downloads automatically' }
+        ]
       };
     }
     return null;
@@ -82,7 +97,8 @@ async function findUpdate(): Promise<AvailableUpdate | null> {
     version: update.version,
     currentVersion: update.currentVersion,
     date: update.date ?? null,
-    notes: update.body?.trim() || 'Bug fixes and improvements.'
+    notes: update.body?.trim() || 'Bug fixes and improvements.',
+    releases: await notesBetween(update.currentVersion, update.version)
   };
 }
 

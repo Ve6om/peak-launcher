@@ -17,8 +17,19 @@
   onclose={() => !updates.installing && snooze()}
 >
   <div class="notes">
-    <span class="label">What's new</span>
-    <div class="body"><Markdown source={u.notes} /></div>
+    <span class="label">What's new{u.releases.length > 1 ? ` in ${u.releases.length} updates` : ''}</span>
+    <div class="body">
+      {#if u.releases.length > 1}
+        {#each u.releases as r (r.version)}
+          <section class="release">
+            <h4>{r.version}{#if r.date}<span>{new Date(r.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>{/if}</h4>
+            <Markdown source={r.notes} />
+          </section>
+        {/each}
+      {:else}
+        <Markdown source={u.notes} />
+      {/if}
+    </div>
   </div>
 
   {#if app.running.length}
@@ -48,6 +59,24 @@
 </Modal>
 
 <style>
+  .release + .release {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--stroke);
+  }
+  .release h4 {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .release h4 span {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--faint);
+  }
   .notes {
     display: flex;
     flex-direction: column;
