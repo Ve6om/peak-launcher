@@ -61,6 +61,12 @@ pub struct Settings {
     /// redraws the glow and every frosted panel over it on each frame.
     pub moving_glow: bool,
 
+    // World backups
+    /// Back up the worlds played in a session when the game closes.
+    pub world_backups_auto: bool,
+    /// How many automatic backups to keep per world.
+    pub world_backups_keep: u32,
+
     // Commands
     pub enable_commands: bool,
     pub pre_launch_command: String,
@@ -112,6 +118,8 @@ impl Default for Settings {
             discord_join_any_server: false,
             light_effects: false,
             moving_glow: !cfg!(target_os = "linux"),
+            world_backups_auto: false,
+            world_backups_keep: 5,
             enable_commands: false,
             pre_launch_command: String::new(),
             post_exit_command: String::new(),

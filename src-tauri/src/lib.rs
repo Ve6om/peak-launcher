@@ -234,7 +234,7 @@ async fn install_instance(app: AppHandle, state: State<'_, AppState>, id: String
 // ---------------- launching ----------------
 
 #[tauri::command]
-async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String, server: Option<String>) -> Result<()> {
+async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String, server: Option<String>, world: Option<String>) -> Result<()> {
     if state.running.lock().unwrap().contains_key(&id) {
         return Err(Error::msg("This instance is already running."));
     }
@@ -267,6 +267,9 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
     if let Some(address) = server.as_deref().map(str::trim).filter(|a| !a.is_empty()) {
         servers::parse_address(address)?;
         launch_inst.quick_play = instances::QuickPlay { mode: "server".into(), value: address.to_string() };
+    } else if let Some(folder) = world.as_deref().filter(|w| !w.is_empty() && !w.contains(['/', '\\'])) {
+        // "Play" on a world in the Worlds tab: straight into it, this time only.
+        launch_inst.quick_play = instances::QuickPlay { mode: "world".into(), value: folder.to_string() };
     }
     // A Java build the player picked (Temurin / GraalVM) is downloaded here,
     // with progress showing, rather than quietly inside the launch.
@@ -356,6 +359,9 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
     window::after_launch(app.clone(), id.clone(), settings.after_launch.clone(), pid, window_seen);
 
     let started = std::time::Instant::now();
+    // Worlds saved after this were played this session (for automatic backups).
+    let launched_at = std::time::SystemTime::now() - std::time::Duration::from_secs(2);
+    let (backup_worlds, backups_keep) = (settings.world_backups_auto, settings.world_backups_keep as usize);
     inst.last_played = Some(chrono::Utc::now());
     if let Err(e) = instances::save(&paths, &inst).await {
         // Only the "last played" time is lost; the game itself is fine.
@@ -383,6 +389,16 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
         }
         if let Some(post) = &plan.post_exit {
             let _ = launch::shell_command(post, &inst, &plan, &paths).spawn();
+        }
+        if backup_worlds {
+            let (paths, iid, app3) = (paths.clone(), id.clone(), app2.clone());
+            tokio::task::spawn_blocking(move || {
+                let played = launcher::worlds::changed_since(&paths, &iid, launched_at);
+                let done = played.iter().filter(|w| launcher::worlds::backup(&paths, &iid, w, true, backups_keep).is_ok()).count();
+                if done > 0 {
+                    let _ = app3.emit("worlds-backed-up", serde_json::json!({ "instanceId": iid, "count": done }));
+                }
+            });
         }
         window::after_exit(&app2, &after_launch);
         let _ = app2.emit("game-state", StateEvent { instance_id: id, state: "stopped", exit_code: code });
@@ -1149,7 +1165,7 @@ async fn discover_list() -> Result<Vec<launcher::discover::Listing>> {
 async fn discover_join(app: AppHandle, state: State<'_, AppState>, instance_id: String, address: String, name: Option<String>) -> Result<()> {
     servers::parse_address(&address)?;
     remember_in_game(&state.paths, &instance_id, name.as_deref().unwrap_or(&address), &address).await;
-    launch_instance(app, state, instance_id, Some(address)).await
+    launch_instance(app, state, instance_id, Some(address), None).await
 }
 
 /// Add a server to the instance's in-game list (servers.dat). Failing to do
@@ -1200,7 +1216,7 @@ async fn instance_servers_reorder(state: State<'_, AppState>, id: String, addres
 #[tauri::command]
 async fn instance_server_join(app: AppHandle, state: State<'_, AppState>, id: String, address: String) -> Result<()> {
     servers::parse_address(&address)?;
-    launch_instance(app, state, id, Some(address)).await
+    launch_instance(app, state, id, Some(address), None).await
 }
 
 /// Launch an instance straight into a server, and remember it for next time.
@@ -1213,7 +1229,7 @@ async fn server_join(app: AppHandle, state: State<'_, AppState>, server_id: Stri
         .ok_or_else(|| Error::msg("That server isn't in the list any more."))?;
     servers::remember_instance(&state.paths, &server_id, &instance_id).await?;
     remember_in_game(&state.paths, &instance_id, &server.name, &server.address).await;
-    launch_instance(app, state, instance_id, Some(server.address)).await
+    launch_instance(app, state, instance_id, Some(server.address), None).await
 }
 
 // ---------------- modpack artwork ----------------
@@ -1372,6 +1388,83 @@ fn game_defaults_set(state: State<'_, AppState>, lines: Vec<(String, String)>) -
 #[tauri::command]
 fn game_defaults_clear(state: State<'_, AppState>) -> Result<()> {
     launcher::shared::clear_defaults(&state.paths)
+}
+
+fn world_unlocked(state: &AppState, instance_id: &str) -> Result<()> {
+    if state.running.lock().unwrap().contains_key(instance_id) {
+        return Err(Error::msg("Close the game first: it has its worlds open."));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn worlds_list(state: State<'_, AppState>, instance_id: String) -> Result<Vec<launcher::worlds::World>> {
+    let paths = state.paths.clone();
+    Ok(tokio::task::spawn_blocking(move || launcher::worlds::list(&paths, &instance_id)).await.unwrap_or_default())
+}
+
+#[tauri::command]
+fn world_rename(state: State<'_, AppState>, instance_id: String, folder: String, name: String) -> Result<()> {
+    world_unlocked(&state, &instance_id)?;
+    launcher::worlds::rename(&state.paths, &instance_id, &folder, &name)
+}
+
+#[tauri::command]
+async fn world_copy(state: State<'_, AppState>, instance_id: String, folder: String) -> Result<String> {
+    world_unlocked(&state, &instance_id)?;
+    let paths = state.paths.clone();
+    tokio::task::spawn_blocking(move || launcher::worlds::duplicate(&paths, &instance_id, &folder)).await.map_err(|e| Error::msg(e.to_string()))?
+}
+
+#[tauri::command]
+fn world_delete(state: State<'_, AppState>, instance_id: String, folder: String) -> Result<()> {
+    world_unlocked(&state, &instance_id)?;
+    launcher::worlds::delete(&state.paths, &instance_id, &folder)
+}
+
+#[tauri::command]
+fn world_open_folder(app: AppHandle, state: State<'_, AppState>, instance_id: String, folder: String) -> Result<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = launcher::worlds::folder_path(&state.paths, &instance_id, &folder)?;
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| Error::msg(e.to_string()))
+}
+
+#[tauri::command]
+fn world_datapacks(state: State<'_, AppState>, instance_id: String, folder: String) -> Result<Vec<launcher::worlds::Datapack>> {
+    launcher::worlds::datapacks(&state.paths, &instance_id, &folder)
+}
+
+#[tauri::command]
+fn world_add_datapack(state: State<'_, AppState>, instance_id: String, folder: String, path: String) -> Result<String> {
+    launcher::worlds::add_datapack(&state.paths, &instance_id, &folder, std::path::Path::new(&path))
+}
+
+#[tauri::command]
+fn world_remove_datapack(state: State<'_, AppState>, instance_id: String, folder: String, file_name: String) -> Result<()> {
+    launcher::worlds::remove_datapack(&state.paths, &instance_id, &folder, &file_name)
+}
+
+#[tauri::command]
+fn world_backups(state: State<'_, AppState>, instance_id: String, folder: String) -> Vec<launcher::worlds::Backup> {
+    launcher::worlds::list_backups(&state.paths, &instance_id, &folder)
+}
+
+#[tauri::command]
+async fn world_backup(state: State<'_, AppState>, instance_id: String, folder: String) -> Result<launcher::worlds::Backup> {
+    let paths = state.paths.clone();
+    tokio::task::spawn_blocking(move || launcher::worlds::backup(&paths, &instance_id, &folder, false, 0)).await.map_err(|e| Error::msg(e.to_string()))?
+}
+
+#[tauri::command]
+async fn world_restore(state: State<'_, AppState>, instance_id: String, folder: String, file_name: String) -> Result<()> {
+    world_unlocked(&state, &instance_id)?;
+    let paths = state.paths.clone();
+    tokio::task::spawn_blocking(move || launcher::worlds::restore(&paths, &instance_id, &folder, &file_name)).await.map_err(|e| Error::msg(e.to_string()))?
+}
+
+#[tauri::command]
+fn world_delete_backup(state: State<'_, AppState>, instance_id: String, folder: String, file_name: String) -> Result<()> {
+    launcher::worlds::delete_backup(&state.paths, &instance_id, &folder, &file_name)
 }
 
 /// Mod searches going on, by instance id.
@@ -1937,6 +2030,18 @@ pub fn run() {
             game_defaults_lines,
             game_defaults_set,
             instance_reset_keybinds,
+            worlds_list,
+            world_rename,
+            world_copy,
+            world_delete,
+            world_open_folder,
+            world_datapacks,
+            world_add_datapack,
+            world_remove_datapack,
+            world_backups,
+            world_backup,
+            world_restore,
+            world_delete_backup,
             mod_search_all,
             mod_search_start,
             mod_search_answer,

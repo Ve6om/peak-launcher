@@ -5,6 +5,9 @@ import type {
   SideFilter,
   CrashDiagnosis,
   ModSearch,
+  WorldInfo,
+  WorldBackup,
+  Datapack,
   GameDefaults,
   PerfMods,
   StorageUsage,
@@ -80,6 +83,27 @@ export const api = {
   createInstance: (name: string, gameVersion: string, loader: LoaderId, loaderVersion: string | null) =>
     call<Instance>('create_instance', { name, gameVersion, loader, loaderVersion }),
   worlds: (id: string) => call<string[]>('list_worlds', { id }),
+  worldsList: (instanceId: string) => call<WorldInfo[]>('worlds_list', { instanceId }),
+  worldRename: (instanceId: string, folder: string, name: string) => call<void>('world_rename', { instanceId, folder, name }),
+  worldCopy: (instanceId: string, folder: string) => call<string>('world_copy', { instanceId, folder }),
+  worldDelete: (instanceId: string, folder: string) => call<void>('world_delete', { instanceId, folder }),
+  worldOpenFolder: (instanceId: string, folder: string) => call<void>('world_open_folder', { instanceId, folder }),
+  worldDatapacks: (instanceId: string, folder: string) => call<Datapack[]>('world_datapacks', { instanceId, folder }),
+  worldAddDatapack: (instanceId: string, folder: string, path: string) => call<string>('world_add_datapack', { instanceId, folder, path }),
+  worldRemoveDatapack: (instanceId: string, folder: string, fileName: string) => call<void>('world_remove_datapack', { instanceId, folder, fileName }),
+  worldBackups: (instanceId: string, folder: string) => call<WorldBackup[]>('world_backups', { instanceId, folder }),
+  worldBackup: (instanceId: string, folder: string) => call<WorldBackup>('world_backup', { instanceId, folder }),
+  worldRestore: (instanceId: string, folder: string, fileName: string) => call<void>('world_restore', { instanceId, folder, fileName }),
+  worldDeleteBackup: (instanceId: string, folder: string, fileName: string) => call<void>('world_delete_backup', { instanceId, folder, fileName }),
+  /** Play straight into one world, this time only. */
+  launchWorld: (id: string, world: string) => call<void>('launch_instance', { id, world }),
+  /** Ask the user for data pack zips. */
+  pickDatapacks: async (): Promise<string[]> => {
+    if (!isTauri) return [];
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({ multiple: true, directory: false, title: 'Choose data packs', filters: [{ name: 'Data packs', extensions: ['zip'] }] });
+    return Array.isArray(picked) ? picked : typeof picked === 'string' ? [picked] : [];
+  },
   contentSearch: (source: Source, instanceId: string, kind: ContentKind, query: string, sort: string, offset: number, side: SideFilter = 'any') =>
     call<SearchResult>('content_search', { source, instanceId, kind, query, sort, offset, side }),
   contentProject: (id: string) => call<Project>('content_project', { id }),
@@ -363,6 +387,8 @@ const mock = (() => {
     discordJoinAnyServer: false,
     lightEffects: false,
     movingGlow: true,
+    worldBackupsAuto: false,
+    worldBackupsKeep: 5,
     enableCommands: false,
     preLaunchCommand: '',
     postExitCommand: '',
@@ -1171,6 +1197,16 @@ const mock = (() => {
         return;
       case 'list_worlds':
         return ['New World', 'Hardcore Run', 'Redstone Lab'];
+      case 'worlds_list':
+        return [
+          { folder: 'New World', name: 'Survival with friends', mode: 'survival', hardcore: false, cheats: false, lastPlayed: Date.now() - 3600_000, seed: '-4172144997902289642', version: '1.21.4', size: 184_000_000, icon: null, datapacks: 2, backups: 3 },
+          { folder: 'Hardcore Run', name: 'Hardcore Run', mode: 'survival', hardcore: true, cheats: false, lastPlayed: Date.now() - 5 * 86400_000, seed: '8675309', version: '1.21.4', size: 42_000_000, icon: null, datapacks: 0, backups: 0 },
+          { folder: 'Redstone Lab', name: 'Redstone Lab', mode: 'creative', hardcore: false, cheats: true, lastPlayed: Date.now() - 30 * 86400_000, seed: '12345', version: '1.21.1', size: 9_000_000, icon: null, datapacks: 0, backups: 1 }
+        ];
+      case 'world_backups':
+        return [{ fileName: '2026-11-27_18-02-11-auto.zip', created: Date.now() - 3600_000, size: 96_000_000, auto: true }];
+      case 'world_datapacks':
+        return [{ fileName: 'vanilla-tweaks.zip', size: 120_000, folder: false }];
       case 'java_runtimes':
         return [
           { component: 'jre-legacy', major: 8, installed: true },

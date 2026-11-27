@@ -375,6 +375,21 @@
 
       <section id="sec-Storage" class="panel glass" hidden={current !== 'Storage'}>
         <h3>Storage</h3>
+        <div class="rows">
+          <Row title="Back up worlds when the game closes" desc="Each world that was played gets a backup, in every instance. Find them in an instance's Worlds tab.">
+            <Switch bind:checked={s.worldBackupsAuto} label="Back up worlds when the game closes" />
+          </Row>
+          <Row title="Automatic backups to keep" desc="Per world; the oldest go first. Backups made by hand are always kept.">
+            <Select
+              small
+              disabled={!s.worldBackupsAuto}
+              bind:value={() => String(s.worldBackupsKeep), (v) => (s.worldBackupsKeep = +(v ?? 5))}
+              ariaLabel="Automatic backups to keep"
+              style="width: 90px;"
+              options={[1, 2, 3, 5, 10, 20].map((n) => ({ value: String(n), label: String(n) }))}
+            />
+          </Row>
+        </div>
         {#if current === 'Storage'}<StoragePanel />{/if}
       </section>
 

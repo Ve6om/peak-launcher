@@ -38,6 +38,7 @@ pub mod crash;
 pub mod undo;
 pub mod skins;
 pub mod versions;
+pub mod worlds;
 
 #[cfg(test)]
 mod tests {
