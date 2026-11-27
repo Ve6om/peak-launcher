@@ -320,6 +320,7 @@ async fn launch_instance(app: AppHandle, state: State<'_, AppState>, id: String,
     log(format!("[Peak] {}", launch::redacted(&plan, account.access_token.as_deref())), "launcher");
     let mut cmd = tokio::process::Command::new(&plan.program);
     cmd.args(&plan.args)
+        .envs(plan.env.iter().cloned())
         .current_dir(&plan.game_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -1408,6 +1409,11 @@ async fn worlds_list(state: State<'_, AppState>, instance_id: String) -> Result<
     Ok(tokio::task::spawn_blocking(move || launcher::worlds::list(&paths, &instance_id)).await.unwrap_or_default())
 }
 
+#[tauri::command]
+async fn network_check() -> Vec<launcher::netcheck::Check> {
+    launcher::netcheck::run().await
+}
+
 /// Put a shortcut on the desktop that starts this instance.
 #[tauri::command]
 async fn create_shortcut(app: AppHandle, state: State<'_, AppState>, instance_id: String) -> Result<String> {
@@ -2065,6 +2071,7 @@ pub fn run() {
             game_defaults_set,
             instance_reset_keybinds,
             create_shortcut,
+            network_check,
             instance_set_group,
             worlds_list,
             world_rename,

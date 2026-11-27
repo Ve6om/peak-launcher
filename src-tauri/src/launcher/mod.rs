@@ -19,6 +19,7 @@ pub mod msbrowser;
 pub mod modpacks;
 pub mod modrinth;
 pub mod net;
+pub mod netcheck;
 pub mod packupdate;
 pub mod paths;
 pub mod technic;
