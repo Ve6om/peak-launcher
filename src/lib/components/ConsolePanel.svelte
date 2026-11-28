@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { tick } from 'svelte';
   import { Copy, Check, Eraser, FolderOpen, Search, SquareArrowOutUpRight, Pin, PinOff, Play, OctagonX, WrapText, ArrowDownToLine, Share2, LoaderCircle, X } from '@lucide/svelte';
   import { api } from '$lib/api';
@@ -160,53 +161,53 @@
 
 <div class="console" class:windowed>
   <div class="bar">
-    <span class="status" class:on={running}><i></i>{running ? 'Running' : 'Stopped'}</span>
+    <span class="status" class:on={running}><i></i>{running ? t('Running') : t('Stopped')}</span>
 
     <label class="search">
       <Search size={14} />
-      <input placeholder="Filter output (Ctrl+F)" bind:value={query} bind:this={searchEl} spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (query = '')} />
+      <input placeholder={t('Filter output (Ctrl+F)')} bind:value={query} bind:this={searchEl} spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (query = '')} />
       {#if needle}
         <span class="hits">{shown.length}</span>
-        <button class="clear" aria-label="Clear filter" onclick={() => (query = '')}><X size={12} /></button>
+        <button class="clear" aria-label={t('Clear filter')} onclick={() => (query = '')}><X size={12} /></button>
       {/if}
     </label>
 
-    <div class="seg" role="group" aria-label="Show">
-      <button class:active={level === 'all'} onclick={() => (level = 'all')}>All</button>
-      <button class:active={level === 'warn'} onclick={() => (level = 'warn')}>Warnings{#if counts.warn}<span class="n warn">{counts.warn}</span>{/if}</button>
-      <button class:active={level === 'error'} onclick={() => (level = 'error')}>Errors{#if counts.error}<span class="n err">{counts.error}</span>{/if}</button>
+    <div class="seg" role="group" aria-label={t('Show')}>
+      <button class:active={level === 'all'} onclick={() => (level = 'all')}>{t('All')}</button>
+      <button class:active={level === 'warn'} onclick={() => (level = 'warn')}>{t('Warnings')}{#if counts.warn}<span class="n warn">{counts.warn}</span>{/if}</button>
+      <button class:active={level === 'error'} onclick={() => (level = 'error')}>{t('Errors')}{#if counts.error}<span class="n err">{counts.error}</span>{/if}</button>
     </div>
 
     <div class="spacer"></div>
 
-    <button class="btn ghost icon" class:on={wrap} title="Wrap long lines" aria-label="Wrap long lines" onclick={() => (wrap = !wrap)}><WrapText size={15} /></button>
-    <button class="btn ghost icon" title={copied ? 'Copied' : 'Copy log'} aria-label="Copy log" disabled={!shown.length} onclick={copy}>
+    <button class="btn ghost icon" class:on={wrap} title={t('Wrap long lines')} aria-label={t('Wrap long lines')} onclick={() => (wrap = !wrap)}><WrapText size={15} /></button>
+    <button class="btn ghost icon" title={copied ? t('Copied') : t('Copy log')} aria-label={t('Copy log')} disabled={!shown.length} onclick={copy}>
       {#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}
     </button>
     <button
       class="btn ghost icon share"
       class:armed={confirmShare}
-      title={confirmShare ? 'Click again to upload. The link is public; Peak hides your user name, Minecraft name and sign-in token first.' : 'Share log as a link (mclo.gs)'}
-      aria-label="Share log"
+      title={confirmShare ? t('Click again to upload. The link is public; Peak hides your user name, Minecraft name and sign-in token first.') : t('Share log as a link (mclo.gs)')}
+      aria-label={t('Share log')}
       disabled={sharing}
       onclick={share}
     >
       {#if sharing}<LoaderCircle size={15} class="spin" />{:else if confirmShare}<Check size={15} />{:else}<Share2 size={15} />{/if}
     </button>
-    <button class="btn ghost icon" title="Clear" aria-label="Clear" disabled={!logs.length} onclick={onclear}><Eraser size={15} /></button>
-    <button class="btn ghost icon" title="Open instance folder" aria-label="Open instance folder" onclick={() => api.openFolder(instanceId)}><FolderOpen size={15} /></button>
+    <button class="btn ghost icon" title={t('Clear')} aria-label={t('Clear')} disabled={!logs.length} onclick={onclear}><Eraser size={15} /></button>
+    <button class="btn ghost icon" title={t('Open instance folder')} aria-label={t('Open instance folder')} onclick={() => api.openFolder(instanceId)}><FolderOpen size={15} /></button>
     {#if windowed}
-      <button class="btn ghost icon" class:on={pinned} title={pinned ? 'Stop keeping on top' : 'Keep on top'} aria-label="Keep on top" onclick={onpin}>
+      <button class="btn ghost icon" class:on={pinned} title={pinned ? t('Stop keeping on top') : t('Keep on top')} aria-label={t('Keep on top')} onclick={onpin}>
         {#if pinned}<PinOff size={15} />{:else}<Pin size={15} />{/if}
       </button>
     {:else}
-      <button class="btn ghost icon" title="Open in its own window" aria-label="Pop out" onclick={() => api.openConsoleWindow(instanceId)}><SquareArrowOutUpRight size={15} /></button>
+      <button class="btn ghost icon" title={t('Open in its own window')} aria-label={t('Pop out')} onclick={() => api.openConsoleWindow(instanceId)}><SquareArrowOutUpRight size={15} /></button>
     {/if}
 
     {#if running}
-      <button class="btn kill" class:confirm={confirmKill} onclick={kill}><OctagonX size={15} /> {confirmKill ? 'Click to confirm' : 'Kill'}</button>
+      <button class="btn kill" class:confirm={confirmKill} onclick={kill}><OctagonX size={15} /> {confirmKill ? t('Click to confirm') : t('Kill')}</button>
     {:else if windowed && onplay}
-      <button class="btn primary" onclick={onplay}><Play size={15} /> Play</button>
+      <button class="btn primary" onclick={onplay}><Play size={15} /> {t('Play')}</button>
     {/if}
   </div>
 
@@ -216,13 +217,13 @@
       <div class="line {l.stream}" class:warn={l.warn} class:err={l.err}>{#if needle}{#each pieces(l.text, needle) as p, j (j)}{#if p.hit}<mark>{p.t}</mark>{:else}{p.t}{/if}{/each}{:else if l.segs}{#each l.segs as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}{:else}{l.text}{/if}</div>
     {:else}
       <div class="empty">
-        {#if logs.length}No lines match.{:else if running}Waiting for output…{:else}Game output will appear here when you press Play.{/if}
+        {#if logs.length}{t('No lines match.')}{:else if running}{t('Waiting for output…')}{:else}{t('Game output will appear here when you press Play.')}{/if}
       </div>
     {/each}
   </div>
 
   {#if !follow && shown.length}
-    <button class="btn end" onclick={jumpToEnd}><ArrowDownToLine size={14} /> Jump to latest</button>
+    <button class="btn end" onclick={jumpToEnd}><ArrowDownToLine size={14} /> {t('Jump to latest')}</button>
   {/if}
 </div>
 

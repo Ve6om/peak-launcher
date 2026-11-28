@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Which Java build automatic Java downloads: Mojang's (the default),
   // Temurin or GraalVM. Each says what it's good for.
   import { Check } from '@lucide/svelte';
@@ -10,17 +11,17 @@
   }: { value?: JavaVendor; disabled?: boolean } = $props();
 
   const vendors: { id: JavaVendor; name: string; desc: string }[] = [
-    { id: 'mojang', name: "Mojang's Java", desc: 'The Java Minecraft is tested with. The safest choice.' },
-    { id: 'temurin', name: 'Eclipse Temurin', desc: 'A popular standard build of Java. Runs much like Mojang’s.' },
+    { id: 'mojang', name: "Mojang's Java", desc: t('The Java Minecraft is tested with. The safest choice.') },
+    { id: 'temurin', name: 'Eclipse Temurin', desc: t('A popular standard build of Java. Runs much like Mojang’s.') },
     {
       id: 'graalvm',
       name: 'GraalVM',
-      desc: 'Often runs Minecraft a little faster, modded or not. Takes about 600 MB of space per Java version, and now and then a mod doesn’t like it. Not for Minecraft before 1.17.'
+      desc: t('Often runs Minecraft a little faster, modded or not. Takes about 600 MB of space per Java version, and now and then a mod doesn’t like it. Not for Minecraft before 1.17.')
     }
   ];
 </script>
 
-<div class="grid" class:disabled role="radiogroup" aria-label="Java build">
+<div class="grid" class:disabled role="radiogroup" aria-label={t('Java build')}>
   {#each vendors as v (v.id)}
     <button class="opt" class:active={v.id === value} role="radio" aria-checked={v.id === value} {disabled} onclick={() => (value = v.id)}>
       <span class="name">{#if v.id === value}<Check size={14} />{/if}{v.name}</span>

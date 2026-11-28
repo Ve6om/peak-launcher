@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // File an instance under a Library group: an existing one, a new one, or none.
   import { FolderTree, Check, X } from '@lucide/svelte';
   import Modal from './Modal.svelte';
@@ -17,7 +18,7 @@
     try {
       await api.instanceSetGroup(inst.id, group);
       await refreshInstances();
-      toast(group ? `${inst.name} is in ${group}` : `${inst.name} is no longer in a group`, 'success');
+      toast(group ? t('{name} is in {group}', { name: inst.name, group }) : t('{name} is no longer in a group', { name: inst.name }), 'success');
       onclose();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -27,7 +28,7 @@
   }
 </script>
 
-<Modal title={inst.group ? 'Change group' : 'Add to group'} subtitle={inst.name} width={420} {onclose}>
+<Modal title={inst.group ? t('Change group') : t('Add to group')} subtitle={inst.name} width={420} {onclose}>
   {#if groups.length}
     <div class="groups">
       {#each groups as g (g)}
@@ -40,7 +41,7 @@
       {/each}
     </div>
   {:else}
-    <p class="hint">Groups sort the Library into sections, like Modded, Vanilla or Servers. Name the first one:</p>
+    <p class="hint">{t('Groups sort the Library into sections, like Modded, Vanilla or Servers. Name the first one:')}</p>
   {/if}
 
   <form
@@ -50,13 +51,13 @@
       if (name.trim()) set(name.trim());
     }}
   >
-    <input class="input" bind:value={name} placeholder="New group" maxlength="40" />
-    <button class="btn primary" type="submit" disabled={busy || !name.trim()}>Add</button>
+    <input class="input" bind:value={name} placeholder={t('New group')} maxlength="40" />
+    <button class="btn primary" type="submit" disabled={busy || !name.trim()}>{t('Add')}</button>
   </form>
 
   {#if inst.group}
     <div class="actions">
-      <button class="btn ghost" disabled={busy} onclick={() => set(null)}><X size={14} /> Take out of {inst.group}</button>
+      <button class="btn ghost" disabled={busy} onclick={() => set(null)}><X size={14} /> {t('Take out of {group}', { group: inst.group })}</button>
     </div>
   {/if}
 </Modal>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Asks what to do with mods that depend on (or are needed by) the one the
   // user is disabling, removing or enabling.
   import Modal from './Modal.svelte';
@@ -21,22 +22,22 @@
   const text = $derived(
     {
       disable: {
-        title: `Other mods need ${name}`,
-        intro: `${n} ${mods} won't load without it. Disable ${n === 1 ? 'it' : 'them'} too?`,
-        all: `Disable all ${n + 1}`,
-        only: `Only disable ${name}`
+        title: t('Other mods need {name}', { name }),
+        intro: t('{n} {mods} won\'t load without it. Disable {x} too?', { n, mods, x: n === 1 ? 'it' : 'them' }),
+        all: t('Disable all {x}', { x: n + 1 }),
+        only: t('Only disable {name}', { name })
       },
       remove: {
-        title: `Other mods need ${name}`,
-        intro: `${n} ${mods} won't load without it. Remove ${n === 1 ? 'it' : 'them'} too?`,
-        all: `Remove all ${n + 1}`,
-        only: `Only remove ${name}`
+        title: t('Other mods need {name}', { name }),
+        intro: t('{n} {mods} won\'t load without it. Remove {x} too?', { n, mods, x: n === 1 ? 'it' : 'them' }),
+        all: t('Remove all {x}', { x: n + 1 }),
+        only: t('Only remove {name}', { name })
       },
       enable: {
-        title: `${name} needs disabled mods`,
-        intro: `It won't load without ${n === 1 ? 'this mod' : `these ${n} mods`}. Turn ${n === 1 ? 'it' : 'them'} back on too?`,
-        all: `Enable all ${n + 1}`,
-        only: `Only enable ${name}`
+        title: t('{name} needs disabled mods', { name }),
+        intro: t('It won\'t load without {x}. Turn {x2} back on too?', { x: n === 1 ? 'this mod' : `these ${n} mods`, x2: n === 1 ? 'it' : 'them' }),
+        all: t('Enable all {x}', { x: n + 1 }),
+        only: t('Only enable {name}', { name })
       }
     }[action]
   );
@@ -50,10 +51,10 @@
     {/each}
   </ul>
   {#if action !== 'enable'}
-    <p class="note">If you keep them, the game will probably refuse to start until {name} is back.</p>
+    <p class="note">{t('If you keep them, the game will probably refuse to start until {name} is back.', { name })}</p>
   {/if}
   <footer>
-    <button class="btn ghost" onclick={() => onchoose(null)}>Cancel</button>
+    <button class="btn ghost" onclick={() => onchoose(null)}>{t('Cancel')}</button>
     <button class="btn" onclick={() => onchoose('only')}>{text.only}</button>
     <button class="btn primary" class:danger={action === 'remove'} onclick={() => onchoose('all')}>{text.all}</button>
   </footer>

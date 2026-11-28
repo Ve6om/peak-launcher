@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Every screenshot from every instance, grouped by play session, with
   // previews, the player's own tags, and copy / save / export, without
   // digging through instance folders.
@@ -34,7 +35,7 @@
     load();
   });
 
-  const nameOf = (id: string) => app.instances.find((i) => i.id === id)?.name ?? 'Deleted instance';
+  const nameOf = (id: string) => app.instances.find((i) => i.id === id)?.name ?? t('Deleted instance');
   const counts = $derived.by(() => {
     const c: Record<string, number> = {};
     for (const s of shots ?? []) c[s.instanceId] = (c[s.instanceId] ?? 0) + 1;
@@ -66,7 +67,7 @@
 
   const day = (d: Date) => d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
   const time = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const size = (b: number) => (b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`);
+  const size = (b: number) => (b >= 1e6 ? t('{x} MB', { x: (b / 1e6).toFixed(1) }) : t('{n} KB', { n: Math.max(1, Math.round(b / 1e3)) }));
 
   // ---- previews, made when a card scrolls into view ----
   let previews = $state<Record<string, string>>({});
@@ -100,7 +101,7 @@
   async function copy(s: Screenshot) {
     try {
       await api.screenshotCopy(s.instanceId, s.file);
-      toast('Copied the picture', 'success');
+      toast(t('Copied the picture'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
@@ -112,7 +113,7 @@
     if (!to) return;
     try {
       await api.screenshotExport([pair(s)], to);
-      toast('Saved', 'success');
+      toast(t('Saved'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
@@ -120,12 +121,12 @@
 
   async function exportZip(list: Screenshot[]) {
     if (!list.length) return;
-    const to = await api.pickSavePath('screenshots.zip', 'zip', 'Zip file');
+    const to = await api.pickSavePath('screenshots.zip', 'zip', t('Zip file'));
     if (!to) return;
     busy = true;
     try {
       const n = await api.screenshotExport(list.map(pair), to);
-      toast(`Saved ${n} screenshot${n === 1 ? '' : 's'} to a zip`, 'success');
+      toast((n === 1 ? t('Saved {n} screenshot to a zip', { n }) : t('Saved {n} screenshots to a zip', { n })), 'success');
       selected = {};
     } catch (e) {
       toast(errorText(e), 'error');
@@ -150,7 +151,7 @@
       shots = (shots ?? []).filter((s) => !gone.has(s.key));
       selected = {};
       if (open !== null && open >= visible.length) open = visible.length ? visible.length - 1 : null;
-      toast(`Moved ${n} screenshot${n === 1 ? '' : 's'} to the ${app.info?.os === 'windows' ? 'Recycle Bin' : 'Trash'}`, 'success');
+      toast((n === 1 ? t('Moved {n} screenshot to the {x2}', { n, x2: app.info?.os === 'windows' ? t('Recycle Bin') : t('Trash') }) : t('Moved {n} screenshots to the {x2}', { n, x2: app.info?.os === 'windows' ? t('Recycle Bin') : t('Trash') })), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -194,40 +195,40 @@
 <div class="page">
   <header>
     <div>
-      <h1>Screenshots</h1>
-      <p>Every screenshot from your instances, grouped by when you played.</p>
+      <h1>{t('Screenshots')}</h1>
+      <p>{t('Every screenshot from your instances, grouped by when you played.')}</p>
     </div>
     <div class="tools">
       <Select
         bind:value={() => instanceFilter, (v) => (instanceFilter = v ?? 'all')}
-        ariaLabel="Instance"
+        ariaLabel={t('Instance')}
         style="width: auto; min-width: 200px;"
         options={[
-          { value: 'all', label: 'All instances', hint: String(shots?.length ?? 0) },
+          { value: 'all', label: t('All instances'), hint: String(shots?.length ?? 0) },
           ...app.instances.filter((i) => counts[i.id]).map((i) => ({ value: i.id, label: i.name, hint: String(counts[i.id]), icon: instanceIcon(i), loader: i.loader }))
         ]}
       />
-      <button class="btn" onclick={load} title="Look for new screenshots"><RefreshCw size={15} /> Refresh</button>
+      <button class="btn" onclick={load} title={t('Look for new screenshots')}><RefreshCw size={15} /> {t('Refresh')}</button>
     </div>
   </header>
 
   {#if allTags.length}
     <div class="tags-bar">
       <Tag size={14} />
-      <button class="chip" class:active={!tagFilter} onclick={() => (tagFilter = null)}>All</button>
-      {#each allTags as t (t)}
-        <button class="chip" class:active={tagFilter === t} onclick={() => (tagFilter = tagFilter === t ? null : t)}>{t}</button>
+      <button class="chip" class:active={!tagFilter} onclick={() => (tagFilter = null)}>{t('All')}</button>
+      {#each allTags as tag (tag)}
+        <button class="chip" class:active={tagFilter === tag} onclick={() => (tagFilter = tagFilter === tag ? null : tag)}>{tag}</button>
       {/each}
     </div>
   {/if}
 
   {#if shots === null}
-    <p class="muted">Looking for screenshots…</p>
+    <p class="muted">{t('Looking for screenshots…')}</p>
   {:else if !visible.length}
     <div class="empty panel glass">
       <Camera size={28} />
-      <h3>{shots.length ? 'Nothing matches' : 'No screenshots yet'}</h3>
-      <p>{shots.length ? 'Try another instance or tag.' : 'Press F2 in game to take one. They show up here with their instance.'}</p>
+      <h3>{shots.length ? t('Nothing matches') : t('No screenshots yet')}</h3>
+      <p>{shots.length ? t('Try another instance or tag.') : t('Press F2 in game to take one. They show up here with their instance.')}</p>
     </div>
   {:else}
     {#each sessions as sess (sess.key)}
@@ -236,21 +237,21 @@
           <span>{day(sess.start)}</span>
           <span class="dot">·</span>
           <span class="inst">{nameOf(sess.instanceId)}</span>
-          <span class="meta">{time(sess.start)} · {sess.items.length} shot{sess.items.length === 1 ? '' : 's'}</span>
+          <span class="meta">{(sess.items.length === 1 ? t('{time} · {length} shot', { time: time(sess.start), length: sess.items.length }) : t('{time} · {length} shots', { time: time(sess.start), length: sess.items.length }))}</span>
         </h2>
         <div class="grid">
           {#each sess.items as { shot, index } (shot.key)}
             <div class="card" class:picked={selected[shot.key]} use:preview={shot}>
-              <button class="open" onclick={() => (selecting ? toggle(shot) : (open = index))} aria-label="Open screenshot">
+              <button class="open" onclick={() => (selecting ? toggle(shot) : (open = index))} aria-label={t('Open screenshot')}>
                 {#if previews[shot.key]}
                   <img src={previews[shot.key]} alt="" loading="lazy" draggable="false" in:fade={{ duration: 150 }} />
                 {/if}
               </button>
-              <button class="tick" class:on={selected[shot.key]} onclick={() => toggle(shot)} aria-label="Select">
+              <button class="tick" class:on={selected[shot.key]} onclick={() => toggle(shot)} aria-label={t('Select')}>
                 <Check size={13} />
               </button>
               {#if shot.tags.length}
-                <div class="card-tags">{#each shot.tags.slice(0, 3) as t (t)}<span>{t}</span>{/each}</div>
+                <div class="card-tags">{#each shot.tags.slice(0, 3) as tag (tag)}<span>{tag}</span>{/each}</div>
               {/if}
             </div>
           {/each}
@@ -262,61 +263,61 @@
 
 {#if selecting}
   <div class="selbar glass" transition:fade={{ duration: 150 }}>
-    <span>{selectedShots.length} selected</span>
-    <button class="btn ghost" onclick={() => (selected = {})}>Clear</button>
-    <button class="btn" disabled={busy} onclick={() => exportZip(selectedShots)}><Archive size={15} /> Save as zip</button>
+    <span>{t('{length} selected', { length: selectedShots.length })}</span>
+    <button class="btn ghost" onclick={() => (selected = {})}>{t('Clear')}</button>
+    <button class="btn" disabled={busy} onclick={() => exportZip(selectedShots)}><Archive size={15} /> {t('Save as zip')}</button>
     <button class="btn" class:danger={confirmTrash} disabled={busy} onclick={() => trash(selectedShots)}>
       <Trash2 size={15} />
-      {confirmTrash ? 'Sure? Click again' : app.info?.os === 'windows' ? 'Recycle Bin' : 'Trash'}
+      {confirmTrash ? t('Sure? Click again') : app.info?.os === 'windows' ? t('Recycle Bin') : t('Trash')}
     </button>
   </div>
 {/if}
 
 {#if current}
-  <div class="viewer" transition:fade={{ duration: 160 }} role="dialog" aria-modal="true" aria-label="Screenshot">
-    <button class="backdrop" onclick={() => (open = null)} aria-label="Close"></button>
-    <button class="nav prev" onclick={() => step(-1)} aria-label="Previous"><ChevronLeft size={26} /></button>
+  <div class="viewer" transition:fade={{ duration: 160 }} role="dialog" aria-modal="true" aria-label={t('Screenshot')}>
+    <button class="backdrop" onclick={() => (open = null)} aria-label={t('Close')}></button>
+    <button class="nav prev" onclick={() => step(-1)} aria-label={t('Previous')}><ChevronLeft size={26} /></button>
     <figure>
       <img src={src(current.path)} alt={current.file} draggable="false" />
     </figure>
-    <button class="nav next" onclick={() => step(1)} aria-label="Next"><ChevronRight size={26} /></button>
+    <button class="nav next" onclick={() => step(1)} aria-label={t('Next')}><ChevronRight size={26} /></button>
     <aside class="info glass">
-      <button class="btn ghost icon close" onclick={() => (open = null)} aria-label="Close"><X size={18} /></button>
+      <button class="btn ghost icon close" onclick={() => (open = null)} aria-label={t('Close')}><X size={18} /></button>
       <h3>{nameOf(current.instanceId)}</h3>
       <p class="muted">{day(new Date(current.takenAt))}, {time(new Date(current.takenAt))} · {size(current.sizeBytes)}</p>
       <p class="file mono">{current.file}</p>
 
       <div class="actions">
-        <button class="btn" onclick={() => copy(current)}><Copy size={15} /> Copy picture</button>
-        <button class="btn" onclick={() => saveAs(current)}><Download size={15} /> Save as…</button>
-        <button class="btn" onclick={() => api.revealFile(current.path)}><FolderOpen size={15} /> Show in folder</button>
+        <button class="btn" onclick={() => copy(current)}><Copy size={15} /> {t('Copy picture')}</button>
+        <button class="btn" onclick={() => saveAs(current)}><Download size={15} /> {t('Save as…')}</button>
+        <button class="btn" onclick={() => api.revealFile(current.path)}><FolderOpen size={15} /> {t('Show in folder')}</button>
         <button class="btn" class:danger={confirmTrash} disabled={busy} onclick={() => trash([current])}>
           <Trash2 size={15} />
-          {confirmTrash ? 'Sure? Click again' : `Move to ${app.info?.os === 'windows' ? 'Recycle Bin' : 'Trash'}`}
+          {confirmTrash ? t('Sure? Click again') : t('Move to {x}', { x: app.info?.os === 'windows' ? t('Recycle Bin') : t('Trash') })}
         </button>
       </div>
 
       <div class="tagger">
-        <span class="tags-title">Tags</span>
+        <span class="tags-title">{t('Tags')}</span>
         <div class="chips">
-          {#each current.tags as t (t)}
+          {#each current.tags as tag (tag)}
             <span class="chip on">
-              {t}
-              <button onclick={() => setTags(current, current.tags.filter((x) => x !== t))} aria-label="Remove tag {t}"><X size={11} /></button>
+              {tag}
+              <button onclick={() => setTags(current, current.tags.filter((x) => x !== tag))} aria-label={t('Remove tag {tag}', { tag })}><X size={11} /></button>
             </span>
           {/each}
           <input
             class="input tag-input"
-            placeholder="Add a tag…"
+            placeholder={t('Add a tag…')}
             maxlength="24"
             bind:value={tagText}
             onkeydown={(e) => e.key === 'Enter' && addTag(current)}
             list="screenshot-tags"
           />
-          <datalist id="screenshot-tags">{#each allTags as t (t)}<option value={t}></option>{/each}</datalist>
+          <datalist id="screenshot-tags">{#each allTags as tag (tag)}<option value={tag}></option>{/each}</datalist>
         </div>
       </div>
-      <p class="hint">← → to move between screenshots</p>
+      <p class="hint">{t('← → to move between screenshots')}</p>
     </aside>
   </div>
 {/if}

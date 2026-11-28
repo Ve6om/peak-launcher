@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // The Microsoft sign-in window. Two ways in, and Peak finishes by itself
   // whichever one is used: sign in with this computer's browser, or use a
   // code (and QR code) from any other device. The code page is always opened
@@ -38,7 +39,7 @@
       await navigator.clipboard.writeText(text);
       toast(done);
     } catch {
-      toast("Couldn't copy. Select the text and copy it yourself.", 'error');
+      toast(t('Couldn\'t copy. Select the text and copy it yourself.'), 'error');
     }
   }
 
@@ -54,43 +55,43 @@
   }
 </script>
 
-<Modal title="Add your Microsoft account" subtitle="Choose how you'd like to sign in. Peak finishes by itself once you're done." width={700} onclose={oncancel}>
+<Modal title={t('Add your Microsoft account')} subtitle={t('Choose how you\'d like to sign in. Peak finishes by itself once you\'re done.')} width={700} onclose={oncancel}>
   <div class="cards" class:single={!start.browserUrl}>
     {#if start.browserUrl}
       <section class="card">
-        <span class="label">On this computer</span>
-        <b>Sign in with your browser</b>
-        <p>Peak opens Microsoft's sign-in page and picks up the result on its own. There's no code to type.</p>
-        <button class="btn primary go" onclick={openBrowser}><Globe size={16} /> Continue in browser</button>
+        <span class="label">{t('On this computer')}</span>
+        <b>{t('Sign in with your browser')}</b>
+        <p>{t('Peak opens Microsoft\'s sign-in page and picks up the result on its own. There\'s no code to type.')}</p>
+        <button class="btn primary go" onclick={openBrowser}><Globe size={16} /> {t('Continue in browser')}</button>
         {#if browserOpened}
-          <p class="note">Opened in your browser. Finish signing in there, then come back here.</p>
-          <button class="linkish" onclick={() => copy(start.browserUrl!, 'Sign-in link copied')}>Browser didn't open? Copy the link</button>
+          <p class="note">{t('Opened in your browser. Finish signing in there, then come back here.')}</p>
+          <button class="linkish" onclick={() => copy(start.browserUrl!, 'Sign-in link copied')}>{t('Browser didn\'t open? Copy the link')}</button>
         {/if}
       </section>
     {/if}
 
     <section class="card">
-      <span class="label">On another device</span>
-      <b>Use a code</b>
+      <span class="label">{t('On another device')}</span>
+      <b>{t('Use a code')}</b>
       <div class="qr-row">
-        <div class="tile" role="img" aria-label="QR code for Microsoft's code page">{@html qr}</div>
+        <div class="tile" role="img" aria-label={t('QR code for Microsoft\'s code page')}>{@html qr}</div>
         <div class="code-side">
-          <span class="scan"><Smartphone size={13} /> Scan to open <button class="linkish" onclick={() => api.openUrl(link)}>{page}</button> on your phone, then enter this code:</span>
+          <span class="scan"><Smartphone size={13} /> {t('Scan to open')} <button class="linkish" onclick={() => api.openUrl(link)}>{page}</button> {t('on your phone, then enter this code:')}</span>
           <div class="code">{code.userCode}</div>
         </div>
       </div>
-      <button class="btn go" onclick={copyAndOpenPage}><ExternalLink size={15} /> Copy code &amp; open page</button>
+      <button class="btn go" onclick={copyAndOpenPage}><ExternalLink size={15} /> {t('Copy code & open page')}</button>
       <div class="row">
-        <button class="btn" onclick={() => copy(code.userCode, 'Code copied')}><Copy size={15} /> Copy code</button>
-        <button class="btn" onclick={() => copy(link, 'Page link copied')}><Link2 size={15} /> Copy page link</button>
+        <button class="btn" onclick={() => copy(code.userCode, t('Code copied'))}><Copy size={15} /> {t('Copy code')}</button>
+        <button class="btn" onclick={() => copy(link, t('Page link copied'))}><Link2 size={15} /> {t('Copy page link')}</button>
       </div>
     </section>
   </div>
 
   <footer>
-    <span class="waiting"><LoaderCircle size={15} class="spin" /> Waiting for you to finish signing in…</span>
-    <span class="left">Code expires in {clock}</span>
-    <button class="btn ghost" onclick={oncancel}>Cancel</button>
+    <span class="waiting"><LoaderCircle size={15} class="spin" /> {t('Waiting for you to finish signing in…')}</span>
+    <span class="left">{t('Code expires in {clock}', { clock })}</span>
+    <button class="btn ghost" onclick={oncancel}>{t('Cancel')}</button>
   </footer>
 </Modal>
 

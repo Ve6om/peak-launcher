@@ -3,17 +3,18 @@
 // contain the computer's user name.
 import { api } from './api';
 import { app, toast, errorText } from './state.svelte';
+import { t } from './i18n.svelte';
 
 export const streaming = () => !!app.settings?.streamerMode;
 
 /** An account name as it should be shown right now. */
 export function shownName(name: string) {
-  return streaming() ? 'Player' : name;
+  return streaming() ? t('Player') : name;
 }
 
 /** A server address as it should be shown right now. */
 export function shownAddress(address: string) {
-  return streaming() ? 'Address hidden' : address;
+  return streaming() ? t('Address hidden') : address;
 }
 
 // The user folder in a path: C:\Users\name, /home/name, /Users/name.
@@ -48,7 +49,7 @@ export async function setStreamerMode(on: boolean) {
   if (!app.settings || streaming() === on) return;
   try {
     app.settings = await api.saveSettings({ ...$state.snapshot(app.settings), streamerMode: on });
-    toast(on ? 'Streamer mode is on. Names, addresses and folder paths are hidden.' : 'Streamer mode is off', 'info');
+    toast(on ? t('Streamer mode is on. Names, addresses and folder paths are hidden.') : t('Streamer mode is off'), 'info');
   } catch (e) {
     toast(errorText(e), 'error');
   }

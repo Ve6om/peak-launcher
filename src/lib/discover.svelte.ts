@@ -7,6 +7,7 @@ import type { Instance, Listing } from './types';
 import { playingOn } from './presence.svelte';
 import { playingAt, invite, type JoinInvite } from './invite.svelte';
 import { installPack } from './manualPack.svelte';
+import { t } from './i18n.svelte';
 
 /** A server-list id from a peak:// link, waiting for Discover to open it. */
 export const serverLink = $state<{ id: string | null }>({ id: null });
@@ -32,7 +33,7 @@ async function playFromShortcut(id: string) {
   const { app, play, go, toast, isRunning } = await import('./state.svelte');
   const inst = app.instances.find((i) => i.id === id);
   if (!inst) {
-    toast("That shortcut's instance isn't in Peak any more.", 'error');
+    toast(t('That shortcut\'s instance isn\'t in Peak any more.'), 'error');
     return;
   }
   go('instance', inst.id);
@@ -53,7 +54,7 @@ export function dropPendingJoin(instanceId: string, reason: 'blocked' | 'failed'
   if (!target) return;
   delete pendingJoins[instanceId];
   if (reason === 'blocked') {
-    toast(`Some files need downloading by hand first. When they're done, press Play on ${target.name} to join.`, 'info');
+    toast(t('Some files need downloading by hand first. When they\'re done, press Play on {name} to join.', { name: target.name }), 'info');
   }
 }
 
@@ -171,7 +172,7 @@ export function planFor(l: Listing): PlayPlan {
   const have = match.inst;
   const wanted = l.pack.versionId;
   if (wanted && have.pack?.versionId && have.pack.versionId !== wanted && have.installed && !isBusy(have.id)) {
-    return { kind: 'switch', inst: have, from: have.pack.versionNumber || 'yours', to: l.pack.versionName || 'the server\u2019s version' };
+    return { kind: 'switch', inst: have, from: have.pack.versionNumber || 'yours', to: l.pack.versionName || t('the server’s version') };
   }
   return { kind: 'join' };
 }
@@ -180,7 +181,7 @@ export function planFor(l: Listing): PlayPlan {
 export async function installAndJoin(l: Listing): Promise<Instance | null> {
   if (!l.pack) return null;
   if (!activeAccount()) {
-    toast('Add an account to start playing', 'info');
+    toast(t('Add an account to start playing'), 'info');
     go('accounts');
     return null;
   }
@@ -195,7 +196,7 @@ export async function installAndJoin(l: Listing): Promise<Instance | null> {
     await refreshInstances();
     joinWhenReady(inst);
     go('instance', inst.id);
-    toast(`Installing ${l.pack.name}. Peak joins ${l.name} as soon as it's ready.`, 'info');
+    toast(t('Installing {name}. Peak joins {name2} as soon as it\'s ready.', { name: l.pack.name, name2: l.name }), 'info');
     return inst;
   } catch (e) {
     toast(errorText(e), 'error');
@@ -214,7 +215,7 @@ export async function switchAndJoin(l: Listing, inst: Instance) {
     if (!(await changePackVersion(inst, l.pack.versionId))) return;
     await refreshInstances();
     go('instance', inst.id);
-    toast(`Switching ${inst.name} to ${l.pack.versionName || 'the server\u2019s version'}. Peak joins ${l.name} when it's done.`, 'info');
+    toast(t('Switching {name} to {x}. Peak joins {name2} when it\'s done.', { name: inst.name, x: l.pack.versionName || 'the server\u2019s version', name2: l.name }), 'info');
   } catch (e) {
     toast(errorText(e), 'error');
   }
@@ -227,7 +228,7 @@ export async function switchAndJoin(l: Listing, inst: Instance) {
  */
 export async function playListing(l: Listing, instanceId: string | 'new' | null) {
   if (!activeAccount()) {
-    toast('Add an account to start playing', 'info');
+    toast(t('Add an account to start playing'), 'info');
     go('accounts');
     return;
   }
@@ -235,10 +236,10 @@ export async function playListing(l: Listing, instanceId: string | 'new' | null)
     if (l.pack) {
       const have = packInstance(l);
       if (have) {
-        if (isRunning(have.id)) return toast(`${have.name} is already running.`, 'info');
+        if (isRunning(have.id)) return toast(t('{name} is already running.', { name: have.name }), 'info');
         if (!have.installed || isBusy(have.id)) {
           pendingJoins[have.id] = { address: l.address, name: l.name, pageUrl: l.pageUrl };
-          return toast(`${have.name} is still installing. Peak joins ${l.name} when it's ready.`, 'info');
+          return toast(t('{name} is still installing. Peak joins {name2} when it\'s ready.', { name: have.name, name2: l.name }), 'info');
         }
         return join(have, l.address, l.name, l.pageUrl);
       }
@@ -249,9 +250,9 @@ export async function playListing(l: Listing, instanceId: string | 'new' | null)
     if (!inst) {
       inst = await api.createInstance(l.name, l.gameVersion, 'vanilla', null);
       await refreshInstances();
-      toast(`Made a new ${l.gameVersion} instance for ${l.name}`, 'success');
+      toast(t('Made a new {gameVersion} instance for {name}', { gameVersion: l.gameVersion, name: l.name }), 'success');
     }
-    if (isRunning(inst.id)) return toast(`${inst.name} is already running.`, 'info');
+    if (isRunning(inst.id)) return toast(t('{name} is already running.', { name: inst.name }), 'info');
     await join(inst, l.address, l.name, l.pageUrl);
   } catch (e) {
     toast(errorText(e), 'error');

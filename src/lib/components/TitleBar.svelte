@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Minus, Square, X, Gamepad2, EyeOff } from '@lucide/svelte';
   import { scale } from 'svelte/transition';
   import { isTauri } from '$lib/api';
@@ -48,37 +49,37 @@
   <div class="brand" data-tauri-drag-region>
     <Logo size={18} />
     {#if wordmark}
-      <img class="wordmark" src="/wordmark.png" alt="Peak" data-tauri-drag-region onerror={() => (wordmark = false)} />
+      <img class="wordmark" src="/wordmark.png" alt={t('Peak')} data-tauri-drag-region onerror={() => (wordmark = false)} />
     {:else}
-      <span data-tauri-drag-region>Peak <b>Launcher</b></span>
+      <span data-tauri-drag-region>{t('Peak')} <b>{t('Launcher')}</b></span>
     {/if}
   </div>
 
   <div class="right">
     {#if streaming()}
-      <button class="streamer" onclick={() => setStreamerMode(false)} title="Names, server addresses and folder paths are hidden. Click to turn off (Ctrl+Shift+S).">
-        <EyeOff size={13} /> Streamer mode
+      <button class="streamer" onclick={() => setStreamerMode(false)} title={t('Names, server addresses and folder paths are hidden. Click to turn off (Ctrl+Shift+S).')}>
+        <EyeOff size={13} /> {t('Streamer mode')}
       </button>
     {/if}
     {#if running.length}
       <div class="games">
-        <button class="playing" class:on={open} onclick={() => (open = !open)} title="Running games">
+        <button class="playing" class:on={open} onclick={() => (open = !open)} title={t('Running games')}>
           <span class="dot"></span>
-          {running.length === 1 ? 'Playing' : `${running.length} playing`}
+          {running.length === 1 ? t('Playing') : t('{length} playing', { length: running.length })}
         </button>
         {#if open}
-          <button class="catch" aria-label="Close menu" onclick={() => (open = false)}></button>
+          <button class="catch" aria-label={t('Close menu')} onclick={() => (open = false)}></button>
           <div class="menu glass" transition:scale={{ start: 0.96, duration: 120 }}>
-            <span class="label">Running</span>
+            <span class="label">{t('Running')}</span>
             {#each running as inst (inst.id)}
               <div class="game">
                 <Gamepad2 size={15} />
                 <button class="name" onclick={() => { open = false; go('instance', inst.id, 'console'); }}>{inst.name}</button>
-                <button class="btn stop" onclick={() => stop(inst)}><Square size={11} fill="currentColor" /> Stop</button>
+                <button class="btn stop" onclick={() => stop(inst)}><Square size={11} fill="currentColor" /> {t('Stop')}</button>
               </div>
             {/each}
             {#if running.length > 1}
-              <button class="btn stop all" onclick={stopAll}>Stop all</button>
+              <button class="btn stop all" onclick={stopAll}>{t('Stop all')}</button>
             {/if}
           </div>
         {/if}
@@ -86,9 +87,9 @@
     {/if}
 
     <div class="controls">
-      <button aria-label="Minimize" onclick={minimize}><Minus size={15} /></button>
-      <button aria-label="Maximize" onclick={maximize}><Square size={12} /></button>
-      <button aria-label="Close" class="close" onclick={requestClose}><X size={16} /></button>
+      <button aria-label={t('Minimize')} onclick={minimize}><Minus size={15} /></button>
+      <button aria-label={t('Maximize')} onclick={maximize}><Square size={12} /></button>
+      <button aria-label={t('Close')} class="close" onclick={requestClose}><X size={16} /></button>
     </div>
   </div>
 </header>

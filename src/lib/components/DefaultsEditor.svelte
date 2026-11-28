@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Edit the default keybinds and game settings inside Peak. Each setting
   // can be left unset, so instances keep their own value for it.
   import { onMount } from 'svelte';
@@ -97,7 +98,7 @@
     saving = true;
     try {
       const info = await api.gameDefaultsSet($state.snapshot(lines));
-      toast('Default game settings saved', 'success');
+      toast(t('Default game settings saved'), 'success');
       onsaved(info);
       onclose();
     } catch (e) {
@@ -110,13 +111,13 @@
 
 <svelte:window onkeydowncapture={capture} />
 
-<Modal title="Edit default game settings" subtitle="Switch on a setting to give it a default. Ones left off stay as each instance has them." width={720} onclose={() => (capturing ? (capturing = null) : onclose())}>
+<Modal title={t('Edit default game settings')} subtitle={t('Switch on a setting to give it a default. Ones left off stay as each instance has them.')} width={720} onclose={() => (capturing ? (capturing = null) : onclose())}>
   {#if !lines}
     <div class="loading"><LoaderCircle size={20} class="spin" /></div>
   {:else}
     <div class="seg tabs">
-      {#each tabs as t (t)}
-        <button class:active={tab === t} onclick={() => (tab = t)}>{t}{#if setCount(t)}<em>{setCount(t)}</em>{/if}</button>
+      {#each tabs as tb (tb)}
+        <button class:active={tab === tb} onclick={() => (tab = tb)}>{t(tb)}{#if setCount(tb)}<em>{setCount(tb)}</em>{/if}</button>
       {/each}
     </div>
 
@@ -126,19 +127,19 @@
           {@render keyRow(k.key, k.label, k.initial)}
         {/each}
         {#if modKeys.length}
-          <h4>From mods</h4>
+          <h4>{t('From mods')}</h4>
           {#each modKeys as [key] (key)}
             {@render keyRow(key, modKeyLabel(key), UNBOUND)}
           {/each}
         {/if}
-        <p class="hint">Default keybinds are left out for Minecraft 1.12 and older, which stores keys differently.</p>
+        <p class="hint">{t('Default keybinds are left out for Minecraft 1.12 and older, which stores keys differently.')}</p>
       {:else if tab === 'More'}
-        <p class="hint first">Copied from an instance; Peak has no friendly name for these. Remove any you don't want as defaults.</p>
+        <p class="hint first">{t('Copied from an instance; Peak has no friendly name for these. Remove any you don\'t want as defaults.')}</p>
         {#each otherLines as [key, value] (key)}
           <div class="row">
             <span class="name mono">{key}</span>
             <span class="raw mono">{value}</span>
-            <button class="btn ghost icon" title="Remove" aria-label="Remove {key}" onclick={() => set(key, null)}><X size={14} /></button>
+            <button class="btn ghost icon" title={t('Remove')} aria-label={t('Remove {key}', { key })} onclick={() => set(key, null)}><X size={14} /></button>
           </div>
         {/each}
       {:else}
@@ -146,7 +147,7 @@
           {@const raw = get(o.key)}
           {@const on = raw !== undefined}
           <div class="row" class:off={!on}>
-            <Switch bind:checked={() => on, (v) => set(o.key, v ? o.initial : null)} label="Set a default for {o.label}" />
+            <Switch bind:checked={() => on, (v) => set(o.key, v ? o.initial : null)} label={t('Set a default for {label}', { label: o.label })} />
             <span class="name">{o.label}</span>
             <span class="ctl">
               {#if o.control.kind === 'range'}
@@ -172,8 +173,8 @@
     </div>
 
     <div class="actions">
-      <button class="btn ghost" onclick={onclose}>Cancel</button>
-      <button class="btn primary" disabled={saving} onclick={save}>Save defaults</button>
+      <button class="btn ghost" onclick={onclose}>{t('Cancel')}</button>
+      <button class="btn primary" disabled={saving} onclick={save}>{t('Save defaults')}</button>
     </div>
   {/if}
 </Modal>
@@ -182,7 +183,7 @@
   {@const raw = get(key)}
   {@const on = raw !== undefined}
   <div class="row" class:off={!on}>
-    <Switch bind:checked={() => on, (v) => set(key, v ? initial : null)} label="Set a default for {label}" />
+    <Switch bind:checked={() => on, (v) => set(key, v ? initial : null)} label={t('Set a default for {label}', { label })} />
     <span class="name">{label}</span>
     <span class="ctl">
       <button
@@ -194,12 +195,12 @@
         onauxclick={() => (skipClick = false)}
         oncontextmenu={(e) => e.preventDefault()}
       >
-        {capturing === key ? 'Press a key or click…' : keyLabel(raw ?? initial)}
+        {capturing === key ? t('Press a key or click…') : keyLabel(raw ?? initial)}
       </button>
       {#if on && raw !== UNBOUND}
-        <button class="btn ghost icon" title="Unbind" aria-label="Unbind {label}" onclick={() => set(key, UNBOUND)}><X size={14} /></button>
+        <button class="btn ghost icon" title={t('Unbind')} aria-label={t('Unbind {label}', { label })} onclick={() => set(key, UNBOUND)}><X size={14} /></button>
       {:else if on && initial !== UNBOUND}
-        <button class="btn ghost icon" title="Back to Minecraft's key" aria-label="Reset {label}" onclick={() => set(key, initial)}><Undo2 size={14} /></button>
+        <button class="btn ghost icon" title={t('Back to Minecraft\'s key')} aria-label={t('Reset {label}', { label })} onclick={() => set(key, initial)}><Undo2 size={14} /></button>
       {:else}
         <span class="spacer"></span>
       {/if}

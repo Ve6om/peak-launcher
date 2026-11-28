@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Pick a different version of something already installed: newer, or an
   // older one if the latest breaks the pack. Only versions made for this
   // instance's Minecraft version and loader are listed.
@@ -47,35 +48,35 @@
   const newestIndex = $derived(shown.findIndex((v) => v.version_type === 'release'));
 </script>
 
-<Modal title="Change version" subtitle="{item.title} · versions for this instance's Minecraft and loader" width={560} {onclose}>
+<Modal title={t('Change version')} subtitle={t('{title} · versions for this instance\'s Minecraft and loader', { title: item.title })} width={560} {onclose}>
   {#if versions === null}
     <div class="loading"><LoaderCircle size={20} class="spin" /></div>
   {:else if !versions.length}
-    <p class="none">No versions of {item.title} match this instance's Minecraft version and loader.</p>
+    <p class="none">{t('No versions of {title} match this instance\'s Minecraft version and loader.', { title: item.title })}</p>
   {:else}
     {#if hasTesting}
-      <label class="testing"><input type="checkbox" bind:checked={showAll} /> Show beta and alpha versions</label>
+      <label class="testing"><input type="checkbox" bind:checked={showAll} /> {t('Show beta and alpha versions')}</label>
     {/if}
-    <div class="list" role="radiogroup" aria-label="Versions of {item.title}">
+    <div class="list" role="radiogroup" aria-label={t('Versions of {title}', { title: item.title })}>
       {#each shown as v, i (v.id)}
         <button class="ver" class:on={pick === v.id} role="radio" aria-checked={pick === v.id} onclick={() => (pick = v.id)}>
           <span class="dot">{#if pick === v.id}<Check size={12} />{/if}</span>
           <span class="name">
             <b>{v.version_number}</b>
             {#if v.version_type !== 'release'}<em class="tag {v.version_type}">{v.version_type}</em>{/if}
-            {#if v.id === item.versionId}<em class="tag now">Installed</em>{:else if i === newestIndex}<em class="tag new">Newest</em>{/if}
+            {#if v.id === item.versionId}<em class="tag now">{t('Installed')}</em>{:else if i === newestIndex}<em class="tag new">{t('Newest')}</em>{/if}
           </span>
           <span class="when">{ago(v.date_published)}</span>
         </button>
       {/each}
     </div>
     {#if !current && item.versionId}
-      <p class="hint">The installed version ({item.versionNumber ?? 'unknown'}) isn't listed for this instance any more.</p>
+      <p class="hint">{t('The installed version ({x}) isn\'t listed for this instance any more.', { x: item.versionNumber ?? 'unknown' })}</p>
     {/if}
     <div class="actions">
-      <button class="btn" onclick={onclose}>Cancel</button>
+      <button class="btn" onclick={onclose}>{t('Cancel')}</button>
       <button class="btn primary" disabled={!pick || pick === item.versionId} onclick={() => onpick(pick)}>
-        <ArrowDownUp size={15} /> Switch to this version
+        <ArrowDownUp size={15} /> {t('Switch to this version')}
       </button>
     </div>
   {/if}

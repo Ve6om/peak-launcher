@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Plus, Clock, Sparkles, ArrowRight, FolderInput } from '@lucide/svelte';
   import InstanceArt from '$lib/components/InstanceArt.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
@@ -18,14 +19,14 @@
 
   const greeting = (() => {
     const h = new Date().getHours();
-    return h < 5 ? 'Late night session' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    return h < 5 ? t('Late night session') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
   })();
 </script>
 
 <div class="home">
   <div class="greet rise">
     <h1>{greeting}{account ? `, ${shownName(account.username)}` : ''}</h1>
-    <p>{hero ? 'Pick up right where you left off.' : "Let's get your first world set up."}</p>
+    <p>{hero ? t('Pick up right where you left off.') : t('Let\'s get your first world set up.')}</p>
   </div>
 
   {#if hero}
@@ -41,17 +42,17 @@
       </div>
       <div class="hero-shade"></div>
       <div class="hero-content">
-        <span class="label eyebrow">{hero.lastPlayed ? 'Jump back in' : 'Ready when you are'}</span>
+        <span class="label eyebrow">{hero.lastPlayed ? t('Jump back in') : t('Ready when you are')}</span>
         <h2>{hero.name}</h2>
         <div class="hero-meta">
-          <span class="chip">Minecraft {hero.gameVersion}</span>
+          <span class="chip">{t('Minecraft {gameVersion}', { gameVersion: hero.gameVersion })}</span>
           <span class="chip">{loaderLabel(hero.loader)}{hero.loaderVersion ? ` ${hero.loaderVersion}` : ''}</span>
           <span class="stat"><Clock size={13} /> {playtime(hero.playtimeSecs)}</span>
-          <span class="stat">Last played {ago(hero.lastPlayed).toLowerCase()}</span>
+          <span class="stat">{t('Last played {ago}', { ago: ago(hero.lastPlayed).toLowerCase() })}</span>
         </div>
         <div class="hero-actions">
           <PlayButton inst={hero} />
-          <button class="btn lg" onclick={() => go('instance', hero.id)}>Details <ArrowRight size={16} /></button>
+          <button class="btn lg" onclick={() => go('instance', hero.id)}>{t('Details')} <ArrowRight size={16} /></button>
         </div>
         {#if isBusy(hero.id) && app.progress[hero.id]}
           <div class="hero-progress"><Progress p={app.progress[hero.id]} /></div>
@@ -62,11 +63,11 @@
     <section class="welcome glass rise" class:with-art={heroImg}>
       {#if heroImg}<img class="welcome-bg" src="/hero.jpg" alt="" onerror={() => (heroImg = false)} />{/if}
       <div class="welcome-icon"><Sparkles size={26} /></div>
-      <h2>Welcome to <span class="gradient-text">Peak</span></h2>
-      <p>Create an instance and we'll download the game, its assets and the right Java version for you. No setup needed.</p>
+      <h2>{t('Welcome to')} <span class="gradient-text">{t('Peak')}</span></h2>
+      <p>{t('Create an instance and we\'ll download the game, its assets and the right Java version for you. No setup needed.')}</p>
       <div class="welcome-actions">
-        <button class="btn primary lg" onclick={() => (app.creating = true)}><Plus size={18} /> Create your first instance</button>
-        <button class="btn lg" onclick={() => (app.importing = true)}><FolderInput size={18} /> Import from another launcher</button>
+        <button class="btn primary lg" onclick={() => (app.creating = true)}><Plus size={18} /> {t('Create your first instance')}</button>
+        <button class="btn lg" onclick={() => (app.importing = true)}><FolderInput size={18} /> {t('Import from another launcher')}</button>
       </div>
     </section>
   {/if}
@@ -74,8 +75,8 @@
   {#if hero}
     <section class="recent">
       <div class="section-head">
-        <h3>Your instances</h3>
-        <button class="btn ghost" onclick={() => go('library')}>View all <ArrowRight size={15} /></button>
+        <h3>{t('Your instances')}</h3>
+        <button class="btn ghost" onclick={() => go('library')}>{t('View all')} <ArrowRight size={15} /></button>
       </div>
       <div class="grid">
         {#each rest as inst, i (inst.id)}
@@ -83,7 +84,7 @@
         {/each}
         <button class="new glass rise" style:animation-delay="{rest.length * 40}ms" onclick={() => (app.creating = true)}>
           <span class="plus"><Plus size={22} /></span>
-          <span>New instance</span>
+          <span>{t('New instance')}</span>
         </button>
       </div>
     </section>

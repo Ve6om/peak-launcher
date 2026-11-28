@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Change an account's skin, arm style and cape through Minecraft's own
   // profile API. Changes show on the 3D model first; Apply sends them.
   import { onMount } from 'svelte';
@@ -80,9 +81,9 @@
 
   function when(iso: string): string {
     const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-    if (days < 1) return 'Today';
-    if (days === 1) return 'Yesterday';
-    if (days < 30) return `${days} days ago`;
+    if (days < 1) return t('Today');
+    if (days === 1) return t('Yesterday');
+    if (days < 30) return t('{days} days ago', { days });
     return new Date(iso).toLocaleDateString();
   }
 
@@ -120,7 +121,7 @@
       if (capeId !== (w.capes.find((c) => c.active)?.id ?? null)) w = await api.skinSetCape(account.id, capeId);
       take(w);
       loadHistory();
-      toast('Skin updated. It shows in game the next time you join a world.', 'success');
+      toast(t('Skin updated. It shows in game the next time you join a world.'), 'success');
       onclose();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -139,7 +140,7 @@
     try {
       take(await api.skinReset(account.id));
       loadHistory();
-      toast("Back to Minecraft's default skin", 'success');
+      toast(t('Back to Minecraft\'s default skin'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -149,9 +150,9 @@
   }
 </script>
 
-<Modal title="Change skin" subtitle="For {shownName(account.username)}. Changes show here first; Apply sends them to Minecraft." width={640} onclose={() => !saving && onclose()}>
+<Modal title={t('Change skin')} subtitle={t('For {name}. Changes show here first; Apply sends them to Minecraft.', { name: shownName(account.username) })} width={640} onclose={() => !saving && onclose()}>
   {#if loading}
-    <div class="loading"><LoaderCircle size={20} class="spin" /> Loading your skin…</div>
+    <div class="loading"><LoaderCircle size={20} class="spin" /> {t('Loading your skin…')}</div>
   {:else if error}
     <p class="error">{error}</p>
   {:else if wardrobe}
@@ -160,31 +161,31 @@
         {#if preview}
           <SkinViewer png={preview} {model} cape={previewCape} width={220} height={290} />
         {:else}
-          <p class="muted">This account uses Minecraft's default skin. Choose a file to upload your own.</p>
+          <p class="muted">{t('This account uses Minecraft\'s default skin. Choose a file to upload your own.')}</p>
         {/if}
       </div>
 
       <div class="controls">
         <div class="field">
-          <span class="label">Skin</span>
-          <button class="btn" onclick={choose}><Upload size={15} /> {filePath ? 'Choose a different file…' : 'Choose a skin file…'}</button>
-          <span class="hint">{filePath ? filePath.split(/[\\/]/).pop() : 'A 64x64 PNG, like the ones from skin sites or your own.'}</span>
+          <span class="label">{t('Skin')}</span>
+          <button class="btn" onclick={choose}><Upload size={15} /> {filePath ? t('Choose a different file…') : t('Choose a skin file…')}</button>
+          <span class="hint">{filePath ? filePath.split(/[\\/]/).pop() : t('A 64x64 PNG, like the ones from skin sites or your own.')}</span>
         </div>
 
         <div class="field">
-          <span class="label">Arms</span>
+          <span class="label">{t('Arms')}</span>
           <div class="seg">
-            <button class:active={model === 'classic'} onclick={() => (model = 'classic')} disabled={!preview}>Classic (Steve)</button>
-            <button class:active={model === 'slim'} onclick={() => (model = 'slim')} disabled={!preview}>Slim (Alex)</button>
+            <button class:active={model === 'classic'} onclick={() => (model = 'classic')} disabled={!preview}>{t('Classic (Steve)')}</button>
+            <button class:active={model === 'slim'} onclick={() => (model = 'slim')} disabled={!preview}>{t('Slim (Alex)')}</button>
           </div>
         </div>
 
         {#if wardrobe.capes.length}
           <div class="field">
-            <span class="label">Cape</span>
+            <span class="label">{t('Cape')}</span>
             <div class="capes">
               <button class="cape" class:active={capeId === null} onclick={() => (capeId = null)}>
-                <span class="none">None</span>
+                <span class="none">{t('None')}</span>
               </button>
               {#each wardrobe.capes as c (c.id)}
                 <button class="cape" class:active={capeId === c.id} onclick={() => (capeId = c.id)} title={c.name}>
@@ -198,7 +199,7 @@
 
         {#if wardrobe.skin}
           <button class="btn ghost reset" class:confirm={confirmReset} onclick={reset} disabled={saving}>
-            <RotateCcw size={14} /> {confirmReset ? 'Click again to reset' : 'Reset to default skin'}
+            <RotateCcw size={14} /> {confirmReset ? t('Click again to reset') : t('Reset to default skin')}
           </button>
         {/if}
       </div>
@@ -206,17 +207,17 @@
 
     {#if history.length}
       <div class="history">
-        <span class="label"><History size={13} /> Your recent skins</span>
+        <span class="label"><History size={13} /> {t('Your recent skins')}</span>
         <div class="past">
           {#each history as h (h.id)}
             {@const inUse = h.png === wardrobe.skin?.png}
             <div class="past-item" class:selected={savedId === h.id || (inUse && !savedId && !filePath)}>
-              <button class="past-pick" onclick={() => pickSaved(h)} title={inUse ? 'In use now' : `Worn ${when(h.usedAt).toLowerCase()}. Click to preview, then Apply.`}>
+              <button class="past-pick" onclick={() => pickSaved(h)} title={inUse ? t('In use now') : t('Worn {when}. Click to preview, then Apply.', { when: when(h.usedAt).toLowerCase() })}>
                 <SkinHead accountId={null} name={shownName(account.username)} png={h.png} size={40} />
-                <span>{inUse ? 'In use' : when(h.usedAt)}</span>
+                <span>{inUse ? t('In use') : when(h.usedAt)}</span>
               </button>
               {#if !inUse}
-                <button class="past-forget" aria-label="Forget this skin" title="Forget this skin" onclick={() => forget(h)}><X size={11} /></button>
+                <button class="past-forget" aria-label={t('Forget this skin')} title={t('Forget this skin')} onclick={() => forget(h)}><X size={11} /></button>
               {/if}
             </div>
           {/each}
@@ -225,9 +226,9 @@
     {/if}
 
     <footer>
-      <button class="btn ghost" onclick={onclose} disabled={saving}>Cancel</button>
+      <button class="btn ghost" onclick={onclose} disabled={saving}>{t('Cancel')}</button>
       <button class="btn primary" onclick={apply} disabled={!changed || saving}>
-        {#if saving}<LoaderCircle size={16} class="spin" /> Saving…{:else}<Check size={16} /> Apply{/if}
+        {#if saving}<LoaderCircle size={16} class="spin" /> {t('Saving…')}{:else}<Check size={16} /> {t('Apply')}{/if}
       </button>
     </footer>
   {/if}

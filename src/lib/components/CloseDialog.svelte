@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Shown when closing the launcher while a game is still running.
   import { Gamepad2, Square } from '@lucide/svelte';
   import Modal from './Modal.svelte';
@@ -20,8 +21,8 @@
 </script>
 
 <Modal
-  title="Minecraft is still running"
-  subtitle="Close the launcher and keep playing, or stop the game too."
+  title={t('Minecraft is still running')}
+  subtitle={t('Close the launcher and keep playing, or stop the game too.')}
   width={460}
   onclose={() => (app.closePrompt = false)}
 >
@@ -30,12 +31,12 @@
       <div class="game"><Gamepad2 size={15} /> {inst.name}</div>
     {/each}
   </div>
-  <p class="note">If you keep playing, the game's console output and playtime for this session won't be recorded.</p>
+  <p class="note">{t('If you keep playing, the game\'s console output and playtime for this session won\'t be recorded.')}</p>
   <footer>
-    <button class="btn ghost" onclick={() => (app.closePrompt = false)}>Cancel</button>
-    <button class="btn" disabled={busy} onclick={() => quit(false)}>Quit, keep playing</button>
+    <button class="btn ghost" onclick={() => (app.closePrompt = false)}>{t('Cancel')}</button>
+    <button class="btn" disabled={busy} onclick={() => quit(false)}>{t('Quit, keep playing')}</button>
     <button class="btn danger" disabled={busy} onclick={() => quit(true)}>
-      <Square size={12} fill="currentColor" /> Stop {running.length > 1 ? 'games' : 'game'} & quit
+      <Square size={12} fill="currentColor" /> {running.length > 1 ? t('Stop games & quit') : t('Stop game & quit')}
     </button>
   </footer>
 </Modal>

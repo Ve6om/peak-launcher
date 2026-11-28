@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { ArrowLeft, FolderOpen, Trash2, Terminal, LayoutGrid, Wrench, Clock, Calendar, Cpu, SlidersHorizontal, Layers, PackageOpen, SquareArrowOutUpRight, Server, Server as ServerIcon, Sparkles, ArrowDownUp, CircleArrowUp, UserPlus, Bug, Globe, MonitorPlay } from '@lucide/svelte';
   import InstanceSettings from '$lib/components/InstanceSettings.svelte';
   import InstanceContent from '$lib/components/InstanceContent.svelte';
@@ -42,16 +43,16 @@
   async function copyInvite(inst: Instance, at: { address: string; name: string }) {
     try {
       await navigator.clipboard.writeText(inviteUrl(inst, at));
-      toast(`Invite link copied. Friends open it to join ${at.name} with the same pack.`, 'success');
+      toast(t('Invite link copied. Friends open it to join {name} with the same pack.', { name: at.name }), 'success');
     } catch {
-      toast("Couldn't copy the link", 'error');
+      toast(t('Couldn\'t copy the link'), 'error');
     }
   }
 </script>
 
 {#if inst}
   <div class="page">
-    <button class="back btn ghost" onclick={() => go('library')}><ArrowLeft size={16} /> Library</button>
+    <button class="back btn ghost" onclick={() => go('library')}><ArrowLeft size={16} /> {t('Library')}</button>
 
     <section class="banner glass rise" oncontextmenu={(e) => openInstanceMenu(e, inst)} aria-label={inst.name}>
       <div class="art"><InstanceArt loader={inst.loader} image={instanceBanner(inst)} icon={instanceIcon(inst)} /></div>
@@ -60,43 +61,43 @@
         <div class="title">
           <h1>{inst.name}</h1>
           <div class="chips">
-            <span class="chip">Minecraft {inst.gameVersion}</span>
+            <span class="chip">{t('Minecraft {gameVersion}', { gameVersion: inst.gameVersion })}</span>
             <span class="chip">{loaderLabel(inst.loader)}{inst.loaderVersion ? ` ${inst.loaderVersion}` : ''}</span>
             {#if inst.pack}
               <span class="chip" class:outdated={versionStatus(inst) === 'outdated'} class:latest={versionStatus(inst) === 'latest'}>
-                Modpack {packVersion(inst.pack)}{versionStatus(inst) ? ` · ${versionStatus(inst) === 'outdated' ? 'Outdated' : 'Latest'}` : ''}
+                {t('Modpack {packVersion}{x}', { packVersion: packVersion(inst.pack), x: versionStatus(inst) ? ` · ${versionStatus(inst) === 'outdated' ? t('Outdated') : t('Latest')}` : '' })}
               </span>
             {/if}
-            {#if isRunning(inst.id)}<span class="chip live">● Playing</span>{/if}
+            {#if isRunning(inst.id)}<span class="chip live">{t('● Playing')}</span>{/if}
           </div>
         </div>
         <div class="actions">
           <PlayButton {inst} />
           {#if isRunning(inst.id) && playingAt[inst.id]}
             {@const at = playingAt[inst.id]}
-            <button class="btn lg" title="Copy a link friends can open to join {at.name} with the same pack" onclick={() => copyInvite(inst, at)}>
-              <UserPlus size={17} /> Invite
+            <button class="btn lg" title={t('Copy a link friends can open to join {name} with the same pack', { name: at.name })} onclick={() => copyInvite(inst, at)}>
+              <UserPlus size={17} /> {t('Invite')}
             </button>
           {/if}
-          <button class="btn lg" title="Pick memory, Java flags and Java for this instance" onclick={() => (app.optimizing = inst)}>
-            <Sparkles size={17} /> Optimize
+          <button class="btn lg" title={t('Pick memory, Java flags and Java for this instance')} onclick={() => (app.optimizing = inst)}>
+            <Sparkles size={17} /> {t('Optimize')}
           </button>
           {#if inst.pack?.projectId}
             {@const upd = packUpdates.list.find((u) => u.instanceId === inst.id)}
             {#if upd}
               <button
                 class="btn lg has-update"
-                title="Update to {upd.latest}, or pick another version"
+                title={t('Update to {latest}, or pick another version', { latest: upd.latest })}
                 disabled={isRunning(inst.id) || isBusy(inst.id)}
                 onclick={() => (app.packVersionFor = inst)}
               >
-                <CircleArrowUp size={17} /> Update
+                <CircleArrowUp size={17} /> {t('Update')}
               </button>
             {:else}
               <button
                 class="btn lg icon-lg"
-                title="Change modpack version"
-                aria-label="Change modpack version"
+                title={t('Change modpack version')}
+                aria-label={t('Change modpack version')}
                 disabled={isRunning(inst.id) || isBusy(inst.id)}
                 onclick={() => (app.packVersionFor = inst)}
               >
@@ -104,7 +105,7 @@
               </button>
             {/if}
           {/if}
-          <button class="btn lg icon-lg" title="Open folder" aria-label="Open folder" onclick={() => api.openFolder(inst.id)}>
+          <button class="btn lg icon-lg" title={t('Open folder')} aria-label={t('Open folder')} onclick={() => api.openFolder(inst.id)}>
             <FolderOpen size={18} />
           </button>
         </div>
@@ -119,25 +120,25 @@
       <button class="searching glass" onclick={() => (app.modSearchFor = { instanceId: inst.id, guess: null })}>
         <Bug size={16} />
         <span>
-          <b>Finding the broken mod</b>
+          <b>{t('Finding the broken mod')}</b>
           {s.phase === 'found'
-            ? `Found: ${s.culprits.map((c) => c.name).join(', ')}`
+            ? t('Found: {map}', { map: s.culprits.map((c) => c.name).join(', ') })
             : s.phase === 'notAMod'
-              ? 'Not caused by a mod'
-              : `Test ${s.test} of about ${s.tests} · ${s.off} mod${s.off === 1 ? '' : 's'} off for now`}
+              ? t('Not caused by a mod')
+              : (s.off === 1 ? t('Test {test} of about {tests} · {off} mod off for now', { test: s.test, tests: s.tests, off: s.off }) : t('Test {test} of about {tests} · {off} mods off for now', { test: s.test, tests: s.tests, off: s.off }))}
         </span>
-        <em>Open</em>
+        <em>{t('Open')}</em>
       </button>
     {/if}
 
     <div class="tabs">
-      <button class:active={app.instanceTab === 'overview'} onclick={() => (app.instanceTab = 'overview')}><LayoutGrid size={15} /> Overview</button>
-      <button class:active={app.instanceTab === 'content'} onclick={() => (app.instanceTab = 'content')}><Puzzle size={15} /> Content</button>
-      <button class:active={app.instanceTab === 'worlds'} onclick={() => (app.instanceTab = 'worlds')}><Globe size={15} /> Worlds</button>
-      <button class:active={app.instanceTab === 'servers'} onclick={() => (app.instanceTab = 'servers')}><ServerIcon size={15} /> Servers</button>
-      <button class:active={app.instanceTab === 'settings'} onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> Settings</button>
+      <button class:active={app.instanceTab === 'overview'} onclick={() => (app.instanceTab = 'overview')}><LayoutGrid size={15} /> {t('Overview')}</button>
+      <button class:active={app.instanceTab === 'content'} onclick={() => (app.instanceTab = 'content')}><Puzzle size={15} /> {t('Content')}</button>
+      <button class:active={app.instanceTab === 'worlds'} onclick={() => (app.instanceTab = 'worlds')}><Globe size={15} /> {t('Worlds')}</button>
+      <button class:active={app.instanceTab === 'servers'} onclick={() => (app.instanceTab = 'servers')}><ServerIcon size={15} /> {t('Servers')}</button>
+      <button class:active={app.instanceTab === 'settings'} onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> {t('Settings')}</button>
       <button class:active={app.instanceTab === 'console'} onclick={() => (app.instanceTab = 'console')}>
-        <Terminal size={15} /> Console {#if logs.length}<span class="count">{logs.length}</span>{/if}
+        <Terminal size={15} /> {t('Console')} {#if logs.length}<span class="count">{logs.length}</span>{/if}
       </button>
     </div>
 
@@ -145,45 +146,45 @@
       <div class="overview">
         {#if manualPending}
           <div class="panel glass blocked">
-            <h3>{manualPending} file{manualPending > 1 ? 's' : ''} still need a manual download</h3>
-            <p>Their authors don't allow launchers to download them. Peak will move each one into place as soon as you download it.</p>
+            <h3>{(manualPending > 1 ? t('{manualPending} files still need a manual download', { manualPending }) : t('{manualPending} file still need a manual download', { manualPending }))}</h3>
+            <p>{t('Their authors don\'t allow launchers to download them. Peak will move each one into place as soon as you download it.')}</p>
             <div class="blocked-actions">
-              <button class="btn primary" onclick={() => (app.manualFor = inst.id)}>Download them</button>
+              <button class="btn primary" onclick={() => (app.manualFor = inst.id)}>{t('Download them')}</button>
             </div>
           </div>
         {/if}
         <div class="stats">
-          <div class="stat glass"><Clock size={17} /><div><b>{playtime(inst.playtimeSecs)}</b><span>Playtime</span></div></div>
-          <div class="stat glass"><Calendar size={17} /><div><b>{ago(inst.lastPlayed)}</b><span>Last played</span></div></div>
+          <div class="stat glass"><Clock size={17} /><div><b>{playtime(inst.playtimeSecs)}</b><span>{t('Playtime')}</span></div></div>
+          <div class="stat glass"><Calendar size={17} /><div><b>{ago(inst.lastPlayed)}</b><span>{t('Last played')}</span></div></div>
           <div class="stat glass">
-            <Cpu size={17} /><div><b>{((inst.memoryMb ?? app.settings?.memoryMb ?? 4096) / 1024).toFixed(1)} GB</b><span>Memory{inst.memoryMb ? '' : ' (default)'}</span></div>
+            <Cpu size={17} /><div><b>{((inst.memoryMb ?? app.settings?.memoryMb ?? 4096) / 1024).toFixed(1)} GB</b><span>{inst.memoryMb ? t('Memory') : t('Memory (default)')}</span></div>
           </div>
         </div>
 
         <div class="panel glass about">
-          <div class="about-row"><Layers size={16} /><span>Mod loader</span><b>{loaderLabel(inst.loader)}{inst.loaderVersion ? ` ${inst.loaderVersion}` : ''}</b></div>
+          <div class="about-row"><Layers size={16} /><span>{t('Mod loader')}</span><b>{loaderLabel(inst.loader)}{inst.loaderVersion ? ` ${inst.loaderVersion}` : ''}</b></div>
           {#if inst.pack}
-            <div class="about-row"><Layers size={16} /><span>Modpack</span><b>{inst.pack.name} · {packVersion(inst.pack)}</b></div>
+            <div class="about-row"><Layers size={16} /><span>{t('Modpack')}</span><b>{inst.pack.name} · {packVersion(inst.pack)}</b></div>
             {#if inst.pack.description}<p class="notes">{inst.pack.description}</p>{/if}
           {/if}
           {#if inst.notes}<p class="notes">{inst.notes}</p>{/if}
-          <button class="btn" onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> Edit settings</button>
+          <button class="btn" onclick={() => (app.instanceTab = 'settings')}><SlidersHorizontal size={15} /> {t('Edit settings')}</button>
         </div>
 
         <div class="panel glass">
-          <h3>Manage</h3>
+          <h3>{t('Manage')}</h3>
           <div class="manage">
-            <button class="btn" disabled={isBusy(inst.id) || isRunning(inst.id)} onclick={() => repairInstance(inst)}><Wrench size={16} /> Verify & repair files</button>
-            <button class="btn" onclick={() => api.openFolder(inst.id)}><FolderOpen size={16} /> Open folder</button>
+            <button class="btn" disabled={isBusy(inst.id) || isRunning(inst.id)} onclick={() => repairInstance(inst)}><Wrench size={16} /> {t('Verify & repair files')}</button>
+            <button class="btn" onclick={() => api.openFolder(inst.id)}><FolderOpen size={16} /> {t('Open folder')}</button>
             {#if inst.loader !== 'vanilla'}
               <button class="btn" disabled={isRunning(inst.id)} onclick={() => (app.modSearchFor = { instanceId: inst.id, guess: null })}>
-                <Bug size={16} /> Find a broken mod
+                <Bug size={16} /> {t('Find a broken mod')}
               </button>
             {/if}
-            <button class="btn" onclick={() => createShortcut(inst)}><MonitorPlay size={16} /> Desktop shortcut</button>
-            <button class="btn" onclick={() => (app.exporting = inst)}><PackageOpen size={16} /> Export as modpack</button>
-            <button class="btn" onclick={() => (app.serverPack = inst)}><Server size={16} /> Export as server pack</button>
-            <button class="btn danger" disabled={isRunning(inst.id)} onclick={() => (app.deleting = inst)}><Trash2 size={16} /> Delete instance</button>
+            <button class="btn" onclick={() => createShortcut(inst)}><MonitorPlay size={16} /> {t('Desktop shortcut')}</button>
+            <button class="btn" onclick={() => (app.exporting = inst)}><PackageOpen size={16} /> {t('Export as modpack')}</button>
+            <button class="btn" onclick={() => (app.serverPack = inst)}><Server size={16} /> {t('Export as server pack')}</button>
+            <button class="btn danger" disabled={isRunning(inst.id)} onclick={() => (app.deleting = inst)}><Trash2 size={16} /> {t('Delete instance')}</button>
           </div>
         </div>
       </div>
@@ -199,10 +200,10 @@
       {#if app.poppedOut[inst.id]}
         <div class="popped glass">
           <SquareArrowOutUpRight size={22} />
-          <b>The console is open in its own window</b>
+          <b>{t('The console is open in its own window')}</b>
           <div class="popped-actions">
-            <button class="btn" onclick={() => api.openConsoleWindow(inst.id)}>Show window</button>
-            <button class="btn ghost" onclick={() => api.closeConsoleWindow(inst.id)}>Bring it back here</button>
+            <button class="btn" onclick={() => api.openConsoleWindow(inst.id)}>{t('Show window')}</button>
+            <button class="btn ghost" onclick={() => api.closeConsoleWindow(inst.id)}>{t('Bring it back here')}</button>
           </div>
         </div>
       {:else}
@@ -212,7 +213,7 @@
   </div>
 
 {:else}
-  <p class="missing">This instance no longer exists.</p>
+  <p class="missing">{t('This instance no longer exists.')}</p>
 {/if}
 
 <style>

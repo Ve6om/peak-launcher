@@ -4,6 +4,7 @@
 import { api } from './api';
 import { refreshInstances, toast, errorText, go } from './state.svelte';
 import type { Instance, ManualPack } from './types';
+import { t } from './i18n.svelte';
 
 export const manualPack = $state<{
   current: {
@@ -75,7 +76,7 @@ export async function installDownloaded(path: string, found = false): Promise<bo
       : await api.modpackInstall({ projectId: cur.projectId, versionId: cur.info.fileId, filePath: path, removeFile: found });
     manualPack.current = null;
     await refreshInstances();
-    toast(cur.changeFor ? `Switching ${inst.name} to ${cur.info.version}…` : `Installing ${inst.name}…`, 'info');
+    toast(cur.changeFor ? t('Switching {name} to {version}…', { name: inst.name, version: cur.info.version }) : t('Installing {name}…', { name: inst.name }), 'info');
     go('instance', inst.id);
     cur.then?.(inst);
     return true;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Every Java Peak has downloaded, how much space each takes, and a way to
   // remove the ones you don't need. Peak downloads one again if a game needs it.
   import { onMount } from 'svelte';
@@ -21,7 +22,7 @@
   onMount(load);
 
   const total = $derived((list ?? []).reduce((n, j) => n + j.sizeBytes, 0));
-  const size = (b: number) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
+  const size = (b: number) => (b >= 1e9 ? t('{x} GB', { x: (b / 1e9).toFixed(1) }) : t('{n} MB', { n: Math.max(1, Math.round(b / 1e6)) }));
 
   async function remove(j: InstalledJava) {
     if (confirm !== j.id) {
@@ -33,7 +34,7 @@
     busy = j.id;
     try {
       await api.removeJava(j.id);
-      toast(`Removed ${j.label}`, 'success');
+      toast(t('Removed {label}', { label: j.label }), 'success');
       await load();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -45,22 +46,22 @@
 
 <div class="java-list">
   {#if list === null}
-    <p class="empty">Looking…</p>
+    <p class="empty">{t('Looking…')}</p>
   {:else if !list.length}
-    <p class="empty">No Java downloaded yet. Peak gets the right one the first time you play.</p>
+    <p class="empty">{t('No Java downloaded yet. Peak gets the right one the first time you play.')}</p>
   {:else}
     {#each list as j (j.id)}
       <div class="item">
         <span class="vendor">{j.vendor}</span>
         <span class="jname">{j.label}</span>
         <span class="size">{size(j.sizeBytes)}</span>
-        <button class="btn ghost small" class:danger={confirm === j.id} disabled={busy === j.id} onclick={() => remove(j)} title="Remove">
+        <button class="btn ghost small" class:danger={confirm === j.id} disabled={busy === j.id} onclick={() => remove(j)} title={t('Remove')}>
           <Trash2 size={14} />
-          {confirm === j.id ? 'Sure?' : 'Remove'}
+          {confirm === j.id ? t('Sure?') : t('Remove')}
         </button>
       </div>
     {/each}
-    <p class="total">{size(total)} in total. Removed ones download again the next time a game needs them.</p>
+    <p class="total">{t('{size} in total. Removed ones download again the next time a game needs them.', { size: size(total) })}</p>
   {/if}
 </div>
 

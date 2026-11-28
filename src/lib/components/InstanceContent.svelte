@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Plus, FolderOpen, RefreshCw, Trash2, CircleArrowUp, Search, LoaderCircle, Puzzle, Palette, Sun, List, ArrowDownUp, Undo2, ScrollText, ExternalLink } from '@lucide/svelte';
   import ContentBrowser from './ContentBrowser.svelte';
   import ProjectIcon from './ProjectIcon.svelte';
@@ -132,7 +133,7 @@
       await api.contentSetEnabled(inst.id, kind, item.fileName, enabled);
       for (const l of links) await api.contentSetEnabled(inst.id, kind, l.fileName, enabled);
     });
-    if (links.length) toast(`${enabled ? 'Enabled' : 'Disabled'} ${item.title} and ${links.length} more`);
+    if (links.length) toast(enabled ? t('Enabled {title} and {length} more', { title: item.title, length: links.length }) : t('Disabled {title} and {length} more', { title: item.title, length: links.length }));
     await refresh();
   }
 
@@ -143,7 +144,7 @@
       await api.contentRemove(inst.id, kind, item.fileName);
       for (const l of links) await api.contentRemove(inst.id, kind, l.fileName);
     });
-    toast(links.length ? `Removed ${item.title} and ${links.length} more` : `Removed ${item.title}`);
+    toast(links.length ? t('Removed {title} and {length} more', { title: item.title, length: links.length }) : t('Removed {title}', { title: item.title }));
     await refresh();
   }
 
@@ -152,7 +153,7 @@
     try {
       const list = await api.contentUpdates(inst.id, kind);
       updates = Object.fromEntries(list.map((u) => [u.fileName, u]));
-      toast(list.length ? `${list.length} update${list.length > 1 ? 's' : ''} available` : 'Everything is up to date', list.length ? 'info' : 'success');
+      toast(list.length ? (list.length > 1 ? t('{length} updates available', { length: list.length }) : t('{length} update available', { length: list.length })) : t('Everything is up to date'), list.length ? 'info' : 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -212,13 +213,13 @@
     await withBusy(item.fileName, async () => {
       if (m.turnedOff.length) {
         for (const f of m.turnedOff) await api.contentSetEnabled(inst.id, 'mod', f, true);
-        toast(`Turned ${m.turnedOff.length === 1 ? 'it' : 'them'} back on`, 'success');
+        toast(m.turnedOff.length === 1 ? t('Turned it back on') : t('Turned them back on'), 'success');
         return;
       }
       for (const id of m.missing) {
         const pid = await api.crashFindMod(inst.id, id, pretty(id));
         if (!pid) {
-          toast(`Couldn't find ${pretty(id)} for this Minecraft version and loader. Try searching under Add mods.`, 'error');
+          toast(t('Couldn\'t find {pretty} for this Minecraft version and loader. Try searching under Add mods.', { pretty: pretty(id) }), 'error');
           continue;
         }
         await requestInstall(inst.id, 'mod', pid);
@@ -239,7 +240,7 @@
   async function undoUpdate() {
     try {
       const n = await api.contentUndo(inst.id);
-      toast(`Put back ${n} file${n === 1 ? '' : 's'} from before the update`, 'success');
+      toast((n === 1 ? t('Put back {n} file from before the update', { n }) : t('Put back {n} files from before the update', { n })), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
@@ -252,10 +253,10 @@
 
   async function updateAll() {
     for (const item of updatable) await update(item);
-    toast('Updates installed', 'success');
+    toast(t('Updates installed'), 'success');
   }
 
-  const size = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const size = (b: number) => (b > 1048576 ? t('{x} MB', { x: (b / 1048576).toFixed(1) }) : t('{n} KB', { n: Math.max(1, Math.round(b / 1024)) }));
 </script>
 
 <div class="content">
@@ -267,54 +268,54 @@
       {/each}
     </div>
     <div class="seg mode">
-      <button class:active={mode === 'installed'} onclick={() => (mode = 'installed')}><List size={14} /> Installed ({items.length})</button>
-      <button class:active={mode === 'browse'} onclick={() => (mode = 'browse')}><Plus size={14} /> Add {label.label.toLowerCase()}</button>
+      <button class:active={mode === 'installed'} onclick={() => (mode = 'installed')}><List size={14} /> {t('Installed ({length})', { length: items.length })}</button>
+      <button class:active={mode === 'browse'} onclick={() => (mode = 'browse')}><Plus size={14} /> {t('Add {label}', { label: label.label.toLowerCase() })}</button>
     </div>
     {#if mode === 'installed'}
       <div class="filter">
         <Search size={14} />
-        <input bind:value={filter} placeholder="Filter {label.label.toLowerCase()}" />
+        <input bind:value={filter} placeholder={t('Filter {label}', { label: label.label.toLowerCase() })} />
       </div>
-      <button class="btn" title="Open folder" onclick={() => api.openContentFolder(inst.id, kind)}><FolderOpen size={15} /></button>
+      <button class="btn" title={t('Open folder')} onclick={() => api.openContentFolder(inst.id, kind)}><FolderOpen size={15} /></button>
       <button class="btn" onclick={checkUpdates} disabled={checking || !items.length}>
-        {#if checking}<LoaderCircle size={15} class="spin" />{:else}<RefreshCw size={15} />{/if} Check for updates
+        {#if checking}<LoaderCircle size={15} class="spin" />{:else}<RefreshCw size={15} />{/if} {t('Check for updates')}
       </button>
       {#if undo}
-        <button class="btn" onclick={undoUpdate} disabled={running} title="Put back the {undo.count} file{undo.count === 1 ? '' : 's'} replaced {ago(undo.when).toLowerCase()}">
-          <Undo2 size={15} /> Undo last update
+        <button class="btn" onclick={undoUpdate} disabled={running} title={(undo.count === 1 ? t('Put back the {count} file replaced {ago}', { count: undo.count, ago: ago(undo.when).toLowerCase() }) : t('Put back the {count} files replaced {ago}', { count: undo.count, ago: ago(undo.when).toLowerCase() }))}>
+          <Undo2 size={15} /> {t('Undo last update')}
         </button>
       {/if}
     {/if}
   </div>
 
   {#if running}
-    <p class="note">The game is running. Changes apply the next time you launch.</p>
+    <p class="note">{t('The game is running. Changes apply the next time you launch.')}</p>
   {/if}
 
   {#if mode === 'installed' && updatable.length}
     <div class="updates glass">
       <div class="updates-head">
-        <b>{updatable.length} update{updatable.length > 1 ? 's' : ''} available</b>
-        <button class="btn ghost" onclick={() => (updates = {})}>Hide</button>
-        <button class="btn primary" onclick={updateAll} disabled={running}><CircleArrowUp size={15} /> Update all</button>
+        <b>{(updatable.length > 1 ? t('{length} updates available', { length: updatable.length }) : t('{length} update available', { length: updatable.length }))}</b>
+        <button class="btn ghost" onclick={() => (updates = {})}>{t('Hide')}</button>
+        <button class="btn primary" onclick={updateAll} disabled={running}><CircleArrowUp size={15} /> {t('Update all')}</button>
       </div>
       {#each updatable as item (item.fileName)}
         <div class="urow">
           <ProjectIcon url={item.iconUrl} title={item.title} size={28} />
           <span class="uname">{item.title}</span>
-          <span class="uver">{item.versionNumber ?? 'Unknown'} <span class="arrow">→</span> <b>{updates[item.fileName].versionNumber}</b></span>
-          <button class="btn ghost icon" class:on={!!notes[item.fileName]} title="What's new" aria-label="What's new in {item.title}" onclick={() => toggleNotes(item)}>
+          <span class="uver">{item.versionNumber ?? t('Unknown')} <span class="arrow">→</span> <b>{updates[item.fileName].versionNumber}</b></span>
+          <button class="btn ghost icon" class:on={!!notes[item.fileName]} title={t('What\'s new')} aria-label={t('What\'s new in {title}', { title: item.title })} onclick={() => toggleNotes(item)}>
             {#if notes[item.fileName] === 'loading'}<LoaderCircle size={14} class="spin" />{:else}<ScrollText size={14} />{/if}
           </button>
           <button class="btn upd" disabled={busy.has(item.fileName)} onclick={() => update(item)}>
-            {#if busy.has(item.fileName)}<LoaderCircle size={14} class="spin" />{:else}<CircleArrowUp size={14} />{/if} Update
+            {#if busy.has(item.fileName)}<LoaderCircle size={14} class="spin" />{:else}<CircleArrowUp size={14} />{/if} {t('Update')}
           </button>
         </div>
         {@const n = notes[item.fileName]}
         {#if n && n !== 'loading'}
           <div class="notes">
-            {#if n.text}<p>{n.text.length > 4000 ? `${n.text.slice(0, 4000)}…` : n.text}</p>{:else}<p class="none">No changelog was given for this version.</p>{/if}
-            <button class="link" onclick={() => api.openUrl(n.url)}><ExternalLink size={12} /> Open its page</button>
+            {#if n.text}<p>{n.text.length > 4000 ? `${n.text.slice(0, 4000)}…` : n.text}</p>{:else}<p class="none">{t('No changelog was given for this version.')}</p>{/if}
+            <button class="link" onclick={() => api.openUrl(n.url)}><ExternalLink size={12} /> {t('Open its page')}</button>
           </div>
         {/if}
       {/each}
@@ -327,13 +328,13 @@
     <div class="empty"><LoaderCircle size={20} class="spin" /></div>
   {:else if !items.length}
     <div class="empty glass">
-      <h3>No {label.label.toLowerCase()} yet</h3>
+      <h3>{t('No {label} yet', { label: label.label.toLowerCase() })}</h3>
       <p>
         {kind === 'mod' && inst.loader === 'vanilla'
-          ? 'This is a vanilla instance. Pick a mod loader in Settings to use mods.'
-          : `Find ${label.label.toLowerCase()} on Modrinth or CurseForge, or drop files into the folder.`}
+          ? t('This is a vanilla instance. Pick a mod loader in Settings to use mods.')
+          : t('Find {label} on Modrinth or CurseForge, or drop files into the folder.', { label: label.label.toLowerCase() })}
       </p>
-      <button class="btn primary" onclick={() => (mode = 'browse')}><Plus size={15} /> Add {label.label.toLowerCase()}</button>
+      <button class="btn primary" onclick={() => (mode = 'browse')}><Plus size={15} /> {t('Add {label}', { label: label.label.toLowerCase() })}</button>
     </div>
   {:else}
     <div class="list glass">
@@ -342,27 +343,27 @@
           <ProjectIcon url={item.iconUrl} title={item.title} size={40} />
           <div class="text">
             <b>
-              {item.title}{#if item.projectId?.startsWith('cf:')}<span class="src">CurseForge</span>{/if}
+              {item.title}{#if item.projectId?.startsWith('cf:')}<span class="src">{t('CurseForge')}</span>{/if}
               {#if kind === 'mod' && sides[item.fileName]?.clientOnly}
-                <span class="tag side" title="{sides[item.fileName].reason}{sides[item.fileName].sure ? '' : ' (best guess)'}">Client only</span>
+                <span class="tag side" title="{sides[item.fileName].reason}{sides[item.fileName].sure ? '' : ' (best guess)'}">{t('Client only')}</span>
               {/if}
               {#if item.enabled && missing[item.fileName]}
                 {@const m = missing[item.fileName]}
                 <button
                   class="tag needs"
-                  title={m.turnedOff.length ? `${m.turnedOff.join(', ')} is turned off. Click to turn it back on.` : `Not installed. Click to find and install ${m.missing.map(pretty).join(', ')}.`}
+                  title={m.turnedOff.length ? t('{turnedOff} is turned off. Click to turn it back on.', { turnedOff: m.turnedOff.join(', ') }) : t('Not installed. Click to find and install {map}.', { map: m.missing.map(pretty).join(', ') })}
                   disabled={busy.has(item.fileName)}
                   onclick={() => provide(item)}
                 >
-                  Needs {m.missing.map(pretty).join(', ')}{m.turnedOff.length ? ' (turned off)' : ''}
+                  {t('Needs {map}{x}', { map: m.missing.map(pretty).join(', '), x: m.turnedOff.length ? ` ${t('(turned off)')}` : '' })}
                 </button>
               {/if}
             </b>
             <span>
               {#if item.projectId}
-                <button class="ver" title="Change version" onclick={() => (changing = item)}>{item.versionNumber ?? 'Unknown version'}</button>
+                <button class="ver" title={t('Change version')} onclick={() => (changing = item)}>{item.versionNumber ?? t('Unknown version')}</button>
               {:else}
-                {item.versionNumber ?? 'Unknown version'}
+                {item.versionNumber ?? t('Unknown version')}
               {/if}
               · {item.fileName.replace(/\.disabled$/, '')} · {size(item.size)}
             </span>
@@ -373,18 +374,18 @@
             </button>
           {/if}
           {#if item.projectId}
-            <button class="btn ghost icon swap" title="Change version" aria-label="Change version of {item.title}" disabled={busy.has(item.fileName)} onclick={() => (changing = item)}>
+            <button class="btn ghost icon swap" title={t('Change version')} aria-label={t('Change version of {title}', { title: item.title })} disabled={busy.has(item.fileName)} onclick={() => (changing = item)}>
               <ArrowDownUp size={15} />
             </button>
           {/if}
-          <Switch disabled={busy.has(item.fileName)} label="Enable {item.title}" bind:checked={() => item.enabled, (v) => toggle(item, v)} />
-          <button class="btn ghost icon del" title="Remove" aria-label="Remove {item.title}" disabled={busy.has(item.fileName)} onclick={() => remove(item)}>
+          <Switch disabled={busy.has(item.fileName)} label={t('Enable {title}', { title: item.title })} bind:checked={() => item.enabled, (v) => toggle(item, v)} />
+          <button class="btn ghost icon del" title={t('Remove')} aria-label={t('Remove {title}', { title: item.title })} disabled={busy.has(item.fileName)} onclick={() => remove(item)}>
             <Trash2 size={15} />
           </button>
         </div>
       {/each}
     </div>
-    <p class="count">{items.length} {items.length === 1 ? label.single : label.label.toLowerCase()} · {items.filter((i) => !i.enabled).length} disabled</p>
+    <p class="count">{t('{length} {x} · {length2} disabled', { length: items.length, x: items.length === 1 ? label.single : label.label.toLowerCase(), length2: items.filter((i) => !i.enabled).length })}</p>
   {/if}
 </div>
 

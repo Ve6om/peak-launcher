@@ -3,6 +3,7 @@
 // update when the user agrees.
 import { isTauri, api } from './api';
 import { app } from './state.svelte';
+import { t } from './i18n.svelte';
 
 export interface AvailableUpdate {
   version: string;
@@ -97,16 +98,16 @@ async function findUpdate(): Promise<AvailableUpdate | null> {
     version: update.version,
     currentVersion: update.currentVersion,
     date: update.date ?? null,
-    notes: update.body?.trim() || 'Bug fixes and improvements.',
+    notes: update.body?.trim() || t('Bug fixes and improvements.'),
     releases: await notesBetween(update.currentVersion, update.version)
   };
 }
 
 /** Plain-language versions of the updater's errors. */
 function friendly(message: string): string {
-  if (/platforms/i.test(message)) return 'the latest release is still being published. Try again in a few minutes.';
-  if (/(404|not found)/i.test(message)) return "no release information was found. Try again later.";
-  if (/(network|dns|connect|timed? ?out|offline)/i.test(message)) return "couldn't reach the update server. Check your connection.";
+  if (/platforms/i.test(message)) return t('the latest release is still being published. Try again in a few minutes.');
+  if (/(404|not found)/i.test(message)) return t('no release information was found. Try again later.');
+  if (/(network|dns|connect|timed? ?out|offline)/i.test(message)) return t('couldn\'t reach the update server. Check your connection.');
   return message;
 }
 

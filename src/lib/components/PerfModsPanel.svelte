@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Optional extra in the Optimize dialog: add well-known performance mods
   // that fit this instance, and take them out again with Undo.
   import { ChevronDown, LoaderCircle, Undo2, Plus, Check } from '@lucide/svelte';
@@ -42,7 +43,7 @@
     busy = true;
     try {
       const names = await api.perfModsAdd(inst.id, [...picked]);
-      toast(names.length > 1 ? `Added ${names[0]} and ${names.length - 1} more` : `Added ${names[0]}`, 'success');
+      toast(names.length > 1 ? t('Added {x} and {x2} more', { x: names[0], x2: names.length - 1 }) : t('Added {x}', { x: names[0] }), 'success');
       await load();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -55,7 +56,7 @@
     busy = true;
     try {
       const n = await api.perfModsUndo(inst.id);
-      toast(`Took out ${n} performance mod${n === 1 ? '' : 's'}`, 'success');
+      toast((n === 1 ? t('Took out {n} performance mod', { n }) : t('Took out {n} performance mods', { n })), 'success');
       await load();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -68,8 +69,8 @@
 <div class="extra">
   <button class="head" aria-expanded={open} onclick={toggleOpen}>
     <span>
-      <b>Extra: performance mods</b>
-      <small>Optional. Adds well-known mods that make the game run faster.</small>
+      <b>{t('Extra: performance mods')}</b>
+      <small>{t('Optional. Adds well-known mods that make the game run faster.')}</small>
     </span>
     <ChevronDown size={16} class={open ? 'turned' : ''} />
   </button>
@@ -77,12 +78,12 @@
   {#if open}
     <div class="body" transition:slide={{ duration: 160 }}>
       {#if vanilla}
-        <p class="muted">This is a vanilla instance. Pick Fabric, Quilt, Forge or NeoForge in its settings to use mods.</p>
+        <p class="muted">{t('This is a vanilla instance. Pick Fabric, Quilt, Forge or NeoForge in its settings to use mods.')}</p>
       {:else if !info}
-        <p class="muted"><LoaderCircle size={14} class="spin" /> Checking which ones fit {inst.name}…</p>
+        <p class="muted"><LoaderCircle size={14} class="spin" /> {t('Checking which ones fit {name}…', { name: inst.name })}</p>
       {:else}
         <p class="warn">
-          These are popular and widely used, but a pack's own mods sometimes don't get along with them: crashes, missing visuals, or a mod behaving strangely. If anything seems off after adding them, press Undo.
+          {t('These are popular and widely used, but a pack\'s own mods sometimes don\'t get along with them: crashes, missing visuals, or a mod behaving strangely. If anything seems off after adding them, press Undo.')}
         </p>
         <ul class="mods">
           {#each info.mods as m (m.projectId)}
@@ -95,31 +96,31 @@
               {:else}
                 <span class="row">
                   {#if m.status === 'installed'}<Check size={14} />{:else}<i class="slot"></i>{/if}
-                  <span><b>{m.title}</b><small>{m.status !== 'installed' ? m.note : info.added.includes(m.title) ? 'Added by Optimize (Undo takes it out)' : 'Already in this instance'}</small></span>
+                  <span><b>{m.title}</b><small>{m.status !== 'installed' ? m.note : info.added.includes(m.title) ? t('Added by Optimize (Undo takes it out)') : t('Already in this instance')}</small></span>
                 </span>
               {/if}
             </li>
           {/each}
         </ul>
         {#if !addable.length}
-          <p class="muted">Nothing to add: every one that fits is already in {inst.name}.</p>
+          <p class="muted">{t('Nothing to add: every one that fits is already in {name}.', { name: inst.name })}</p>
         {/if}
         <div class="actions">
           {#if info.added.length}
-            <button class="btn" disabled={busy || running} title="Remove {info.added.join(', ')}" onclick={undo}>
-              <Undo2 size={14} /> Undo ({info.added.length})
+            <button class="btn" disabled={busy || running} title={t('Remove {added}', { added: info.added.join(', ') })} onclick={undo}>
+              <Undo2 size={14} /> {t('Undo ({length})', { length: info.added.length })}
             </button>
           {/if}
           {#if addable.length}
             <button class="btn" disabled={busy} onclick={() => (picked = picked.size === addable.length ? new Set() : new Set(addable.map((m) => m.projectId)))}>
-              {picked.size === addable.length ? 'Select none' : 'Select all'}
+              {picked.size === addable.length ? t('Select none') : t('Select all')}
             </button>
             <button class="btn primary" disabled={busy || running || !picked.size} onclick={add}>
-              {#if busy}<LoaderCircle size={14} class="spin" />{:else}<Plus size={14} />{/if} Add {picked.size || ''}
+              {#if busy}<LoaderCircle size={14} class="spin" />{:else}<Plus size={14} />{/if} {t('Add {x}', { x: picked.size || '' })}
             </button>
           {/if}
         </div>
-        {#if running}<p class="muted">Close the game to add or remove mods.</p>{/if}
+        {#if running}<p class="muted">{t('Close the game to add or remove mods.')}</p>{/if}
       {/if}
     </div>
   {/if}

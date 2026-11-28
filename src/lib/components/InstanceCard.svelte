@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Play, Clock, LoaderCircle } from '@lucide/svelte';
   import InstanceArt from './InstanceArt.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
@@ -13,15 +14,15 @@
 </script>
 
 <div class="card glass rise" style:animation-delay="{index * 40}ms" oncontextmenu={(e) => openInstanceMenu(e, inst)} role="group" aria-label={inst.name}>
-  <button class="open" aria-label="Open {inst.name}" onclick={() => go('instance', inst.id)}></button>
+  <button class="open" aria-label={t('Open {name}', { name: inst.name })} onclick={() => go('instance', inst.id)}></button>
   <div class="art">
     <InstanceArt loader={inst.loader} image={instanceBanner(inst)} icon={instanceIcon(inst)} prefer="logo" />
     <div class="badges">
       <span class="chip dark"><span class="peak">▲</span> {inst.gameVersion}</span>
-      {#if running}<span class="chip live">● Playing</span>{/if}
+      {#if running}<span class="chip live">{t('● Playing')}</span>{/if}
     </div>
     {#if !running}
-      <button class="play" aria-label="Play {inst.name}" disabled={busy} onclick={() => play(inst)}>
+      <button class="play" aria-label={t('Play {name}', { name: inst.name })} disabled={busy} onclick={() => play(inst)}>
         {#if busy}<LoaderCircle size={20} class="spin" />{:else}<Play size={20} fill="currentColor" />{/if}
       </button>
     {/if}
@@ -34,7 +35,7 @@
     <div class="meta">
       <span>{inst.pack ? `${packVersion(inst.pack)}` : loaderLabel(inst.loader)}</span>
       {#if versionStatus(inst)}
-        <span class="vstatus" class:outdated={versionStatus(inst) === 'outdated'}>{versionStatus(inst) === 'outdated' ? 'Outdated' : 'Latest'}</span>
+        <span class="vstatus" class:outdated={versionStatus(inst) === 'outdated'}>{versionStatus(inst) === 'outdated' ? t('Outdated') : t('Latest')}</span>
       {/if}
       <span class="dot"></span>
       <Clock size={12} />

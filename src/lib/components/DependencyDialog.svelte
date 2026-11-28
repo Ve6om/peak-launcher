@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Confirm a mod's required dependencies before installing them.
   import { Check, LoaderCircle, TriangleAlert, Link2 } from '@lucide/svelte';
   import Modal from './Modal.svelte';
@@ -33,12 +34,12 @@
     close(ok);
   }
 
-  const size = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const size = (b: number) => (b > 1048576 ? t('{x} MB', { x: (b / 1048576).toFixed(1) }) : t('{n} KB', { n: Math.max(1, Math.round(b / 1024)) }));
 </script>
 
 <Modal
-  title="Install {root.title}?"
-  subtitle="{root.title} needs {deps.length} other project{deps.length > 1 ? 's' : ''} that {deps.length > 1 ? "aren't" : "isn't"} installed yet."
+  title={t('Install {title}?', { title: root.title })}
+  subtitle={deps.length > 1 ? t("{title} needs {length} other projects that aren't installed yet.", { title: root.title, length: deps.length }) : t("{title} needs 1 other project that isn't installed yet.", { title: root.title })}
   width={520}
   onclose={() => close(false)}
 >
@@ -47,19 +48,19 @@
       <ProjectIcon url={root.iconUrl} title={root.title} size={36} />
       <div class="text">
         <b>{root.title}</b>
-        <span>{root.versionNumber} · {size(root.size)}{root.manual ? ' · Download in browser' : ''}</span>
+        <span>{root.versionNumber} · {size(root.size)}{root.manual ? t(' · Download in browser') : ''}</span>
       </div>
-      <span class="chip">Requested</span>
+      <span class="chip">{t('Requested')}</span>
     </div>
 
-    <span class="label">Required dependencies</span>
+    <span class="label">{t('Required dependencies')}</span>
     {#each deps as d (d.projectId)}
       <button class="row dep" class:off={skipped.has(d.projectId)} onclick={() => toggle(d.projectId)}>
         <span class="box">{#if !skipped.has(d.projectId)}<Check size={12} strokeWidth={3} />{/if}</span>
         <ProjectIcon url={d.iconUrl} title={d.title} size={32} />
         <div class="text">
           <b>{d.title}</b>
-          <span class="reason"><Link2 size={11} /> Required by {d.requiredBy}{d.manual ? ' · Download in browser' : ''}</span>
+          <span class="reason"><Link2 size={11} /> {t('Required by {requiredBy}', { requiredBy: d.requiredBy })}{d.manual ? ` · ${t('Download in browser')}` : ''}</span>
         </div>
         <span class="ver">{d.versionNumber}</span>
       </button>
@@ -67,14 +68,14 @@
   </div>
 
   {#if skipped.size}
-    <p class="warn"><TriangleAlert size={14} /> Mods usually crash the game without their required dependencies.</p>
+    <p class="warn"><TriangleAlert size={14} /> {t('Mods usually crash the game without their required dependencies.')}</p>
   {/if}
 
   <footer>
-    <button class="btn ghost" onclick={() => close(false)}>Cancel</button>
+    <button class="btn ghost" onclick={() => close(false)}>{t('Cancel')}</button>
     <button class="btn primary" disabled={busy} onclick={confirm}>
       {#if busy}<LoaderCircle size={16} class="spin" />{/if}
-      Install {plan.items.length - skipped.size} item{plan.items.length - skipped.size === 1 ? '' : 's'}
+      {(plan.items.length - skipped.size === 1 ? t('Install {x} item', { x: plan.items.length - skipped.size }) : t('Install {x} items', { x: plan.items.length - skipped.size }))}
     </button>
   </footer>
 </Modal>

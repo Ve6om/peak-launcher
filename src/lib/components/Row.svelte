@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // One labelled setting row. With `override`, a "Custom" switch decides
   // whether the instance uses its own value or the global default.
   import type { Snippet } from 'svelte';
@@ -34,8 +35,8 @@
     {#if desc}<small>{desc}</small>{/if}
     {#if override !== undefined}
       <span class="ovr">
-        <Switch bind:checked={() => on, (v) => { on = v; onoverride?.(v); }} label="Customize {title}" />
-        <span>{on ? 'Custom for this instance' : `Using global${globalHint ? `: ${globalHint}` : ''}`}</span>
+        <Switch bind:checked={() => on, (v) => { on = v; onoverride?.(v); }} label={t('Customize {title}', { title })} />
+        <span>{on ? t('Custom for this instance') : (globalHint ? t('Using global: {globalHint}', { globalHint }) : t('Using global'))}</span>
       </span>
     {/if}
   </div>

@@ -7,6 +7,7 @@ import { instanceIcon } from './instanceImages';
 import { loaderLabel, packVersion, type Instance } from './types';
 import { playingAt, inviteUrl } from './invite.svelte';
 import { streaming } from './privacy.svelte';
+import { t } from './i18n.svelte';
 
 const SITE = 'https://www.peaklauncher.com';
 const launchedAt = Math.floor(Date.now() / 1000);
@@ -37,7 +38,7 @@ function about(inst: Instance): string {
 
 /** What to show right now. */
 export function currentCard(): PresenceCard {
-  const getPeak = { buttonLabel: 'Get Peak Launcher', buttonUrl: SITE };
+  const getPeak = { buttonLabel: t('Get Peak Launcher'), buttonUrl: SITE };
   const running = app.instances.filter((i) => app.running.includes(i.id));
   if (running.length) {
     const inst = running[0];
@@ -48,13 +49,13 @@ export function currentCard(): PresenceCard {
     // (it has Play in Peak); others only if the player chose to share them.
     const at = playingAt[inst.id];
     const join = at?.pageUrl
-      ? { buttonLabel: 'Join on Peak', buttonUrl: at.pageUrl }
+      ? { buttonLabel: t('Join on Peak'), buttonUrl: at.pageUrl }
       : at && app.settings?.discordJoinAnyServer && !streaming()
-        ? { buttonLabel: 'Join on Peak', buttonUrl: inviteUrl(inst, at) }
+        ? { buttonLabel: t('Join on Peak'), buttonUrl: inviteUrl(inst, at) }
         : getPeak;
     return {
-      details: `Playing ${inst.name}`,
-      state: server ? `${about(inst)} · on ${server}` : about(inst),
+      details: t('Playing {name}', { name: inst.name }),
+      state: server ? t('{about} · on {server}', { about: about(inst), server }) : about(inst),
       start: startedAt[inst.id],
       image: icon?.startsWith('https://') ? icon : null,
       imageText: inst.pack?.name ?? inst.name,
@@ -67,7 +68,7 @@ export function currentCard(): PresenceCard {
   if (installing) {
     const icon = instanceIcon(installing);
     return {
-      details: `Installing ${installing.name}`,
+      details: t('Installing {name}', { name: installing.name }),
       state: about(installing),
       start: launchedAt,
       image: icon?.startsWith('https://') ? icon : null,
@@ -77,17 +78,17 @@ export function currentCard(): PresenceCard {
   }
 
   const where: Record<string, string> = {
-    home: 'In the launcher',
-    library: 'Looking through their instances',
-    servers: 'Looking for a server to play on',
-    accounts: 'In the launcher',
-    settings: 'In the launcher'
+    home: t('In the launcher'),
+    library: t('Looking through their instances'),
+    servers: t('Looking for a server to play on'),
+    accounts: t('In the launcher'),
+    settings: t('In the launcher')
   };
-  let details = where[app.view] ?? 'In the launcher';
-  if (app.view === 'browse') details = app.browse.kind === 'modpack' ? 'Browsing modpacks' : 'Browsing mods';
+  let details = where[app.view] ?? t('In the launcher');
+  if (app.view === 'browse') details = app.browse.kind === 'modpack' ? t('Browsing modpacks') : t('Browsing mods');
   if (app.view === 'instance') {
     const inst = app.instances.find((i) => i.id === app.selectedId);
-    if (inst) details = `Getting ${inst.name} ready`;
+    if (inst) details = t('Getting {name} ready', { name: inst.name });
   }
   return { details, start: launchedAt, ...getPeak };
 }

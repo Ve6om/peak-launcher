@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // The Optimize button's dialog: what Peak suggests for this instance and
   // why. Nothing changes until Apply.
   import { onMount } from 'svelte';
@@ -19,17 +20,17 @@
 
   // Opened from the overview or the right-click menu: save straight away.
   let saving = $state(false);
-  async function applyHere(t: TuningSuggestion, useGraal: boolean) {
+  async function applyHere(tuning: TuningSuggestion, useGraal: boolean) {
     saving = true;
     try {
-      const next: Instance = { ...$state.snapshot(inst), memoryMb: t.memoryMb, jvmPreset: t.jvmPreset };
+      const next: Instance = { ...$state.snapshot(inst), memoryMb: tuning.memoryMb, jvmPreset: tuning.jvmPreset };
       if (useGraal) {
         next.javaRuntime = 'graalvm';
         next.javaPath = null;
       }
       await api.updateInstance(next);
       await refreshInstances();
-      toast(`Optimized ${inst.name}`, 'success');
+      toast(t('Optimized {name}', { name: inst.name }), 'success');
       onclose();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -58,7 +59,7 @@
   });
 
   const presetName = (id: string) => app.info?.jvmPresets.find((p) => p.id === id)?.name ?? id;
-  const gb = (mb: number) => `${+(mb / 1024).toFixed(1)} GB`;
+  const gb = (mb: number) => t('{x} GB', { x: +(mb / 1024).toFixed(1) });
   const g = $derived(app.settings);
   const alreadyGraal = $derived(!inst.javaPath && (inst.javaRuntime === 'graalvm' || (!inst.javaRuntime && g?.useBundledJava !== false && g?.javaVendor === 'graalvm')));
 
@@ -70,7 +71,7 @@
     if (inst.javaPath) return javaFolderName(inst.javaPath);
     if (inst.javaRuntime) return BUILD[inst.javaRuntime] ?? inst.javaRuntime;
     if (g && !g.useBundledJava && g.javaPath) return javaFolderName(g.javaPath);
-    return BUILD[g?.javaVendor ?? 'mojang'] ?? "Mojang's Java";
+    return BUILD[g?.javaVendor ?? 'mojang'] ?? t('Mojang\'s Java');
   });
 
   const memOk = $derived(!!s && memNow === s.memoryMb);
@@ -80,49 +81,49 @@
   const allGood = $derived(memOk && presetOk && javaOk);
 </script>
 
-<Modal title="Optimize {inst.name}" subtitle="Memory, Java flags and Java picked for this instance and this computer" width={540} {onclose}>
+<Modal title={t('Optimize {name}', { name: inst.name })} subtitle={t('Memory, Java flags and Java picked for this instance and this computer')} width={540} {onclose}>
   {#if error}
     <p class="error">{error}</p>
   {:else if !s}
-    <p class="muted">Looking at the instance…</p>
+    <p class="muted">{t('Looking at the instance…')}</p>
   {:else}
     {#if allGood}
-      <p class="done"><Check size={16} /> Already optimized. {inst.name} uses what Peak would pick.</p>
+      <p class="done"><Check size={16} /> {t('Already optimized. {name} uses what Peak would pick.', { name: inst.name })}</p>
     {/if}
 
     <div class="picks">
-      {@render pick('Memory', memOk, gb(memNow), gb(s.memoryMb))}
-      {@render pick('Flags', presetOk, presetName(presetNow), presetName(s.jvmPreset))}
+      {@render pick(t('Memory'), memOk, gb(memNow), gb(s.memoryMb))}
+      {@render pick(t('Flags'), presetOk, presetName(presetNow), presetName(s.jvmPreset))}
       {@render pick('Java', !switchingJava, javaNow, 'GraalVM')}
     </div>
 
     <ul class="why">
       {#each s.reasons as r, i (i)}<li>{r}</li>{/each}
-      {#if !s.graalvm}<li>Java {s.javaMajor} game: GraalVM isn't made for it, so Java stays as it is.</li>{/if}
+      {#if !s.graalvm}<li>{t('Java {javaMajor} game: GraalVM isn\'t made for it, so Java stays as it is.', { javaMajor: s.javaMajor })}</li>{/if}
     </ul>
 
     {#if s.graalvm && !alreadyGraal}
       <label class="graal">
         <span>
-          <b>Switch to GraalVM</b>
-          <small>Downloaded the next time you play (about 600 MB). If the game crashes or acts strangely, set Java build back to Mojang's Java in this instance's settings.</small>
+          <b>{t('Switch to GraalVM')}</b>
+          <small>{t('Downloaded the next time you play (about 600 MB). If the game crashes or acts strangely, set Java build back to Mojang\'s Java in this instance\'s settings.')}</small>
         </span>
-        <Switch bind:checked={useGraal} label="Switch to GraalVM" />
+        <Switch bind:checked={useGraal} label={t('Switch to GraalVM')} />
       </label>
     {/if}
 
     <p class="note">
-      These are good starting points, not exact numbers: Modrinth and CurseForge don't say how much memory a pack needs, so Peak estimates it from {s.mods} mod{s.mods === 1 ? '' : 's'}{s.shaders ? ', shaders' : ''}, Java {s.javaMajor} and the {gb(s.totalMemoryMb)} of memory in this computer. If the game runs out of memory or stutters, adjust it by hand in the instance's settings.
+      {(s.mods === 1 ? t('These are good starting points, not exact numbers: Modrinth and CurseForge don\'t say how much memory a pack needs, so Peak estimates it from {mods} mod{x2}, Java {javaMajor} and the {gb} of memory in this computer. If the game runs out of memory or stutters, adjust it by hand in the instance\'s settings.', { mods: s.mods, x2: s.shaders ? ', shaders' : '', javaMajor: s.javaMajor, gb: gb(s.totalMemoryMb) }) : t('These are good starting points, not exact numbers: Modrinth and CurseForge don\'t say how much memory a pack needs, so Peak estimates it from {mods} mods{x2}, Java {javaMajor} and the {gb} of memory in this computer. If the game runs out of memory or stutters, adjust it by hand in the instance\'s settings.', { mods: s.mods, x2: s.shaders ? ', shaders' : '', javaMajor: s.javaMajor, gb: gb(s.totalMemoryMb) }))}
     </p>
 
     <PerfModsPanel {inst} />
 
     <div class="actions">
       {#if allGood}
-        <button class="btn primary" onclick={onclose}>Close</button>
+        <button class="btn primary" onclick={onclose}>{t('Close')}</button>
       {:else}
-        <button class="btn ghost" onclick={onclose}>Cancel</button>
-        <button class="btn primary" disabled={saving} onclick={apply}><Sparkles size={15} /> Apply</button>
+        <button class="btn ghost" onclick={onclose}>{t('Cancel')}</button>
+        <button class="btn primary" disabled={saving} onclick={apply}><Sparkles size={15} /> {t('Apply')}</button>
       {/if}
     </div>
   {/if}
@@ -134,10 +135,10 @@
     <span class="k">{label}</span>
     {#if ok}
       <span class="v"><Check size={15} /> {now}</span>
-      <span class="sub">Already set</span>
+      <span class="sub">{t('Already set')}</span>
     {:else}
       <span class="v">{next}</span>
-      <span class="sub">Currently {now}</span>
+      <span class="sub">{t('Currently {now}', { now })}</span>
     {/if}
   </div>
 {/snippet}

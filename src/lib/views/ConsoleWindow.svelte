@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // An instance's console in its own window. It keeps working on its own:
   // it loads what was already printed, then follows the game's output.
   import { onMount } from 'svelte';
@@ -46,8 +47,8 @@
           if (s.instanceId !== instanceId) return;
           running = s.state === 'running';
           if (running) notice = null;
-          else if (s.exitCode && s.exitCode !== 0) notice = { kind: 'error', text: `The game exited with code ${s.exitCode}.` };
-          else notice = { kind: 'info', text: 'The game has stopped.' };
+          else if (s.exitCode && s.exitCode !== 0) notice = { kind: 'error', text: t('The game exited with code {exitCode}.', { exitCode: s.exitCode }) };
+          else notice = { kind: 'info', text: t('The game has stopped.') };
         })
       );
     })().catch((e) => (notice = { kind: 'error', text: errorText(e) }));
@@ -85,7 +86,7 @@
   {#if notice}
     <div class="notice {notice.kind}">
       <span>{notice.text}</span>
-      <button class="btn ghost" onclick={() => (notice = null)}>Dismiss</button>
+      <button class="btn ghost" onclick={() => (notice = null)}>{t('Dismiss')}</button>
     </div>
   {/if}
 </div>

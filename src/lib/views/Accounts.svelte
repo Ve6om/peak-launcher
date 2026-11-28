@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   import { UserPlus, Check, LogOut, Info, RefreshCw, Shirt, Copy } from '@lucide/svelte';
   import MicrosoftSignIn from '$lib/components/MicrosoftSignIn.svelte';
   import SkinHead from '$lib/components/SkinHead.svelte';
@@ -19,7 +20,7 @@
 
   async function signIn() {
     if (!app.info?.msConfigured) {
-      toast('Microsoft sign-in needs a client ID first (see the note below).', 'info');
+      toast(t('Microsoft sign-in needs a client ID first (see the note below).'), 'info');
       return;
     }
     const mine = ++attempt;
@@ -31,7 +32,7 @@
       const accounts = await api.msLoginFinish(started);
       if (mine !== attempt) return;
       app.accounts = accounts;
-      toast('Signed in', 'success');
+      toast(t('Signed in'), 'success');
     } catch (e) {
       if (mine === attempt) toast(errorText(e), 'error');
     } finally {
@@ -92,9 +93,9 @@
     if (!active) return;
     try {
       await navigator.clipboard.writeText(dashed(active.id));
-      toast('UUID copied', 'success');
+      toast(t('UUID copied'), 'success');
     } catch {
-      toast("Couldn't copy to the clipboard", 'error');
+      toast(t('Couldn\'t copy to the clipboard'), 'error');
     }
   }
 
@@ -110,10 +111,10 @@
 <div class="page">
   <header>
     <div>
-      <h1>Accounts</h1>
-      <p>Switch between accounts any time. The active one is used when you press Play.</p>
+      <h1>{t('Accounts')}</h1>
+      <p>{t('Switch between accounts any time. The active one is used when you press Play.')}</p>
     </div>
-    <button class="btn primary" onclick={signIn} disabled={signingIn}><UserPlus size={17} /> Add Microsoft account</button>
+    <button class="btn primary" onclick={signIn} disabled={signingIn}><UserPlus size={17} /> {t('Add Microsoft account')}</button>
   </header>
 
   {#if active}
@@ -124,25 +125,25 @@
             <SkinViewer png={activeSkin.png} model={activeSkin.model} cape={activeCape} width={200} height={260} />
           {/key}
         {:else if activeSkin === null}
-          <p class="no-skin">This account uses Minecraft's default skin.</p>
+          <p class="no-skin">{t('This account uses Minecraft\'s default skin.')}</p>
         {:else}
           <div class="skeleton"></div>
         {/if}
       </div>
       <div class="skin-info">
-        <span class="label">Playing as</span>
+        <span class="label">{t('Playing as')}</span>
         <h2>{shownName(active.username)}</h2>
-        <button class="uuid" title="Copy UUID" onclick={copyUuid}>
-          <span>UUID</span>
+        <button class="uuid" title={t('Copy UUID')} onclick={copyUuid}>
+          <span>{t('UUID')}</span>
           <code>{streaming() ? 'Hidden' : dashed(active.id)}</code>
           <Copy size={12} />
         </button>
         {#if activeSkin}
-          <p>{activeSkin.model === 'slim' ? 'Slim arms (Alex style)' : 'Classic arms (Steve style)'} · drag the model to turn it</p>
+          <p>{t('{x} · drag the model to turn it', { x: activeSkin.model === 'slim' ? t('Slim arms (Alex style)') : t('Classic arms (Steve style)') })}</p>
         {/if}
         <div class="skin-actions">
-          <button class="btn primary" onclick={() => (editingSkin = true)}><Shirt size={15} /> Change skin</button>
-          <button class="btn" onclick={refreshSkin} disabled={refreshing}><RefreshCw size={15} class={refreshing ? 'spin' : ''} /> Refresh</button>
+          <button class="btn primary" onclick={() => (editingSkin = true)}><Shirt size={15} /> {t('Change skin')}</button>
+          <button class="btn" onclick={refreshSkin} disabled={refreshing}><RefreshCw size={15} class={refreshing ? 'spin' : ''} /> {t('Refresh')}</button>
         </div>
       </div>
     </section>
@@ -154,20 +155,20 @@
         <SkinHead accountId={a.id} name={shownName(a.username)} size={44} />
         <div class="text">
           <b>{shownName(a.username)}</b>
-          <span>{a.kind === 'microsoft' ? 'Microsoft account' : 'Offline (dev only)'}</span>
+          <span>{a.kind === 'microsoft' ? t('Microsoft account') : t('Offline (dev only)')}</span>
         </div>
         {#if a.active}
-          <span class="chip active-chip"><Check size={12} /> Active</span>
+          <span class="chip active-chip"><Check size={12} /> {t('Active')}</span>
         {:else}
-          <button class="btn" onclick={() => activate(a.id)}>Use this account</button>
+          <button class="btn" onclick={() => activate(a.id)}>{t('Use this account')}</button>
         {/if}
-        <button class="btn ghost icon" title="Sign out" aria-label="Sign out" onclick={() => remove(a.id)}><LogOut size={16} /></button>
+        <button class="btn ghost icon" title={t('Sign out')} aria-label={t('Sign out')} onclick={() => remove(a.id)}><LogOut size={16} /></button>
       </div>
     {:else}
       <div class="empty glass">
         <UserPlus size={28} />
-        <h3>No accounts yet</h3>
-        <p>Sign in with the Microsoft account that owns Minecraft: Java Edition.</p>
+        <h3>{t('No accounts yet')}</h3>
+        <p>{t('Sign in with the Microsoft account that owns Minecraft: Java Edition.')}</p>
       </div>
     {/each}
   </div>
@@ -178,10 +179,9 @@
     <div class="note glass">
       <Info size={18} />
       <div>
-        <b>Microsoft sign-in isn't configured in this build.</b>
+        <b>{t('Microsoft sign-in isn\'t configured in this build.')}</b>
         <p>
-          Register an app in Azure, request Minecraft API access from Mojang, then build with the
-          <code>PEAK_MS_CLIENT_ID</code> environment variable set to your client ID.
+          {@html th('Register an app in Azure, request Minecraft API access from Mojang, then build with the <code>PEAK_MS_CLIENT_ID</code> environment variable set to your client ID.')}
         </p>
       </div>
     </div>
@@ -191,11 +191,9 @@
     <div class="note glass">
       <Info size={18} />
       <div>
-        <b>Sign-in details aren't encrypted on this computer.</b>
+        <b>{t('Sign-in details aren\'t encrypted on this computer.')}</b>
         <p>
-          Peak couldn't reach your system's password store (on Linux, GNOME Keyring or KWallet), so your sign-in is
-          saved in Peak's data folder without encryption. Installing or unlocking a password store fixes this the next
-          time Peak starts.
+          {t('Peak couldn\'t reach your system\'s password store (on Linux, GNOME Keyring or KWallet), so your sign-in is saved in Peak\'s data folder without encryption. Installing or unlocking a password store fixes this the next time Peak starts.')}
         </p>
       </div>
     </div>
@@ -204,12 +202,12 @@
   {#if app.info?.devBuild}
     <div class="dev glass">
       <div>
-        <span class="label">Developer</span>
-        <p>Offline accounts are for testing and only exist in development builds.</p>
+        <span class="label">{t('Developer')}</span>
+        <p>{t('Offline accounts are for testing and only exist in development builds.')}</p>
       </div>
       <div class="dev-form">
-        <input class="input" bind:value={offlineName} placeholder="Username" maxlength="16" onkeydown={(e) => e.key === 'Enter' && addOffline()} />
-        <button class="btn" onclick={addOffline} disabled={offlineName.trim().length < 3}>Add offline</button>
+        <input class="input" bind:value={offlineName} placeholder={t('Username')} maxlength="16" onkeydown={(e) => e.key === 'Enter' && addOffline()} />
+        <button class="btn" onclick={addOffline} disabled={offlineName.trim().length < 3}>{t('Add offline')}</button>
       </div>
     </div>
   {/if}
@@ -395,7 +393,8 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  code {
+  code,
+  p :global(code) {
     font-size: 12px;
     padding: 1px 6px;
     border-radius: 6px;

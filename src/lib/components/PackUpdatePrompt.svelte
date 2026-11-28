@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   // Asked when the player presses Play on a modpack that has a newer version:
   // update first, play this version, skip this version, or stop asking.
   import { ArrowUpCircle, Play, LoaderCircle } from '@lucide/svelte';
@@ -36,7 +37,7 @@
       packUpdates.list = packUpdates.list.filter((u) => u.instanceId !== inst.id);
       await refreshInstances();
       go('instance', inst.id);
-      toast(`Updating ${update.packName} to ${update.latest}. Press Play when it's done.`, 'success');
+      toast(t('Updating {packName} to {latest}. Press Play when it\'s done.', { packName: update.packName, latest: update.latest }), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -61,21 +62,20 @@
 </script>
 
 {#if p}
-  <Modal title="{p.update.packName} has an update" subtitle={p.inst.name} width={500} onclose={() => !busy && finish(false)}>
+  <Modal title={t('{packName} has an update', { packName: p.update.packName })} subtitle={p.inst.name} width={500} onclose={() => !busy && finish(false)}>
     <div class="body">
       {#if p.update.iconUrl}<img src={p.update.iconUrl} alt="" />{:else}<span class="ic"><ArrowUpCircle size={22} /></span>{/if}
       <p>
-        You have <b>{p.update.current}</b>; <b>{p.update.latest}</b> is out. Update before playing? Your worlds and settings
-        stay, and the old mods folder is backed up. If you play on a server, check which version it runs.
+        {@html th('You have <b>{current}</b>; <b>{latest}</b> is out. Update before playing? Your worlds and settings stay, and the old mods folder is backed up. If you play on a server, check which version it runs.', { current: p.update.current, latest: p.update.latest })}
       </p>
     </div>
     <footer>
-      <button class="btn ghost" onclick={mute} disabled={busy}>Don't ask again</button>
-      <button class="btn ghost" onclick={skip} disabled={busy}>Skip this version</button>
+      <button class="btn ghost" onclick={mute} disabled={busy}>{t('Don\'t ask again')}</button>
+      <button class="btn ghost" onclick={skip} disabled={busy}>{t('Skip this version')}</button>
       <span class="spacer"></span>
-      <button class="btn" onclick={() => finish(true)} disabled={busy}><Play size={14} /> Play anyway</button>
+      <button class="btn" onclick={() => finish(true)} disabled={busy}><Play size={14} /> {t('Play anyway')}</button>
       <button class="btn primary" onclick={update} disabled={busy}>
-        {#if busy}<LoaderCircle size={15} class="spin" />{:else}<ArrowUpCircle size={15} />{/if} Update
+        {#if busy}<LoaderCircle size={15} class="spin" />{:else}<ArrowUpCircle size={15} />{/if} {t('Update')}
       </button>
     </footer>
   </Modal>
@@ -106,7 +106,7 @@
     line-height: 1.6;
     color: var(--muted);
   }
-  b {
+  p :global(b) {
     color: var(--text);
   }
   footer {

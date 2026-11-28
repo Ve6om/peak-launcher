@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Choose a Java executable: browse for it, pick a detected install or type
   // a path, and check that it works.
   import { Search, LoaderCircle, Check, FolderOpen } from '@lucide/svelte';
@@ -16,7 +17,7 @@
     scanning = true;
     try {
       found = await api.detectJava();
-      if (!found.length) toast('No Java installations found', 'info');
+      if (!found.length) toast(t('No Java installations found'), 'info');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -34,7 +35,7 @@
   async function test() {
     try {
       tested = await api.testJava(value);
-      toast(`Java ${tested.version} works`, 'success');
+      toast(t('Java {version} works', { version: tested.version }), 'success');
     } catch (e) {
       tested = null;
       toast(errorText(e), 'error');
@@ -44,18 +45,18 @@
 
 <div class="picker">
   <div class="line">
-    <input class="input mono" bind:value placeholder="Path to java / javaw executable" />
-    <button class="btn" onclick={browse} title="Choose a Java executable"><FolderOpen size={15} /> Browse…</button>
-    <button class="btn" onclick={test} disabled={!value.trim()} title="Test this Java"><Check size={15} /> Test</button>
-    <button class="btn" onclick={scan} disabled={scanning} title="Find installed Java">
-      {#if scanning}<LoaderCircle size={15} class="spin" />{:else}<Search size={15} />{/if} Detect
+    <input class="input mono" bind:value placeholder={t('Path to java / javaw executable')} />
+    <button class="btn" onclick={browse} title={t('Choose a Java executable')}><FolderOpen size={15} /> {t('Browse…')}</button>
+    <button class="btn" onclick={test} disabled={!value.trim()} title={t('Test this Java')}><Check size={15} /> {t('Test')}</button>
+    <button class="btn" onclick={scan} disabled={scanning} title={t('Find installed Java')}>
+      {#if scanning}<LoaderCircle size={15} class="spin" />{:else}<Search size={15} />{/if} {t('Detect')}
     </button>
   </div>
   {#if found?.length}
     <div class="found">
       {#each found as j (j.path)}
         <button class="opt" class:active={value === j.path} onclick={() => (value = j.path)}>
-          <span class="chip">Java {j.major}</span>
+          <span class="chip">{t('Java {major}', { major: j.major })}</span>
           <span class="path">{shownPath(j.path)}</span>
         </button>
       {/each}

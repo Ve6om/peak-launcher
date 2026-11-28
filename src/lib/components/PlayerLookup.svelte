@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Look up any player by name: their id, current skin in 3D and cape from
   // Mojang, plus past names and skins from Crafty.gg (Mojang no longer
   // shares those). NameMC is linked too, since its records go back further
@@ -45,9 +46,9 @@
 
   function nameNote(i: number, changedAt: string | null, count: number): string {
     const parts: string[] = [];
-    if (i === 0) parts.push('Current');
+    if (i === 0) parts.push(t('Current'));
     if (changedAt) parts.push(`since ${since(changedAt)}`);
-    else if (i > 0 && i === count - 1) parts.push('First name');
+    else if (i > 0 && i === count - 1) parts.push(t('First name'));
     return parts.join(' · ');
   }
 
@@ -55,9 +56,9 @@
     if (!player) return;
     try {
       await navigator.clipboard.writeText(player.id);
-      toast('Player ID copied', 'success');
+      toast(t('Player ID copied'), 'success');
     } catch {
-      toast("Couldn't copy to the clipboard", 'error');
+      toast(t('Couldn\'t copy to the clipboard'), 'error');
     }
   }
 </script>
@@ -65,8 +66,8 @@
 <section class="lookup glass rise">
   <div class="head">
     <div>
-      <span class="label">Player lookup</span>
-      <p>See anyone's current skin, cape and player ID.</p>
+      <span class="label">{t('Player lookup')}</span>
+      <p>{t('See anyone\'s current skin, cape and player ID.')}</p>
     </div>
     <form
       class="form"
@@ -75,9 +76,9 @@
         search();
       }}
     >
-      <input class="input" bind:value={query} placeholder="Username" maxlength="16" spellcheck="false" autocomplete="off" aria-label="Username to look up" />
+      <input class="input" bind:value={query} placeholder={t('Username')} maxlength="16" spellcheck="false" autocomplete="off" aria-label={t('Username to look up')} />
       <button class="btn" type="submit" disabled={!valid || busy}>
-        {#if busy}<LoaderCircle size={15} class="spin" />{:else}<Search size={15} />{/if} Look up
+        {#if busy}<LoaderCircle size={15} class="spin" />{:else}<Search size={15} />{/if} {t('Look up')}
       </button>
     </form>
   </div>
@@ -92,26 +93,26 @@
             <SkinViewer png={shown.png} model={shown.model} cape={shownCape} width={170} height={220} />
           {/key}
         {:else}
-          <p class="muted">Uses Minecraft's default skin.</p>
+          <p class="muted">{t('Uses Minecraft\'s default skin.')}</p>
         {/if}
         {#if viewing || viewingCape}
-          <button class="back btn ghost" onclick={() => ((viewing = null), (viewingCape = null))}>Back to current look</button>
+          <button class="back btn ghost" onclick={() => ((viewing = null), (viewingCape = null))}>{t('Back to current look')}</button>
         {/if}
       </div>
       <div class="info">
         <h3>{player.name}</h3>
         <div class="id">
           <code>{player.id}</code>
-          <button class="btn ghost icon" title="Copy player ID" aria-label="Copy player ID" onclick={copyId}><Copy size={14} /></button>
+          <button class="btn ghost icon" title={t('Copy player ID')} aria-label={t('Copy player ID')} onclick={copyId}><Copy size={14} /></button>
         </div>
         <ul>
-          <li>{player.skin ? (player.skin.model === 'slim' ? 'Slim arms (Alex style)' : 'Classic arms (Steve style)') : 'Default skin'}</li>
-          <li>{player.cape ? 'Wears a cape (shown on the model)' : 'No cape'}</li>
+          <li>{player.skin ? (player.skin.model === 'slim' ? t('Slim arms (Alex style)') : t('Classic arms (Steve style)')) : t('Default skin')}</li>
+          <li>{player.cape ? t('Wears a cape (shown on the model)') : t('No cape')}</li>
         </ul>
 
         {#if player.historyFound}
           <div class="section">
-            <span class="label">Names</span>
+            <span class="label">{t('Names')}</span>
             <ol class="names">
               {#each player.names as n, i (n.name + i)}
                 <li>
@@ -123,14 +124,14 @@
           </div>
           {#if player.pastSkins.length > 1}
             <div class="section">
-              <span class="label">Past skins · click one to see it</span>
+              <span class="label">{t('Past skins · click one to see it')}</span>
               <div class="past">
                 {#each player.pastSkins as s, i (i)}
                   {@const current = s.png === player.skin?.png}
                   <button
                     class="past-pick"
                     class:selected={viewing ? viewing === s : current}
-                    title={current ? 'Current skin' : 'View this skin'}
+                    title={current ? t('Current skin') : t('View this skin')}
                     onclick={() => (viewing = current ? null : s)}
                   >
                     <SkinHead accountId={null} name={player.name} png={s.png} size={34} />
@@ -141,40 +142,40 @@
           {/if}
           {#if player.capes.length}
             <div class="section">
-              <span class="label">Capes · click one to see it</span>
+              <span class="label">{t('Capes · click one to see it')}</span>
               <div class="capes">
                 {#each player.capes as c, i (i)}
                   <button
                     class="cape"
                     class:selected={viewingCape ? viewingCape === c.png : c.current && !viewing}
-                    title={c.current ? `${c.name} (wearing now)` : c.name}
+                    title={c.current ? t('{name} (wearing now)', { name: c.name }) : c.name}
                     onclick={() => (viewingCape = c.current && !viewing ? null : c.png)}
                   >
                     <span class="cape-art" style:background-image="url({c.png})"></span>
                     <span class="cape-name">{c.name}</span>
-                    {#if c.current}<span class="worn">Wearing</span>{/if}
+                    {#if c.current}<span class="worn">{t('Wearing')}</span>{/if}
                   </button>
                 {/each}
               </div>
             </div>
           {/if}
         {:else}
-          <span class="hint">Couldn't reach Crafty.gg for past names and skins. Try again later.</span>
+          <span class="hint">{t('Couldn\'t reach Crafty.gg for past names and skins. Try again later.')}</span>
         {/if}
 
         <div class="links">
           <button class="btn" onclick={() => api.openUrl(`https://namemc.com/profile/${player!.id}`)}>
-            <ExternalLink size={14} /> View on NameMC
+            <ExternalLink size={14} /> {t('View on NameMC')}
           </button>
           <button class="btn ghost" onclick={() => api.openUrl(`https://crafty.gg/@${player!.name}`)}>
-            <ExternalLink size={14} /> Crafty.gg
+            <ExternalLink size={14} /> {t('Crafty.gg')}
           </button>
         </div>
-        <span class="hint">History from Crafty.gg. It can miss some older names; NameMC sometimes has more.</span>
+        <span class="hint">{t('History from Crafty.gg. It can miss some older names; NameMC sometimes has more.')}</span>
       </div>
     </div>
   {:else}
-    <div class="placeholder"><UserSearch size={16} /> Type a username and press Enter.</div>
+    <div class="placeholder"><UserSearch size={16} /> {t('Type a username and press Enter.')}</div>
   {/if}
 </section>
 

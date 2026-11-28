@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Browse modpacks from Modrinth, CurseForge, Feed The Beast and Technic.
   // Installing one creates a new instance. (Mods, resource packs and shaders
   // are added from each instance's Content tab.)
@@ -13,25 +14,25 @@
   import type { SearchHit, Source } from '$lib/types';
 
   const SOURCES: { id: Source; label: string; note: string }[] = [
-    { id: 'modrinth', label: 'Modrinth', note: 'Open-source modpacks' },
-    { id: 'curseforge', label: 'CurseForge', note: 'The largest library' },
-    { id: 'ftb', label: 'FTB', note: 'Official Feed The Beast packs' },
-    { id: 'technic', label: 'Technic', note: 'Classics like Tekkit' }
+    { id: 'modrinth', label: t('Modrinth'), note: t('Open-source modpacks') },
+    { id: 'curseforge', label: t('CurseForge'), note: t('The largest library') },
+    { id: 'ftb', label: 'FTB', note: t('Official Feed The Beast packs') },
+    { id: 'technic', label: t('Technic'), note: t('Classics like Tekkit') }
   ];
 
   let source = $state<Source>(untrack(() => app.browse.source));
   let query = $state('');
   /** Technic has no categories; these are searches by name (see technic.rs). */
   const TECHNIC_CATEGORIES = [
-    { id: '', label: 'Trending' },
-    { id: 'tech', label: 'Tech' },
-    { id: 'magic', label: 'Magic' },
-    { id: 'adventure', label: 'Adventure' },
+    { id: '', label: t('Trending') },
+    { id: 'tech', label: t('Tech') },
+    { id: 'magic', label: t('Magic') },
+    { id: 'adventure', label: t('Adventure') },
     { id: 'rpg', label: 'RPG' },
-    { id: 'skyblock', label: 'Skyblock' },
-    { id: 'pixelmon', label: 'Pixelmon' },
-    { id: 'horror', label: 'Horror' },
-    { id: 'survival', label: 'Survival' },
+    { id: 'skyblock', label: t('Skyblock') },
+    { id: 'pixelmon', label: t('Pixelmon') },
+    { id: 'horror', label: t('Horror') },
+    { id: 'survival', label: t('Survival') },
     { id: '1.12.2', label: '1.12.2' },
     { id: '1.7.10', label: '1.7.10' }
   ];
@@ -113,10 +114,10 @@
 <div class="page">
   <header>
     <div>
-      <h1>Modpacks</h1>
-      <p>Install a modpack and Peak sets up a ready-to-play instance. Add single mods from an instance's Content tab.</p>
+      <h1>{t('Modpacks')}</h1>
+      <p>{t('Install a modpack and Peak sets up a ready-to-play instance. Add single mods from an instance\'s Content tab.')}</p>
     </div>
-    <button class="btn" onclick={importModpack}><FileUp size={15} /> Import modpack file</button>
+    <button class="btn" onclick={importModpack}><FileUp size={15} /> {t('Import modpack file')}</button>
   </header>
 
   <div class="sources">
@@ -134,21 +135,21 @@
   <div class="bar">
     <div class="search glass">
       <Search size={15} />
-      <input bind:value={query} placeholder="Search {SOURCES.find((s) => s.id === source)?.label} modpacks…" />
+      <input bind:value={query} placeholder={t('Search {label} modpacks…', { label: SOURCES.find((s) => s.id === source)?.label })} />
       {#if loading}<LoaderCircle size={15} class="spin" />{/if}
     </div>
     <Select
       bind:value={sort}
-      ariaLabel="Sort"
+      ariaLabel={t('Sort')}
       style="width: 180px; height: 40px; flex-shrink: 0;"
       options={[
-        { value: 'relevance', label: source === 'ftb' && !query ? 'Featured' : 'Relevance' },
-        { value: 'downloads', label: 'Most downloaded' },
-        { value: 'follows', label: source === 'ftb' || source === 'technic' ? 'Most played' : 'Most followed' },
+        { value: 'relevance', label: source === 'ftb' && !query ? t('Featured') : t('Relevance') },
+        { value: 'downloads', label: t('Most downloaded') },
+        { value: 'follows', label: source === 'ftb' || source === 'technic' ? t('Most played') : t('Most followed') },
         ...(source !== 'technic'
           ? [
-              { value: 'updated', label: 'Recently updated' },
-              { value: 'newest', label: 'Newest' }
+              { value: 'updated', label: t('Recently updated') },
+              { value: 'newest', label: t('Newest') }
             ]
           : [])
       ]}
@@ -156,16 +157,16 @@
   </div>
 
   {#if technicBrowsing}
-    <div class="cats" role="tablist" aria-label="Technic categories">
+    <div class="cats" role="tablist" aria-label={t('Technic categories')}>
       {#each TECHNIC_CATEGORIES as c (c.id)}
         <button role="tab" aria-selected={technicCategory === c.id} class:on={technicCategory === c.id} onclick={() => (technicCategory = c.id)}>{c.label}</button>
       {/each}
     </div>
     <p class="cats-note">
       {#if technicCategory}
-        Technic doesn't sort packs into categories, so these are found by name and description. A few may not quite fit. Search to find any other Technic pack.
+        {t('Technic doesn\'t sort packs into categories, so these are found by name and description. A few may not quite fit. Search to find any other Technic pack.')}
       {:else}
-        Technic only shares its 20 trending packs with launchers. Pick a category above or search to find any other Technic pack.
+        {t('Technic only shares its 20 trending packs with launchers. Pick a category above or search to find any other Technic pack.')}
       {/if}
     </p>
   {/if}
@@ -173,34 +174,34 @@
   {#if needsKey}
     <div class="empty glass">
       <KeyRound size={30} />
-      <h3>CurseForge needs an API key</h3>
-      <p>CurseForge only allows apps with their own key. Get a free one at console.curseforge.com, then paste it into Settings → Integrations.</p>
+      <h3>{t('CurseForge needs an API key')}</h3>
+      <p>{t('CurseForge only allows apps with their own key. Get a free one at console.curseforge.com, then paste it into Settings → Integrations.')}</p>
       <div class="empty-actions">
-        <button class="btn" onclick={() => api.openUrl('https://console.curseforge.com/')}><ExternalLink size={15} /> Get a key</button>
-        <button class="btn primary" onclick={() => go('settings')}>Open Settings</button>
+        <button class="btn" onclick={() => api.openUrl('https://console.curseforge.com/')}><ExternalLink size={15} /> {t('Get a key')}</button>
+        <button class="btn primary" onclick={() => go('settings')}>{t('Open Settings')}</button>
       </div>
     </div>
   {:else if error}
     <div class="empty glass">
       <SearchX size={30} />
-      <h3>Can't load modpacks</h3>
+      <h3>{t('Can\'t load modpacks')}</h3>
       <p>{error}</p>
     </div>
   {:else}
-    <div class="meta-line">{#if total}{compact(total)} modpacks{/if}</div>
+    <div class="meta-line">{#if total}{t('{compact} modpacks', { compact: compact(total) })}{/if}</div>
     <div class="list">
       {#each hits as hit, i (hit.project_id)}
         {@const have = installedPacks.get(hit.project_id)}
         <div class="row glass rise" style:animation-delay="{Math.min(i, 12) * 25}ms">
-          <button class="open" aria-label="Details for {hit.title}" onclick={() => (open = hit.project_id)}></button>
+          <button class="open" aria-label={t('Details for {title}', { title: hit.title })} onclick={() => (open = hit.project_id)}></button>
           <ProjectIcon url={hit.icon_url} title={hit.title} size={64} />
           <div class="info">
-            <div class="title-line"><b>{hit.title}</b><span class="by">by {hit.author}</span></div>
+            <div class="title-line"><b>{hit.title}</b><span class="by">{t('by {author}', { author: hit.author })}</span></div>
             <p>{hit.description}</p>
             <div class="tags">
               <span class="stat"><Download size={12} /> {compact(hit.downloads)}</span>
               <span class="stat"><Heart size={12} /> {compact(hit.follows)}</span>
-              <span class="stat">Updated {ago(hit.date_modified).toLowerCase()}</span>
+              <span class="stat">{t('Updated {ago}', { ago: ago(hit.date_modified).toLowerCase() })}</span>
               {#each hit.categories.filter((c) => !['fabric', 'forge', 'quilt', 'neoforge', 'FTB'].includes(c)).slice(0, 3) as c (c)}
                 <span class="chip">{c}</span>
               {/each}
@@ -208,17 +209,17 @@
           </div>
           <div class="action">
             {#if have}
-              <button class="btn" onclick={() => go('instance', have)}><Check size={15} /> Open</button>
+              <button class="btn" onclick={() => go('instance', have)}><Check size={15} /> {t('Open')}</button>
             {/if}
             <button class="btn primary" disabled={installing.has(hit.project_id)} onclick={() => install(hit)}>
               {#if installing.has(hit.project_id)}<LoaderCircle size={15} class="spin" />{:else}<Download size={15} />{/if}
-              {have ? 'Install again' : 'Install'}
+              {have ? t('Install again') : t('Install')}
             </button>
           </div>
         </div>
       {:else}
         {#if !loading}
-          <div class="empty glass"><SearchX size={30} /><h3>No modpacks found</h3><p>Try a different search.</p></div>
+          <div class="empty glass"><SearchX size={30} /><h3>{t('No modpacks found')}</h3><p>{t('Try a different search.')}</p></div>
         {/if}
       {/each}
       <div bind:this={sentinel} class="sentinel">{#if loading && hits.length}<LoaderCircle size={18} class="spin" />{/if}</div>

@@ -17,6 +17,7 @@ import type {
   Source,
   View
 } from './types';
+import { t, loadLanguage, rememberedLanguage } from './i18n.svelte';
 
 interface Toast {
   id: number;
@@ -182,11 +183,12 @@ export async function installItems(instanceId: string, items: PlanItem[]) {
   if (!items.length) return false;
   try {
     const names = await api.contentInstallItems(instanceId, items);
-    if (names.length) toast(names.length > 1 ? `Installed ${names[0]} and ${names.length - 1} more` : `Installed ${names[0]}`, 'success');
+    if (names.length) toast(names.length > 1 ? t('Installed {x} and {x2} more', { x: names[0], x2: names.length - 1 }) : t('Installed {x}', { x: names[0] }), 'success');
     // Files launchers aren't allowed to download: the browser download window.
     const byHand = items.filter((i) => i.manual);
     if (byHand.length) {
-      toast(`${byHand.map((i) => i.title).join(', ')} ${byHand.length === 1 ? 'has' : 'have'} to be downloaded in your browser. Peak moves ${byHand.length === 1 ? 'it' : 'them'} into place.`, 'info');
+      const names = byHand.map((i) => i.title).join(', ');
+      toast(byHand.length === 1 ? t('{names} has to be downloaded in your browser. Peak moves it into place.', { names }) : t('{names} have to be downloaded in your browser. Peak moves them into place.', { names }), 'info');
       app.manualFor = instanceId;
     }
     return names.length > 0 || byHand.length > 0;
@@ -204,7 +206,7 @@ export async function installModpack(opts: { projectId?: string; versionId?: str
     const inst = opts.projectId && !opts.filePath ? await installPack({ projectId: opts.projectId, versionId: opts.versionId }) : await api.modpackInstall(opts);
     if (!inst) return null;
     await refreshInstances();
-    toast(`Installing ${inst.name}…`, 'info');
+    toast(t('Installing {name}…', { name: inst.name }), 'info');
     go('instance', inst.id);
     return inst;
   } catch (e) {
@@ -238,7 +240,7 @@ export function toast(text: string, kind: Toast['kind'] = 'info', opts: { rage?:
 }
 
 export function errorText(e: unknown) {
-  return typeof e === 'string' ? e : e instanceof Error ? e.message : 'Something went wrong';
+  return typeof e === 'string' ? e : e instanceof Error ? e.message : t('Something went wrong');
 }
 
 export function go(view: View, id?: string, tab: typeof app.instanceTab = 'overview') {
@@ -257,7 +259,7 @@ export async function duplicateInstance(inst: Instance) {
   try {
     const copy = await api.duplicateInstance(inst.id);
     await refreshInstances();
-    toast(`Created ${copy.name}`, 'success');
+    toast(t('Created {name}', { name: copy.name }), 'success');
   } catch (e) {
     toast(errorText(e), 'error');
   }
@@ -268,7 +270,7 @@ export async function shareLog(instanceId: string) {
   try {
     const url = await api.logShare(instanceId);
     await navigator.clipboard.writeText(url).catch(() => {});
-    toast(`Log uploaded and its link copied: ${url}`, 'success');
+    toast(t('Log uploaded and its link copied: {url}', { url }), 'success');
     return url;
   } catch (e) {
     toast(errorText(e), 'error');
@@ -279,7 +281,7 @@ export async function shareLog(instanceId: string) {
 export async function createShortcut(inst: Instance) {
   try {
     await api.createShortcut(inst.id);
-    toast(`Added a shortcut to ${inst.name} on your desktop`, 'success');
+    toast(t('Added a shortcut to {name} on your desktop', { name: inst.name }), 'success');
   } catch (e) {
     toast(errorText(e), 'error');
   }
@@ -288,7 +290,7 @@ export async function createShortcut(inst: Instance) {
 export async function repairInstance(inst: Instance) {
   try {
     await api.install(inst.id);
-    toast(`${inst.name}: all game files verified`, 'success');
+    toast(t('{name}: all game files verified', { name: inst.name }), 'success');
   } catch (e) {
     toast(errorText(e), 'error');
   }
@@ -300,7 +302,7 @@ export async function deleteInstance(inst: Instance) {
     app.deleting = null;
     if (app.selectedId === inst.id && app.view === 'instance') go('library');
     await refreshInstances();
-    toast(`Deleted ${inst.name}`);
+    toast(t('Deleted {name}', { name: inst.name }));
   } catch (e) {
     toast(errorText(e), 'error');
   }
@@ -380,7 +382,7 @@ function startRainbow() {
   const step = () => {
     if (!view.shown) return;
     hue = (hue + (360 * RAINBOW_STEP_MS) / RAINBOW_LAP_MS) % 360;
-    setAccentVars([`hsl(${hue.toFixed(1)} 85% 66%)`, `hsl(${hue.toFixed(1)} 90% 84%)`, `hsl(${hue.toFixed(1)} 60% 8%)`]);
+    setAccentVars([t('hsl({hue} 85% 66%)', { hue: hue.toFixed(1) }), t('hsl({hue} 90% 84%)', { hue: hue.toFixed(1) }), t('hsl({hue} 60% 8%)', { hue: hue.toFixed(1) })]);
   };
   step();
   rainbowTimer = setInterval(step, RAINBOW_STEP_MS);
@@ -401,6 +403,7 @@ export async function init() {
   ]);
   Object.assign(app, { instances, accounts, settings, info, running });
   applyAccent(settings.accent);
+  if ((settings.language ?? '') !== rememberedLanguage()) await loadLanguage(settings.language ?? '');
   api.modSearchAll().then((m) => (app.modSearches = m)).catch(() => {});
 
   // peak:// links from the website's "Play in Peak" buttons.
@@ -504,7 +507,7 @@ export async function init() {
 export async function play(inst: Instance) {
   if (isRunning(inst.id)) return;
   if (!activeAccount()) {
-    toast('Add an account to start playing', 'info');
+    toast(t('Add an account to start playing'), 'info');
     go('accounts');
     return;
   }
@@ -537,19 +540,19 @@ export async function stop(inst: Instance) {
 // ---- formatting helpers ----
 
 export function playtime(secs: number) {
-  if (secs < 60) return secs ? `${secs}s` : 'Never played';
+  if (secs < 60) return secs ? `${secs}s` : t('Never played');
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
 export function ago(iso: string | null) {
-  if (!iso) return 'Never';
+  if (!iso) return t('Never');
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return 'Just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return t('Just now');
+  if (s < 3600) return t('{n}m ago', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('{n}h ago', { n: Math.floor(s / 3600) });
+  if (s < 86400 * 30) return t('{n}d ago', { n: Math.floor(s / 86400) });
   return new Date(iso).toLocaleDateString();
 }
 

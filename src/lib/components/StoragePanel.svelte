@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // What takes up space in Peak's folder, and clearing what's safe to clear.
   import { onMount } from 'svelte';
   import { LoaderCircle, Trash2, FolderOpen, RefreshCw } from '@lucide/svelte';
@@ -26,7 +27,7 @@
     cleaning = id;
     try {
       const freed = await api.storageClean(id);
-      toast(`${name}: freed ${fmt(freed)}`, 'success');
+      toast(t('{name}: freed {x}', { name, x: fmt(freed) }), 'success');
       await load();
     } catch (e) {
       toast(errorText(e), 'error');
@@ -36,10 +37,10 @@
   }
 
   function fmt(b: number) {
-    if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toFixed(1)} GB`;
-    if (b >= 1024 ** 2) return `${Math.round(b / 1024 ** 2)} MB`;
-    if (b > 0) return `${Math.max(1, Math.round(b / 1024))} KB`;
-    return 'Nothing';
+    if (b >= 1024 ** 3) return t('{x} GB', { x: (b / 1024 ** 3).toFixed(1) });
+    if (b >= 1024 ** 2) return t('{n} MB', { n: Math.round(b / 1024 ** 2) });
+    if (b > 0) return t('{n} KB', { n: Math.max(1, Math.round(b / 1024)) });
+    return t('Nothing');
   }
 
   const shownParts = $derived((usage?.parts ?? []).filter((p) => p.bytes > 0).sort((a, b) => b.bytes - a.bytes));
@@ -48,22 +49,22 @@
 </script>
 
 {#if !usage}
-  <div class="loading"><LoaderCircle size={20} class="spin" /> Adding up Peak's files…</div>
+  <div class="loading"><LoaderCircle size={20} class="spin" /> {t('Adding up Peak\'s files…')}</div>
 {:else}
   <div class="total">
     <div>
       <b>{fmt(usage.total)}</b>
-      <span>used by Peak{#if freeable > 0} · {fmt(freeable)} can be cleared{/if}</span>
+      <span>{t('used by Peak')}{#if freeable > 0} {t('· {x} can be cleared', { x: fmt(freeable) })}{/if}</span>
     </div>
-    <button class="btn ghost icon" title="Count again" aria-label="Count again" disabled={loading} onclick={load}>
+    <button class="btn ghost icon" title={t('Count again')} aria-label={t('Count again')} disabled={loading} onclick={load}>
       {#if loading}<LoaderCircle size={15} class="spin" />{:else}<RefreshCw size={15} />{/if}
     </button>
-    <button class="btn ghost icon" title="Open Peak's folder" aria-label="Open Peak's folder" onclick={() => api.openDataFolder()}>
+    <button class="btn ghost icon" title={t('Open Peak\'s folder')} aria-label={t('Open Peak\'s folder')} onclick={() => api.openDataFolder()}>
       <FolderOpen size={15} />
     </button>
   </div>
 
-  <div class="bar" role="img" aria-label="Space used by each part">
+  <div class="bar" role="img" aria-label={t('Space used by each part')}>
     {#each shownParts as p, i (p.id)}
       <span style:flex-grow={p.bytes} style:background={colors[i % colors.length]} title="{p.name}: {fmt(p.bytes)}"></span>
     {/each}
@@ -74,7 +75,7 @@
     {/each}
   </ul>
 
-  <h4>Safe to clear</h4>
+  <h4>{t('Safe to clear')}</h4>
   <div class="list">
     {#each usage.cleanable as c (c.id)}
       <div class="row">
@@ -84,21 +85,21 @@
         </div>
         <em class="size">{fmt(c.bytes)}</em>
         <button class="btn" disabled={c.bytes === 0 || cleaning !== null} onclick={() => clean(c.id, c.name)}>
-          {#if cleaning === c.id}<LoaderCircle size={14} class="spin" />{:else}<Trash2 size={14} />{/if} Clear
+          {#if cleaning === c.id}<LoaderCircle size={14} class="spin" />{:else}<Trash2 size={14} />{/if} {t('Clear')}
         </button>
         {#if c.more}
           {@const m = c.more}
-          <button class="btn" title="Every log and crash report, not just old ones: {fmt(m.bytes)}" disabled={m.bytes === 0 || cleaning !== null} onclick={() => clean(m.id, 'All logs and crash reports')}>
+          <button class="btn" title={t('Every log and crash report, not just old ones: {x}', { x: fmt(m.bytes) })} disabled={m.bytes === 0 || cleaning !== null} onclick={() => clean(m.id, t('All logs and crash reports'))}>
             {#if cleaning === m.id}<LoaderCircle size={14} class="spin" />{:else}<Trash2 size={14} />{/if} {m.label} ({fmt(m.bytes)})
           </button>
         {/if}
       </div>
     {/each}
   </div>
-  <p class="hint">Downloaded Java builds can be removed under Java & memory. Instances are deleted from their own menu.</p>
+  <p class="hint">{t('Downloaded Java builds can be removed under Java & memory. Instances are deleted from their own menu.')}</p>
 
   {#if usage.instances.length}
-    <h4>Instances</h4>
+    <h4>{t('Instances')}</h4>
     <div class="list">
       {#each usage.instances as inst (inst.id)}
         <div class="row small">
