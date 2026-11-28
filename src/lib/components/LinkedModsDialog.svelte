@@ -34,7 +34,7 @@
       },
       enable: {
         title: t('{name} needs disabled mods', { name }),
-        intro: t('It won\'t load without {x}. Turn {x2} back on too?', { x: n === 1 ? 'this mod' : `these ${n} mods`, x2: n === 1 ? 'it' : 'them' }),
+        intro: n === 1 ? t("It won't load without this mod. Turn it back on too?") : t("It won't load without these {n} mods. Turn them back on too?", { n }),
         all: t('Enable all {x}', { x: n + 1 }),
         only: t('Only enable {name}', { name })
       }
