@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import ConsolePanel from '$lib/components/ConsolePanel.svelte';
   import { api, on, isTauri } from '$lib/api';
-  import { applyAccent, errorText } from '$lib/state.svelte';
+  import { app, applyAccent, errorText } from '$lib/state.svelte';
   import type { LogLine } from '$lib/types';
 
   let { instanceId }: { instanceId: string } = $props();
@@ -17,13 +17,17 @@
   onMount(() => {
     const stops: Array<() => void> = [];
     (async () => {
-      const [instances, runningIds, history, settings] = await Promise.all([
+      const [instances, runningIds, history, settings, accounts] = await Promise.all([
         api.instances(),
         api.running(),
         api.gameLogs(instanceId),
-        api.settings()
+        api.settings(),
+        api.accounts().catch(() => [])
       ]);
       applyAccent(settings.accent);
+      // Streamer mode hides names and paths in this window too.
+      app.settings = settings;
+      app.accounts = accounts;
       const name = instances.find((i) => i.id === instanceId)?.name ?? 'Instance';
       document.title = `${name} - Console`;
       running = runningIds.includes(instanceId);

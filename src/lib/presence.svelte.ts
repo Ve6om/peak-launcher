@@ -6,6 +6,7 @@ import { app } from './state.svelte';
 import { instanceIcon } from './instanceImages';
 import { loaderLabel, packVersion, type Instance } from './types';
 import { playingAt, inviteUrl } from './invite.svelte';
+import { streaming } from './privacy.svelte';
 
 const SITE = 'https://www.peaklauncher.com';
 const launchedAt = Math.floor(Date.now() / 1000);
@@ -48,7 +49,7 @@ export function currentCard(): PresenceCard {
     const at = playingAt[inst.id];
     const join = at?.pageUrl
       ? { buttonLabel: 'Join on Peak', buttonUrl: at.pageUrl }
-      : at && app.settings?.discordJoinAnyServer
+      : at && app.settings?.discordJoinAnyServer && !streaming()
         ? { buttonLabel: 'Join on Peak', buttonUrl: inviteUrl(inst, at) }
         : getPeak;
     return {

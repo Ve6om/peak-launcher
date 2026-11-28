@@ -5,6 +5,7 @@
   import Modal from './Modal.svelte';
   import { api } from '$lib/api';
   import { app, activeAccount, toast, errorText } from '$lib/state.svelte';
+  import { shownPath } from '$lib/privacy.svelte';
   import type { ExportEntry, ExportReport, Instance } from '$lib/types';
 
   let { inst }: { inst: Instance } = $props();
@@ -78,7 +79,7 @@
     <div class="done">
       <div class="done-icon"><PackageCheck size={26} /></div>
       <h3>Modpack exported</h3>
-      <p class="path">{report.path}</p>
+      <p class="path">{shownPath(report.path)}</p>
       <ul class="stats">
         <li><b>{report.linked}</b> file{report.linked === 1 ? '' : 's'} linked to {format === 'modrinth' ? 'Modrinth' : 'CurseForge'} (downloaded on install)</li>
         <li><b>{report.overrideFiles}</b> config and extra file{report.overrideFiles === 1 ? '' : 's'} included</li>

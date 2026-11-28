@@ -12,6 +12,7 @@
   import { playingAt } from '$lib/invite.svelte';
   import { api } from '$lib/api';
   import { app, go, toast, errorText, activeAccount, isRunning, isBusy } from '$lib/state.svelte';
+  import { shownAddress } from '$lib/privacy.svelte';
   import { motdLines, plain } from '$lib/motd';
   import type { SavedServer, ServerStatus } from '$lib/types';
 
@@ -226,7 +227,7 @@
         <div class="main">
           <div class="top">
             <b>{s.name}</b>
-            <button class="address" title="Copy address" onclick={() => copyAddress(s.address)}>{s.address} <Copy size={11} /></button>
+            <button class="address" title="Copy address" onclick={() => copyAddress(s.address)}>{shownAddress(s.address)} <Copy size={11} /></button>
           </div>
           {#if st === 'loading' || !st}
             <div class="motd muted"><LoaderCircle size={13} class="spin" /> Checking…</div>
@@ -314,7 +315,7 @@
       <label class="field">
         <span class="label">Address</span>
         <!-- svelte-ignore a11y_autofocus -->
-        <input class="input" bind:value={editing.address} placeholder="play.example.com" autofocus spellcheck="false" />
+        <input class="input private" bind:value={editing.address} placeholder="play.example.com" autofocus spellcheck="false" />
       </label>
       <label class="field">
         <span class="label">Name</span>
@@ -346,7 +347,7 @@
         {#each found as f (f.address)}
           <label class="found-row" class:dim={f.exists}>
             <input type="checkbox" bind:checked={f.take} disabled={f.exists} />
-            <span><b>{f.name}</b><small>{f.address}{f.exists ? ' · already added' : ''}</small></span>
+            <span><b>{f.name}</b><small>{shownAddress(f.address)}{f.exists ? ' · already added' : ''}</small></span>
           </label>
         {:else}
           <p class="muted">This instance has no saved servers.</p>

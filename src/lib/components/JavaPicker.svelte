@@ -4,6 +4,7 @@
   import { Search, LoaderCircle, Check, FolderOpen } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
+  import { shownPath } from '$lib/privacy.svelte';
   import type { DetectedJava } from '$lib/types';
 
   let { value = $bindable('') }: { value: string } = $props();
@@ -55,7 +56,7 @@
       {#each found as j (j.path)}
         <button class="opt" class:active={value === j.path} onclick={() => (value = j.path)}>
           <span class="chip">Java {j.major}</span>
-          <span class="path">{j.path}</span>
+          <span class="path">{shownPath(j.path)}</span>
         </button>
       {/each}
     </div>

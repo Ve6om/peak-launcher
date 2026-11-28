@@ -4,9 +4,10 @@
   import { ExternalLink, RefreshCw, MessageCircle } from '@lucide/svelte';
   import { updates, checkForUpdate } from '$lib/updates.svelte';
   import { menu, loadMenuStatus, addToMenu, removeFromMenu } from '$lib/menuEntry.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api } from '$lib/api';
   import { app, ACCENTS, accentName, applyAccent, isHexColor, hexToRgb, rgbToHex, toast, errorText } from '$lib/state.svelte';
+  import { shownPath, streaming, setStreamerMode } from '$lib/privacy.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Row from '$lib/components/Row.svelte';
   import Switch from '$lib/components/Switch.svelte';
@@ -21,6 +22,18 @@
   import type { Settings } from '$lib/types';
 
   let s = $state<Settings>(JSON.parse(JSON.stringify(app.settings)));
+
+  // Streamer mode and the language apply straight away (from here, the title
+  // bar or the shortcut), so the form follows them instead of showing them as
+  // unsaved changes.
+  $effect(() => {
+    const on = app.settings?.streamerMode ?? false;
+    const lang = app.settings?.language ?? '';
+    untrack(() => {
+      s.streamerMode = on;
+      s.language = lang;
+    });
+  });
 
   let applyingShare = $state(false);
   // Give every instance the sharing chosen above (and save it as the default).
@@ -224,6 +237,12 @@
               onchange={(on: boolean) => setAutostart(on)}
               label="Start Peak when my computer starts"
             />
+          </Row>
+          <Row
+            title="Streamer mode"
+            desc="Hides account names, your UUID, server addresses and the folder paths that contain your computer's user name, here and in the game console. Turn it on or off from anywhere with Ctrl+Shift+S."
+          >
+            <Switch checked={streaming()} onchange={(on: boolean) => setStreamerMode(on)} label="Streamer mode" />
           </Row>
           <Row title="When the game window opens" desc={afterLaunchHelp[s.afterLaunch] ?? afterLaunchHelp.open}>
             <div class="seg">
@@ -525,7 +544,7 @@
         <div>
           <b>Peak Launcher</b>
           <span>Version {app.info?.version}{app.info?.devBuild ? ' · development build' : ''} · GPL-3.0</span>
-          {#if app.info?.dataDir}<span class="mono path">{app.info.dataDir}</span>{/if}
+          {#if app.info?.dataDir}<span class="mono path">{shownPath(app.info.dataDir)}</span>{/if}
         </div>
         <button class="btn discord" title="Help, news and support" onclick={() => api.openUrl('https://discord.gg/DR2XVfVCku')}>
           <MessageCircle size={14} /> Discord

@@ -8,6 +8,7 @@
   import SkinHead from './SkinHead.svelte';
   import { api } from '$lib/api';
   import { toast, errorText } from '$lib/state.svelte';
+  import { shownName } from '$lib/privacy.svelte';
   import { skins } from '$lib/skins.svelte';
   import type { AccountInfo, PastSkin, Wardrobe } from '$lib/types';
 
@@ -148,7 +149,7 @@
   }
 </script>
 
-<Modal title="Change skin" subtitle="For {account.username}. Changes show here first; Apply sends them to Minecraft." width={640} onclose={() => !saving && onclose()}>
+<Modal title="Change skin" subtitle="For {shownName(account.username)}. Changes show here first; Apply sends them to Minecraft." width={640} onclose={() => !saving && onclose()}>
   {#if loading}
     <div class="loading"><LoaderCircle size={20} class="spin" /> Loading your skin…</div>
   {:else if error}
@@ -211,7 +212,7 @@
             {@const inUse = h.png === wardrobe.skin?.png}
             <div class="past-item" class:selected={savedId === h.id || (inUse && !savedId && !filePath)}>
               <button class="past-pick" onclick={() => pickSaved(h)} title={inUse ? 'In use now' : `Worn ${when(h.usedAt).toLowerCase()}. Click to preview, then Apply.`}>
-                <SkinHead accountId={null} name={account.username} png={h.png} size={40} />
+                <SkinHead accountId={null} name={shownName(account.username)} png={h.png} size={40} />
                 <span>{inUse ? 'In use' : when(h.usedAt)}</span>
               </button>
               {#if !inUse}

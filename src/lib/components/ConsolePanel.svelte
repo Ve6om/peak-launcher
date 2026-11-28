@@ -5,6 +5,7 @@
   import { shareLog } from '$lib/state.svelte';
   import type { LogLine } from '$lib/types';
   import { parseColors, type Segment } from '$lib/ansi';
+  import { streaming, shownLogLine } from '$lib/privacy.svelte';
 
   let {
     instanceId,
@@ -87,12 +88,17 @@
   }
 
   // Parsed lines are cached by their raw text, so new output doesn't re-parse the whole log.
-  const cache = new Map<string, Omit<Row, 'stream'>>();
+  // Streamer mode changes what a line shows, so it starts a fresh cache.
+  const cache = $derived.by(() => {
+    streaming();
+    return new Map<string, Omit<Row, 'stream'>>();
+  });
   function row(l: LogLine): Row {
     let r = cache.get(l.line);
     if (!r) {
-      const segs = parseColors(l.line);
-      const text = segs ? segs.map((x) => x.text).join('') : l.line;
+      const line = shownLogLine(l.line);
+      const segs = parseColors(line);
+      const text = segs ? segs.map((x) => x.text).join('') : line;
       r = {
         text,
         segs: segs && segs.some((x) => x.style) ? segs : null,

@@ -361,3 +361,9 @@ html.raging body {
   80% { transform: translate(13px, 10px) rotate(1.2deg); }
   100% { transform: translate(0, 0) rotate(0deg); }
 }
+
+/* Streamer mode: fields with private text (like a server address) stay
+   blurred until clicked into. */
+:root.streaming .private:not(:focus) {
+  filter: blur(5px);
+}

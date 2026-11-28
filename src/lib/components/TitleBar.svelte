@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { Minus, Square, X, Gamepad2 } from '@lucide/svelte';
+  import { Minus, Square, X, Gamepad2, EyeOff } from '@lucide/svelte';
   import { scale } from 'svelte/transition';
   import { isTauri } from '$lib/api';
   import { app, go, stop, requestClose } from '$lib/state.svelte';
   import Logo from './Logo.svelte';
+  import { streaming, setStreamerMode } from '$lib/privacy.svelte';
 
   async function win() {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -21,13 +22,27 @@
     if (!running.length) open = false;
   });
 
+  // Lets the page blur private fields (see .private in app.css).
+  $effect(() => {
+    document.documentElement.classList.toggle('streaming', streaming());
+  });
+
+  // Ctrl+Shift+S turns streamer mode on or off from anywhere.
+  function keys(e: KeyboardEvent) {
+    if (e.key === 'Escape') open = false;
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's' && app.settings) {
+      e.preventDefault();
+      setStreamerMode(!streaming());
+    }
+  }
+
   async function stopAll() {
     for (const inst of running) await stop(inst);
     open = false;
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && (open = false)} />
+<svelte:window onkeydown={keys} />
 
 <header class="titlebar" data-tauri-drag-region>
   <div class="brand" data-tauri-drag-region>
@@ -40,6 +55,11 @@
   </div>
 
   <div class="right">
+    {#if streaming()}
+      <button class="streamer" onclick={() => setStreamerMode(false)} title="Names, server addresses and folder paths are hidden. Click to turn off (Ctrl+Shift+S).">
+        <EyeOff size={13} /> Streamer mode
+      </button>
+    {/if}
     {#if running.length}
       <div class="games">
         <button class="playing" class:on={open} onclick={() => (open = !open)} title="Running games">
@@ -109,6 +129,22 @@
   }
   .games {
     position: relative;
+  }
+  .streamer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ddd6fe;
+    background: rgba(139, 92, 246, 0.14);
+    border: 1px solid rgba(167, 139, 250, 0.32);
+  }
+  .streamer:hover {
+    background: rgba(139, 92, 246, 0.24);
   }
   .playing {
     display: inline-flex;

@@ -6,6 +6,7 @@
   import PlayButton from '$lib/components/PlayButton.svelte';
   import Progress from '$lib/components/Progress.svelte';
   import { app, go, activeAccount, playtime, ago, isBusy, openInstanceMenu } from '$lib/state.svelte';
+  import { shownName } from '$lib/privacy.svelte';
   import { loaderLabel } from '$lib/types';
 
   const hero = $derived(app.instances[0]);
@@ -23,7 +24,7 @@
 
 <div class="home">
   <div class="greet rise">
-    <h1>{greeting}{account ? `, ${account.username}` : ''}</h1>
+    <h1>{greeting}{account ? `, ${shownName(account.username)}` : ''}</h1>
     <p>{hero ? 'Pick up right where you left off.' : "Let's get your first world set up."}</p>
   </div>
 

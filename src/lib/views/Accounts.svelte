@@ -8,6 +8,7 @@
   import { skins, loadSkin } from '$lib/skins.svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText } from '$lib/state.svelte';
+  import { shownName, streaming } from '$lib/privacy.svelte';
   import type { LoginStart } from '$lib/types';
 
   let login = $state<LoginStart | null>(null);
@@ -130,10 +131,10 @@
       </div>
       <div class="skin-info">
         <span class="label">Playing as</span>
-        <h2>{active.username}</h2>
+        <h2>{shownName(active.username)}</h2>
         <button class="uuid" title="Copy UUID" onclick={copyUuid}>
           <span>UUID</span>
-          <code>{dashed(active.id)}</code>
+          <code>{streaming() ? 'Hidden' : dashed(active.id)}</code>
           <Copy size={12} />
         </button>
         {#if activeSkin}
@@ -150,9 +151,9 @@
   <div class="list">
     {#each app.accounts as a, i (a.id)}
       <div class="account glass rise" class:active={a.active} style:animation-delay="{i * 40}ms">
-        <SkinHead accountId={a.id} name={a.username} size={44} />
+        <SkinHead accountId={a.id} name={shownName(a.username)} size={44} />
         <div class="text">
-          <b>{a.username}</b>
+          <b>{shownName(a.username)}</b>
           <span>{a.kind === 'microsoft' ? 'Microsoft account' : 'Offline (dev only)'}</span>
         </div>
         {#if a.active}

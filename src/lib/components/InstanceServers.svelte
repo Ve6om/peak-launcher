@@ -5,6 +5,7 @@
   import { Plus, Play, Trash2, ChevronUp, ChevronDown, Server as ServerIcon, Users, SignalZero, LoaderCircle, UserPlus } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText, activeAccount, go, isRunning, isBusy } from '$lib/state.svelte';
+  import { shownAddress } from '$lib/privacy.svelte';
   import { motdLines } from '$lib/motd';
   import { playingAt, inviteUrl } from '$lib/invite.svelte';
   import type { Instance, InstanceServer, SavedServer, ServerStatus } from '$lib/types';
@@ -128,8 +129,8 @@
             </div>
             <span class="icon">{#if ready?.favicon}<img src={ready.favicon} alt="" />{:else}<ServerIcon size={20} />{/if}</span>
             <div class="text">
-              <b>{s.name || s.address}</b>
-              <span class="addr">{s.address}</span>
+              <b>{s.name || shownAddress(s.address)}</b>
+              <span class="addr">{shownAddress(s.address)}</span>
               {#if ready?.online}
                 <span class="motd">
                   {#each motdLines(ready.motd).slice(0, 1) as line, l (l)}{#each line as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}{/each}
@@ -162,7 +163,7 @@
       }}
     >
       <input class="input" bind:value={name} placeholder="Name (optional)" maxlength="40" />
-      <input class="input" bind:value={address} placeholder="play.example.com" spellcheck="false" />
+      <input class="input private" bind:value={address} placeholder="play.example.com" spellcheck="false" />
       <button class="btn primary" type="submit" disabled={!address.trim() || running}><Plus size={15} /> Add</button>
     </form>
     {#if notInList.length}

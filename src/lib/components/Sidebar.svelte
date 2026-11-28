@@ -2,6 +2,7 @@
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { House, Library, Package, Server, Users, Images, Settings, Plus, ChevronRight } from '@lucide/svelte';
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
+  import { shownName } from '$lib/privacy.svelte';
   import type { View } from '$lib/types';
   import InstanceArt from './InstanceArt.svelte';
   import SkinHead from './SkinHead.svelte';
@@ -64,9 +65,9 @@
   </div>
 
   <button class="account" onclick={() => go('accounts')}>
-    <SkinHead accountId={account?.id ?? null} name={account?.username ?? ''} size={34} />
+    <SkinHead accountId={account?.id ?? null} name={shownName(account?.username ?? '')} size={34} />
     <span class="acc-text">
-      <span class="acc-name">{account?.username ?? 'Add account'}</span>
+      <span class="acc-name">{account ? shownName(account.username) : 'Add account'}</span>
       <span class="acc-meta">{account ? (account.kind === 'microsoft' ? 'Microsoft' : 'Offline') : 'Sign in to play'}</span>
     </span>
     <ChevronRight size={16} />

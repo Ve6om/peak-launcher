@@ -16,6 +16,7 @@
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
+  import { shownName } from '$lib/privacy.svelte';
   import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption, type TuningSuggestion, type DetectedJava, NO_SHARING } from '$lib/types';
   import { javaFolderName } from '$lib/javaNames';
 
@@ -342,7 +343,7 @@
         <Select
           bind:value={() => d.accountId ?? '', (v) => (d.accountId = v || null)}
           ariaLabel="Account"
-          options={[{ value: '', label: 'Active account' }, ...app.accounts.map((a) => ({ value: a.id, label: a.username }))]}
+          options={[{ value: '', label: 'Active account' }, ...app.accounts.map((a) => ({ value: a.id, label: shownName(a.username) }))]}
         />
       </Row>
       <Row title="Quick play" desc="Jump straight into a world, server or realm when you press Play. Worlds and realms need 1.20+.">

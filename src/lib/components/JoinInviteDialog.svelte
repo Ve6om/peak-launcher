@@ -5,6 +5,7 @@
   import { Play, Download, ArrowDownUp, Server } from '@lucide/svelte';
   import { instanceIcon } from '$lib/instanceImages';
   import Select from './Select.svelte';
+  import { shownAddress } from '$lib/privacy.svelte';
   import Modal from './Modal.svelte';
   import { invite, inviteListing } from '$lib/invite.svelte';
   import { packMatch, planFor, vanillaChoices, playListing, switchAndJoin } from '$lib/discover.svelte';
@@ -35,7 +36,7 @@
   }
 </script>
 
-<Modal title="Join {i.name}" subtitle="A friend invited you to play on {i.address}" width={500} onclose={close}>
+<Modal title="Join {i.name}" subtitle="A friend invited you to play on {shownAddress(i.address)}" width={500} onclose={close}>
   <div class="what">
     <Server size={16} />
     {#if l.pack}
