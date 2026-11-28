@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Download, LoaderCircle, TriangleAlert } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import Markdown from './Markdown.svelte';
@@ -11,13 +12,13 @@
 </script>
 
 <Modal
-  title="Peak {u.version} is available"
-  subtitle="You have {u.currentVersion}.{date ? ` Released ${date}.` : ''}"
+  title={t('Peak {version} is available', { version: u.version })}
+  subtitle={t('You have {currentVersion}.', { currentVersion: u.currentVersion }) + (date ? ` ${t('Released {date}.', { date })}` : '')}
   width={520}
   onclose={() => !updates.installing && snooze()}
 >
   <div class="notes">
-    <span class="label">What's new{u.releases.length > 1 ? ` in ${u.releases.length} updates` : ''}</span>
+    <span class="label">{u.releases.length > 1 ? t("What's new in {count} updates", { count: u.releases.length }) : t("What's new")}</span>
     <div class="body">
       {#if u.releases.length > 1}
         {#each u.releases as r (r.version)}
@@ -33,13 +34,13 @@
   </div>
 
   {#if app.running.length}
-    <p class="warn"><TriangleAlert size={14} /> Peak restarts to finish updating. Your running game keeps going.</p>
+    <p class="warn"><TriangleAlert size={14} /> {t('Peak restarts to finish updating. Your running game keeps going.')}</p>
   {/if}
 
   {#if updates.installing}
     <div class="progress">
       <div class="row">
-        <span>{pct === 100 ? 'Installing…' : 'Downloading update…'}</span>
+        <span>{pct === 100 ? t('Installing…') : t('Downloading update…')}</span>
         <span>{pct === null ? '' : `${pct}%`}</span>
       </div>
       <div class="track" class:indeterminate={pct === null}><div class="bar" style:width="{pct ?? 35}%"></div></div>
@@ -47,13 +48,13 @@
   {/if}
 
   {#if updates.error}
-    <p class="error">Couldn't install the update: {updates.error}</p>
+    <p class="error">{t('Couldn\'t install the update: {error}', { error: updates.error })}</p>
   {/if}
 
   <footer>
-    <button class="btn ghost" disabled={updates.installing} onclick={snooze}>Later</button>
+    <button class="btn ghost" disabled={updates.installing} onclick={snooze}>{t('Later')}</button>
     <button class="btn primary" disabled={updates.installing} onclick={installUpdate}>
-      {#if updates.installing}<LoaderCircle size={16} class="spin" /> Updating…{:else}<Download size={16} /> Update now{/if}
+      {#if updates.installing}<LoaderCircle size={16} class="spin" /> {t('Updating…')}{:else}<Download size={16} /> {t('Update now')}{/if}
     </button>
   </footer>
 </Modal>

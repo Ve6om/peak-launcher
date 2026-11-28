@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // An instance's single-player worlds: play one directly, back it up or
   // restore it, rename, copy or delete it, and manage its data packs.
   import { onMount } from 'svelte';
@@ -98,7 +99,7 @@
 
   async function play(w: WorldInfo) {
     if (!activeAccount()) {
-      toast('Add an account to start playing', 'info');
+      toast(t('Add an account to start playing'), 'info');
       go('accounts');
       return;
     }
@@ -127,7 +128,7 @@
 
   async function copySeed(seed: string) {
     await navigator.clipboard.writeText(seed).catch(() => {});
-    toast('Seed copied', 'success');
+    toast(t('Seed copied'), 'success');
   }
 
   // Automatic backups (a Peak-wide setting).
@@ -141,31 +142,31 @@
   }
 
   const size = (b: number) =>
-    b >= 1073741824 ? `${(b / 1073741824).toFixed(1)} GB` : b >= 1048576 ? `${Math.round(b / 1048576)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
+    b >= 1073741824 ? t('{x} GB', { x: (b / 1073741824).toFixed(1) }) : b >= 1048576 ? t('{n} MB', { n: Math.round(b / 1048576) }) : t('{n} KB', { n: Math.max(1, Math.round(b / 1024)) });
   function when(ms: number | null) {
-    if (!ms) return 'Never played';
+    if (!ms) return t('Never played');
     const s = (Date.now() - ms) / 1000;
-    if (s < 60) return 'Just now';
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-    if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
+    if (s < 60) return t('Just now');
+    if (s < 3600) return t('{n}m ago', { n: Math.floor(s / 60) });
+    if (s < 86400) return t('{n}h ago', { n: Math.floor(s / 3600) });
+    if (s < 86400 * 30) return t('{n}d ago', { n: Math.floor(s / 86400) });
     return new Date(ms).toLocaleDateString();
   }
   const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  const modeName = (w: WorldInfo) => (w.hardcore ? 'Hardcore' : w.mode ? w.mode[0].toUpperCase() + w.mode.slice(1) : null);
+  const modeName = (w: WorldInfo) => (w.hardcore ? t('Hardcore') : w.mode ? t(w.mode[0].toUpperCase() + w.mode.slice(1)) : null);
 </script>
 
 <div class="wrap">
   <section class="panel glass">
-    <h3>Worlds</h3>
+    <h3>{t('Worlds')}</h3>
     <p class="sub">
-      Single-player worlds in this instance, most recently played first.{running ? " The game is open, so worlds can be backed up but not changed until it's closed." : ''}
+      {t('Single-player worlds in this instance, most recently played first.')}{running ? ` ${t("The game is open, so worlds can be backed up but not changed until it's closed.")}` : ''}
     </p>
 
     {#if !loaded}
-      <p class="muted"><LoaderCircle size={14} class="spin" /> Loading…</p>
+      <p class="muted"><LoaderCircle size={14} class="spin" /> {t('Loading…')}</p>
     {:else if !worlds.length}
-      <p class="muted"><Globe size={14} /> No worlds yet. Create one in the game and it shows up here.</p>
+      <p class="muted"><Globe size={14} /> {t('No worlds yet. Create one in the game and it shows up here.')}</p>
     {:else}
       <div class="list">
         {#each worlds as w (w.folder)}
@@ -184,8 +185,8 @@
                   >
                     <!-- svelte-ignore a11y_autofocus -->
                     <input class="input" bind:value={newName} maxlength="100" autofocus onkeydown={(e) => e.key === 'Escape' && (renaming = null)} />
-                    <button class="btn ghost icon" type="submit" aria-label="Save name"><Check size={14} /></button>
-                    <button class="btn ghost icon" type="button" aria-label="Cancel" onclick={() => (renaming = null)}><X size={14} /></button>
+                    <button class="btn ghost icon" type="submit" aria-label={t('Save name')}><Check size={14} /></button>
+                    <button class="btn ghost icon" type="button" aria-label={t('Cancel')} onclick={() => (renaming = null)}><X size={14} /></button>
                   </form>
                 {:else}
                   <b>{w.name}</b>
@@ -198,11 +199,11 @@
                   {#if w.backups}<span><Archive size={11} /> {w.backups}</span>{/if}
                 </span>
               </div>
-              <button class="btn ghost icon" title="Back up now" aria-label="Back up {w.name}" disabled={!!busy} onclick={() => act(`backup:${w.folder}`, () => api.worldBackup(inst.id, w.folder), `Backed up ${w.name}`)}>
+              <button class="btn ghost icon" title={t('Back up now')} aria-label={t('Back up {name}', { name: w.name })} disabled={!!busy} onclick={() => act(`backup:${w.folder}`, () => api.worldBackup(inst.id, w.folder), `Backed up ${w.name}`)}>
                 {#if busy === `backup:${w.folder}`}<LoaderCircle size={15} class="spin" />{:else}<Archive size={15} />{/if}
               </button>
-              <button class="btn ghost icon chev" class:flip={isOpen} title="More" aria-label="More for {w.name}" aria-expanded={isOpen} onclick={() => expand(w)}><ChevronDown size={16} /></button>
-              <button class="btn primary" disabled={running || isBusy(inst.id)} onclick={() => play(w)}><Play size={14} /> Play</button>
+              <button class="btn ghost icon chev" class:flip={isOpen} title={t('More')} aria-label={t('More for {name}', { name: w.name })} aria-expanded={isOpen} onclick={() => expand(w)}><ChevronDown size={16} /></button>
+              <button class="btn primary" disabled={running || isBusy(inst.id)} onclick={() => play(w)}><Play size={14} /> {t('Play')}</button>
             </div>
 
             {#if isOpen}
@@ -214,14 +215,14 @@
                     onclick={() => {
                       renaming = w.folder;
                       newName = w.name;
-                    }}><Pencil size={14} /> Rename</button
+                    }}><Pencil size={14} /> {t('Rename')}</button
                   >
                   <button class="btn" disabled={running || !!busy} onclick={() => act(`copy:${w.folder}`, () => api.worldCopy(inst.id, w.folder), `Copied ${w.name}`)}>
-                    {#if busy === `copy:${w.folder}`}<LoaderCircle size={14} class="spin" />{:else}<Copy size={14} />{/if} Make a copy
+                    {#if busy === `copy:${w.folder}`}<LoaderCircle size={14} class="spin" />{:else}<Copy size={14} />{/if} {t('Make a copy')}
                   </button>
-                  <button class="btn" onclick={() => api.worldOpenFolder(inst.id, w.folder).catch((e) => toast(errorText(e), 'error'))}><FolderOpen size={14} /> Open folder</button>
+                  <button class="btn" onclick={() => api.worldOpenFolder(inst.id, w.folder).catch((e) => toast(errorText(e), 'error'))}><FolderOpen size={14} /> {t('Open folder')}</button>
                   {#if w.seed}
-                    <button class="btn" title={w.seed} onclick={() => copySeed(w.seed!)}><Sprout size={14} /> Copy seed</button>
+                    <button class="btn" title={w.seed} onclick={() => copySeed(w.seed!)}><Sprout size={14} /> {t('Copy seed')}</button>
                   {/if}
                   <span class="spacer"></span>
                   <button
@@ -230,33 +231,33 @@
                     disabled={running}
                     onclick={() => sure(`delete:${w.folder}`) && act(`delete:${w.folder}`, () => api.worldDelete(inst.id, w.folder), `${w.name} moved to the recycle bin`)}
                   >
-                    <Trash2 size={14} /> {confirm === `delete:${w.folder}` ? 'Click again to delete' : 'Delete'}
+                    <Trash2 size={14} /> {confirm === `delete:${w.folder}` ? t('Click again to delete') : t('Delete')}
                   </button>
                 </div>
 
-                <h4>Backups</h4>
+                <h4>{t('Backups')}</h4>
                 {#if backups.length}
                   <div class="sublist">
                     {#each backups as b (b.fileName)}
                       <div class="subrow">
                         <Archive size={14} />
-                        <span class="grow">{date(b.created)}{#if b.auto}<em>Automatic</em>{/if}</span>
+                        <span class="grow">{date(b.created)}{#if b.auto}<em>{t('Automatic')}</em>{/if}</span>
                         <span class="dim">{size(b.size)}</span>
                         <button
                           class="btn small"
                           class:armed={confirm === `restore:${b.fileName}`}
                           disabled={running || !!busy}
-                          title="Put the world back as it was then (it's backed up as it is now first)"
+                          title={t('Put the world back as it was then (it\'s backed up as it is now first)')}
                           onclick={() => sure(`restore:${b.fileName}`) && act(`restore:${b.fileName}`, () => api.worldRestore(inst.id, w.folder, b.fileName), `${w.name} restored`)}
                         >
                           {#if busy === `restore:${b.fileName}`}<LoaderCircle size={13} class="spin" />{:else}<RotateCcw size={13} />{/if}
-                          {confirm === `restore:${b.fileName}` ? 'Click again to restore' : 'Restore'}
+                          {confirm === `restore:${b.fileName}` ? t('Click again to restore') : t('Restore')}
                         </button>
                         <button
                           class="btn ghost icon small-icon"
                           class:armed={confirm === `delbak:${b.fileName}`}
-                          title={confirm === `delbak:${b.fileName}` ? 'Click again to delete this backup' : 'Delete this backup'}
-                          aria-label="Delete backup"
+                          title={confirm === `delbak:${b.fileName}` ? t('Click again to delete this backup') : t('Delete this backup')}
+                          aria-label={t('Delete backup')}
                           onclick={() => sure(`delbak:${b.fileName}`) && act('delbak', () => api.worldDeleteBackup(inst.id, w.folder, b.fileName))}
                         >
                           <Trash2 size={13} />
@@ -265,10 +266,10 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="muted small">No backups of this world yet.</p>
+                  <p class="muted small">{t('No backups of this world yet.')}</p>
                 {/if}
 
-                <h4>Data packs</h4>
+                <h4>{t('Data packs')}</h4>
                 {#if packs.length}
                   <div class="sublist">
                     {#each packs as p (p.fileName)}
@@ -279,8 +280,8 @@
                         <button
                           class="btn ghost icon small-icon"
                           class:armed={confirm === `pack:${p.fileName}`}
-                          title={confirm === `pack:${p.fileName}` ? 'Click again to remove' : 'Remove'}
-                          aria-label="Remove {p.fileName}"
+                          title={confirm === `pack:${p.fileName}` ? t('Click again to remove') : t('Remove')}
+                          aria-label={t('Remove {fileName}', { fileName: p.fileName })}
                           disabled={running}
                           onclick={() => sure(`pack:${p.fileName}`) && act('pack', () => api.worldRemoveDatapack(inst.id, w.folder, p.fileName))}
                         >
@@ -290,11 +291,11 @@
                     {/each}
                   </div>
                 {:else}
-                  <p class="muted small">No data packs in this world.</p>
+                  <p class="muted small">{t('No data packs in this world.')}</p>
                 {/if}
                 <div class="actions">
-                  <button class="btn small" disabled={running || !!busy} onclick={() => addPacks(w)}><Plus size={13} /> Add data packs</button>
-                  {#if running}<span class="dim">New data packs load the next time the world is opened.</span>{/if}
+                  <button class="btn small" disabled={running || !!busy} onclick={() => addPacks(w)}><Plus size={13} /> {t('Add data packs')}</button>
+                  {#if running}<span class="dim">{t('New data packs load the next time the world is opened.')}</span>{/if}
                 </div>
               </div>
             {/if}
@@ -306,22 +307,22 @@
 
   {#if app.settings}
     <section class="panel glass">
-      <h3>Automatic backups</h3>
-      <p class="sub">When the game closes, Peak backs up each world that was played, in every instance. Backups you make by hand are always kept.</p>
+      <h3>{t('Automatic backups')}</h3>
+      <p class="sub">{t('When the game closes, Peak backs up each world that was played, in every instance. Backups you make by hand are always kept.')}</p>
       <div class="auto">
-        <Switch bind:checked={() => app.settings!.worldBackupsAuto, (v) => setAuto({ worldBackupsAuto: v })} label="Back up worlds when the game closes" />
-        <span class="grow">Back up worlds when the game closes</span>
-        <span class="dim">Keep</span>
+        <Switch bind:checked={() => app.settings!.worldBackupsAuto, (v) => setAuto({ worldBackupsAuto: v })} label={t('Back up worlds when the game closes')} />
+        <span class="grow">{t('Back up worlds when the game closes')}</span>
+        <span class="dim">{t('Keep')}</span>
         <Select
           small
           disabled={!app.settings.worldBackupsAuto}
           value={String(app.settings.worldBackupsKeep)}
           onchange={(v) => v && setAuto({ worldBackupsKeep: +v })}
-          ariaLabel="Automatic backups to keep per world"
+          ariaLabel={t('Automatic backups to keep per world')}
           style="width: 90px;"
           options={[1, 2, 3, 5, 10, 20].map((n) => ({ value: String(n), label: String(n) }))}
         />
-        <span class="dim">per world</span>
+        <span class="dim">{t('per world')}</span>
       </div>
     </section>
   {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Asked once, the first time someone presses Play: which Java build should
   // Peak download for their games? Saved to Settings and remembered.
   import { Coffee } from '@lucide/svelte';
@@ -30,13 +31,13 @@
   }
 </script>
 
-<Modal title="Which Java should Peak use?" subtitle="Minecraft runs on Java. Peak downloads the right version for each game; pick whose." width={640} onclose={() => finish(false)}>
+<Modal title={t('Which Java should Peak use?')} subtitle={t('Minecraft runs on Java. Peak downloads the right version for each game; pick whose.')} width={640} onclose={() => finish(false)}>
   <JavaVendorPicker bind:value={pick} />
   <p class="note">
-    You can change this any time in Settings → Java & memory, or per instance. With GraalVM, Minecraft older than 1.17 still uses Mojang's Java, since GraalVM doesn't exist for it.
+    {t('You can change this any time in Settings → Java & memory, or per instance. With GraalVM, Minecraft older than 1.17 still uses Mojang\'s Java, since GraalVM doesn\'t exist for it.')}
   </p>
   <div class="actions">
-    <button class="btn primary" disabled={saving} onclick={confirm}><Coffee size={15} /> Use this and play</button>
+    <button class="btn primary" disabled={saving} onclick={confirm}><Coffee size={15} /> {t('Use this and play')}</button>
   </div>
 </Modal>
 

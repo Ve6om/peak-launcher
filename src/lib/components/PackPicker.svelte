@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // A modpack filter that stays usable when there are many packs: search box,
   // each pack's icon, and how many servers run it.
   import { Package, ChevronDown } from '@lucide/svelte';
@@ -12,7 +13,7 @@
   let root = $state<HTMLDivElement>();
   let search = $state<HTMLInputElement>();
 
-  const all = $derived<Option[]>([{ id: '', name: 'Any modpack', icon: null, count: options.reduce((n, o) => n + o.count, 0) }, ...options]);
+  const all = $derived<Option[]>([{ id: '', name: t('Any modpack'), icon: null, count: options.reduce((n, o) => n + o.count, 0) }, ...options]);
   const shown = $derived(all.filter((o) => !q.trim() || o.name.toLowerCase().includes(q.trim().toLowerCase())));
   const current = $derived(all.find((o) => o.id === value) ?? all[0]);
 
@@ -52,8 +53,8 @@
   </button>
   {#if open}
     <div class="pop glass">
-      <input class="input" bind:this={search} bind:value={q} oninput={() => (active = 0)} onkeydown={key} placeholder="Search modpacks" aria-label="Search modpacks" />
-      <ul role="listbox" aria-label="Modpacks">
+      <input class="input" bind:this={search} bind:value={q} oninput={() => (active = 0)} onkeydown={key} placeholder={t('Search modpacks')} aria-label={t('Search modpacks')} />
+      <ul role="listbox" aria-label={t('Modpacks')}>
         {#each shown as o, i (o.id)}
           <li role="option" aria-selected={o.id === value} class:active={i === active} onmousedown={(e) => e.preventDefault()} onclick={() => pick(o)} onkeydown={() => {}} onmouseenter={() => (active = i)}>
             {#if o.icon}<img src={o.icon} alt="" />{:else}<span class="noicon"><Package size={13} /></span>{/if}
@@ -61,7 +62,7 @@
             {#if o.count}<span class="count">{o.count}</span>{/if}
           </li>
         {:else}
-          <li class="none">No modpacks match</li>
+          <li class="none">{t('No modpacks match')}</li>
         {/each}
       </ul>
     </div>

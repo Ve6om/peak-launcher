@@ -15,6 +15,12 @@ pub struct Settings {
     pub accent: String,
     /// "aurora" (colourful glow) | "contours" (topographic map) | "both"
     pub background: String,
+    /// Language code for Peak's own text, like "de" or "pt-BR". Empty follows
+    /// the computer's language.
+    pub language: String,
+    /// Hide usernames, server addresses and folder paths, for streaming and
+    /// recording.
+    pub streamer_mode: bool,
 
     // Java & memory
     pub memory_mb: u32,
@@ -103,6 +109,8 @@ impl Default for Settings {
         Self {
             accent: "glacier".into(),
             background: "aurora".into(),
+            language: String::new(),
+            streamer_mode: false,
             memory_mb: 4096,
             metaspace_mb: 256,
             jvm_args: String::new(),

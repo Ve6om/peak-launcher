@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import type { Snippet } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { X } from '@lucide/svelte';
@@ -39,7 +40,7 @@
         <h2>{title}</h2>
         {#if subtitle}<p>{subtitle}</p>{/if}
       </div>
-      <button class="btn ghost icon" aria-label="Close" onclick={onclose}><X size={18} /></button>
+      <button class="btn ghost icon" aria-label={t('Close')} onclick={onclose}><X size={18} /></button>
     </header>
     <!-- Scrolls when the window is too short for the whole dialog. -->
     <div class="body">

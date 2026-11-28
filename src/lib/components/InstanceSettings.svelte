@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { onMount, untrack } from 'svelte';
   import Select from './Select.svelte';
   import { fly } from 'svelte/transition';
@@ -16,6 +17,7 @@
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { api } from '$lib/api';
   import { app, refreshInstances, toast, errorText } from '$lib/state.svelte';
+  import { shownName } from '$lib/privacy.svelte';
   import { LOADERS, loaderLabel, type Instance, type LoaderVersion, type ManifestEntry, type RuntimeOption, type TuningSuggestion, type DetectedJava, NO_SHARING } from '$lib/types';
   import { javaFolderName } from '$lib/javaNames';
 
@@ -110,10 +112,10 @@
   }
 
   const qpModes = [
-    { id: 'none', label: 'Off' },
-    { id: 'world', label: 'World' },
-    { id: 'server', label: 'Server' },
-    { id: 'realm', label: 'Realm' }
+    { id: 'none', label: t('Off') },
+    { id: 'world', label: t('World') },
+    { id: 'server', label: t('Server') },
+    { id: 'realm', label: t('Realm') }
   ] as const;
 
   async function save() {
@@ -123,20 +125,20 @@
       await refreshInstances();
       // Carry on editing from exactly what was saved, so the bar goes away.
       d = clone(saved);
-      toast(versionChange ? 'Saved. Game files will update on next launch.' : 'Saved', 'success');
+      toast(versionChange ? t('Saved. Game files will update on next launch.') : t('Saved'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
   }
 
-  const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
+  const gb = (mb: number) => t('{x} GB', { x: (mb / 1024).toFixed(1) });
 
   // ---- Optimize ----
   let optimizing = $state(false);
-  async function applyTuning(t: TuningSuggestion, useGraal: boolean) {
+  async function applyTuning(tuning: TuningSuggestion, useGraal: boolean) {
     optimizing = false;
-    d.memoryMb = t.memoryMb;
-    d.jvmPreset = t.jvmPreset;
+    d.memoryMb = tuning.memoryMb;
+    d.jvmPreset = tuning.jvmPreset;
     if (useGraal) {
       javaMode = 'auto';
       d.javaPath = null;
@@ -147,12 +149,12 @@
 
   // ---- the instance's own logo and banner ----
   async function setPicture(kind: 'icon' | 'banner', reset = false) {
-    const path = reset ? null : await api.pickPicture(kind === 'icon' ? 'Choose a logo' : 'Choose a banner');
+    const path = reset ? null : await api.pickPicture(kind === 'icon' ? t('Choose a logo') : t('Choose a banner'));
     if (!reset && !path) return;
     try {
       await api.instanceSetPicture(inst.id, kind, path);
       await refreshInstances();
-      toast(reset ? 'Back to the default picture' : kind === 'icon' ? 'Logo updated' : 'Banner updated', 'success');
+      toast(reset ? t('Back to the default picture') : kind === 'icon' ? t('Logo updated') : t('Banner updated'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
@@ -162,26 +164,26 @@
 
 <div class="settings">
   <section class="panel glass">
-    <h3>General</h3>
+    <h3>{t('General')}</h3>
     <div class="rows">
-      <Row title="Name" desc="Shown in your library">
+      <Row title={t('Name')} desc={t('Shown in your library')}>
         <input class="input" bind:value={d.name} maxlength="48" />
       </Row>
-      <Row title="Notes" desc="Anything you want to remember about this instance" wide>
-        <textarea class="input" bind:value={d.notes} placeholder="Seed, server IPs, mod list…"></textarea>
+      <Row title={t('Notes')} desc={t('Anything you want to remember about this instance')} wide>
+        <textarea class="input" bind:value={d.notes} placeholder={t('Seed, server IPs, mod list…')}></textarea>
       </Row>
-      <Row title="Logo" desc="Square picture shown on cards and in the sidebar">
+      <Row title={t('Logo')} desc={t('Square picture shown on cards and in the sidebar')}>
         <div class="pic">
           <span class="pic-icon"><InstanceArt loader={inst.loader} icon={instanceIcon(inst)} /></span>
-          <button class="btn" onclick={() => setPicture('icon')}>Choose…</button>
-          {#if inst.customIcon}<button class="btn ghost" onclick={() => setPicture('icon', true)}>Reset</button>{/if}
+          <button class="btn" onclick={() => setPicture('icon')}>{t('Choose…')}</button>
+          {#if inst.customIcon}<button class="btn ghost" onclick={() => setPicture('icon', true)}>{t('Reset')}</button>{/if}
         </div>
       </Row>
-      <Row title="Banner" desc="Wide picture shown at the top of the instance and on the home page">
+      <Row title={t('Banner')} desc={t('Wide picture shown at the top of the instance and on the home page')}>
         <div class="pic">
           <span class="pic-banner"><InstanceArt loader={inst.loader} image={instanceBanner(inst)} icon={instanceIcon(inst)} /></span>
-          <button class="btn" onclick={() => setPicture('banner')}>Choose…</button>
-          {#if inst.customBanner}<button class="btn ghost" onclick={() => setPicture('banner', true)}>Reset</button>{/if}
+          <button class="btn" onclick={() => setPicture('banner')}>{t('Choose…')}</button>
+          {#if inst.customBanner}<button class="btn ghost" onclick={() => setPicture('banner', true)}>{t('Reset')}</button>{/if}
         </div>
       </Row>
     </div>
@@ -192,12 +194,12 @@
   {/if}
 
   <section class="panel glass">
-    <h3>Game & mod loader</h3>
+    <h3>{t('Game & mod loader')}</h3>
     <div class="rows">
-      <Row title="Minecraft version">
-        <Select bind:value={() => d.gameVersion, (v) => v && (d.gameVersion = v)} ariaLabel="Minecraft version" options={versionChoices.map((v) => ({ value: v.id, label: v.id }))} />
+      <Row title={t('Minecraft version')}>
+        <Select bind:value={() => d.gameVersion, (v) => v && (d.gameVersion = v)} ariaLabel={t('Minecraft version')} options={versionChoices.map((v) => ({ value: v.id, label: v.id }))} />
       </Row>
-      <Row title="Mod loader">
+      <Row title={t('Mod loader')}>
         <div class="seg">
           {#each LOADERS as l (l.id)}
             <button class:active={d.loader === l.id} onclick={() => (d.loader = l.id)}>{l.label}</button>
@@ -209,31 +211,31 @@
           {#if loaderVersions.length}
             <Select
               bind:value={d.loaderVersion}
-              ariaLabel="Loader version"
+              ariaLabel={t('Loader version')}
               options={loaderVersions.map((v) => ({ value: v.id, label: v.id, hint: v.recommended ? 'recommended' : v.stable ? undefined : 'beta' }))}
             />
           {:else}
-            <span class="hint warn">Not available for Minecraft {d.gameVersion}</span>
+            <span class="hint warn">{t('Not available for Minecraft {gameVersion}', { gameVersion: d.gameVersion })}</span>
           {/if}
         </Row>
       {/if}
       {#if versionChanged}
-        <p class="warning"><TriangleAlert size={15} /> Game files are reinstalled on next launch. Back up your worlds and check your mods are compatible.</p>
+        <p class="warning"><TriangleAlert size={15} /> {t('Game files are reinstalled on next launch. Back up your worlds and check your mods are compatible.')}</p>
       {/if}
     </div>
   </section>
 
   <section class="panel glass">
     <div class="head">
-      <h3>Java & memory</h3>
-      <button class="btn small" onclick={() => (optimizing = true)} title="Pick memory, flags and Java for this instance">
-        <Sparkles size={14} /> Optimize
+      <h3>{t('Java & memory')}</h3>
+      <button class="btn small" onclick={() => (optimizing = true)} title={t('Pick memory, flags and Java for this instance')}>
+        <Sparkles size={14} /> {t('Optimize')}
       </button>
     </div>
     <div class="rows">
       <Row
-        title="Maximum memory"
-        desc="RAM the game may use"
+        title={t('Maximum memory')}
+        desc={t('RAM the game may use')}
         override={d.memoryMb !== null}
         onoverride={(on) => (d.memoryMb = on ? g.memoryMb : null)}
         globalHint={gb(g.memoryMb)}
@@ -242,33 +244,33 @@
         <span class="val">{gb(d.memoryMb ?? g.memoryMb)}</span>
       </Row>
       <Row
-        title="Metaspace"
-        desc="Initial metaspace size (MB). Larger modpacks can benefit from 512."
+        title={t('Metaspace')}
+        desc={t('Initial metaspace size (MB). Larger modpacks can benefit from 512.')}
         override={d.metaspaceMb !== null}
         onoverride={(on) => (d.metaspaceMb = on ? g.metaspaceMb : null)}
-        globalHint="{g.metaspaceMb} MB"
+        globalHint={t('{n} MB', { n: g.metaspaceMb })}
       >
         <input class="input num" type="number" min="0" step="64" value={d.metaspaceMb ?? g.metaspaceMb} oninput={(e) => (d.metaspaceMb = +e.currentTarget.value)} />
       </Row>
-      <Row title="Java" desc="Automatic downloads the Java version this game needs, from the build below.">
+      <Row title={t('Java')} desc={t('Automatic downloads the Java version this game needs, from the build below.')}>
         <div class="seg">
-          <button class:active={javaMode === 'auto'} onclick={() => setJavaMode('auto')}>Automatic</button>
-          <button class:active={javaMode === 'runtime'} onclick={() => setJavaMode('runtime')}>Pick version</button>
-          <button class:active={javaMode === 'custom'} onclick={() => setJavaMode('custom')}>Custom path</button>
+          <button class:active={javaMode === 'auto'} onclick={() => setJavaMode('auto')}>{t('Automatic')}</button>
+          <button class:active={javaMode === 'runtime'} onclick={() => setJavaMode('runtime')}>{t('Pick version')}</button>
+          <button class:active={javaMode === 'custom'} onclick={() => setJavaMode('custom')}>{t('Custom path')}</button>
         </div>
       </Row>
       {#if javaMode === 'auto'}
-        <Row title="Java build" desc="Which build Peak downloads. GraalVM is often a little faster; switch back if the game acts strangely.">
+        <Row title={t('Java build')} desc={t('Which build Peak downloads. GraalVM is often a little faster; switch back if the game acts strangely.')}>
           <Select
             bind:value={d.javaRuntime}
-            ariaLabel="Java build"
-            options={[{ value: null, label: `Same as Settings (${buildNames[g.javaVendor] ?? "Mojang's Java"})` }, ...BUILDS.map((b) => ({ value: b, label: buildNames[b] }))]}
+            ariaLabel={t('Java build')}
+            options={[{ value: null, label: t('Same as Settings ({x})', { x: buildNames[g.javaVendor] ?? t("Mojang's Java") }) }, ...BUILDS.map((b) => ({ value: b, label: buildNames[b] }))]}
           />
         </Row>
       {:else if javaMode === 'runtime'}
-        <Row title="Java runtime" desc="Mojang's Java (downloaded if needed) or any Java already on this computer">
+        <Row title={t('Java runtime')} desc={t('Mojang\'s Java (downloaded if needed) or any Java already on this computer')}>
           <Select
-            ariaLabel="Java runtime"
+            ariaLabel={t('Java runtime')}
             value={d.javaPath ? `path:${d.javaPath}` : d.javaRuntime}
             onchange={(v) => {
               if (!v) return;
@@ -283,25 +285,25 @@
             options={[
               ...runtimes.map((r) => ({
                 value: r.component,
-                label: `Java ${r.major} (${r.component})`,
+                label: t('Java {major} ({component})', { major: r.major, component: r.component }),
                 hint: r.installed ? 'downloaded' : undefined,
-                group: "Mojang's Java (Peak downloads it)"
+                group: t('Mojang\'s Java (Peak downloads it)')
               })),
-              ...pcJava.map((j) => ({ value: `path:${j.path}`, label: `Java ${j.major} · ${javaFolderName(j.path)}`, group: 'Installed on this computer' })),
+              ...pcJava.map((j) => ({ value: `path:${j.path}`, label: t('Java {major} · {javaFolderName}', { major: j.major, javaFolderName: javaFolderName(j.path) }), group: t('Installed on this computer') })),
               ...(d.javaPath && !pcJava.some((j) => j.path === d.javaPath)
-                ? [{ value: `path:${d.javaPath}`, label: javaFolderName(d.javaPath), group: 'Installed on this computer' }]
+                ? [{ value: `path:${d.javaPath}`, label: javaFolderName(d.javaPath), group: t('Installed on this computer') }]
                 : [])
             ]}
           />
         </Row>
       {:else if javaMode === 'custom'}
-        <Row title="Java executable" wide>
+        <Row title={t('Java executable')} wide>
           <JavaPicker bind:value={() => d.javaPath ?? '', (v) => (d.javaPath = v)} />
         </Row>
       {/if}
       <Row
-        title="Performance flags"
-        desc="Java tuning preset for this instance"
+        title={t('Performance flags')}
+        desc={t('Java tuning preset for this instance')}
         override={d.jvmPreset !== null}
         onoverride={(on) => (d.jvmPreset = on ? g.jvmPreset : null)}
         wide
@@ -309,8 +311,8 @@
         <JvmPresetPicker bind:value={() => d.jvmPreset ?? g.jvmPreset, (v) => (d.jvmPreset = v)} disabled={d.jvmPreset === null} />
       </Row>
       <Row
-        title="Extra Java arguments"
-        desc="Your own flags, added after the preset"
+        title={t('Extra Java arguments')}
+        desc={t('Your own flags, added after the preset')}
         override={d.jvmArgs !== null}
         onoverride={(on) => (d.jvmArgs = on ? g.jvmArgs : null)}
         wide
@@ -321,31 +323,31 @@
   </section>
 
   <section class="panel glass">
-    <h3>Default game settings</h3>
+    <h3>{t('Default game settings')}</h3>
     <p class="shared-note">
-      Switched on, this instance gets your default keybinds and settings every time it starts. Changes you make while playing aren't saved back, so the defaults stay as they are.
+      {t('Switched on, this instance gets your default keybinds and settings every time it starts. Changes you make while playing aren\'t saved back, so the defaults stay as they are.')}
     </p>
     <GameDefaults instance={inst} />
     <SharedSwitches show="defaults" bind:value={() => d.shared ?? NO_SHARING, (v) => (d.shared = v)} />
   </section>
 
   <section class="panel glass">
-    <h3>Shared packs</h3>
-    <p class="shared-note">Resource and shader packs kept the same in every instance that shares them.</p>
+    <h3>{t('Shared packs')}</h3>
+    <p class="shared-note">{t('Resource and shader packs kept the same in every instance that shares them.')}</p>
     <SharedSwitches show="packs" bind:value={() => d.shared ?? NO_SHARING, (v) => (d.shared = v)} />
   </section>
 
   <section class="panel glass">
-    <h3>Launch</h3>
+    <h3>{t('Launch')}</h3>
     <div class="rows">
-      <Row title="Account" desc="Play this instance with a specific account">
+      <Row title={t('Account')} desc={t('Play this instance with a specific account')}>
         <Select
           bind:value={() => d.accountId ?? '', (v) => (d.accountId = v || null)}
-          ariaLabel="Account"
-          options={[{ value: '', label: 'Active account' }, ...app.accounts.map((a) => ({ value: a.id, label: a.username }))]}
+          ariaLabel={t('Account')}
+          options={[{ value: '', label: t('Active account') }, ...app.accounts.map((a) => ({ value: a.id, label: shownName(a.username) }))]}
         />
       </Row>
-      <Row title="Quick play" desc="Jump straight into a world, server or realm when you press Play. Worlds and realms need 1.20+.">
+      <Row title={t('Quick play')} desc={t('Jump straight into a world, server or realm when you press Play. Worlds and realms need 1.20+.')}>
         <div class="seg">
           {#each qpModes as m (m.id)}
             <button class:active={(d.quickPlay.mode || 'none') === m.id} onclick={() => (d.quickPlay = { mode: m.id, value: '' })}>{m.label}</button>
@@ -353,25 +355,25 @@
         </div>
       </Row>
       {#if d.quickPlay.mode === 'world'}
-        <Row title="World">
+        <Row title={t('World')}>
           {#if worlds.length}
             <Select
               bind:value={() => d.quickPlay.value, (v) => (d.quickPlay.value = v ?? '')}
-              ariaLabel="World"
-              placeholder="Choose a world"
+              ariaLabel={t('World')}
+              placeholder={t('Choose a world')}
               options={worlds.map((w) => ({ value: w, label: w }))}
             />
           {:else}
-            <span class="hint">No worlds yet. Play once to create one.</span>
+            <span class="hint">{t('No worlds yet. Play once to create one.')}</span>
           {/if}
         </Row>
       {:else if d.quickPlay.mode === 'server'}
-        <Row title="Server address"><input class="input" bind:value={d.quickPlay.value} placeholder="play.example.net:25565" /></Row>
+        <Row title={t('Server address')}><input class="input" bind:value={d.quickPlay.value} placeholder="play.example.net:25565" /></Row>
       {:else if d.quickPlay.mode === 'realm'}
-        <Row title="Realm ID"><input class="input" bind:value={d.quickPlay.value} placeholder="1234567" /></Row>
+        <Row title={t('Realm ID')}><input class="input" bind:value={d.quickPlay.value} placeholder="1234567" /></Row>
       {/if}
       <Row
-        title="Window size"
+        title={t('Window size')}
         override={d.windowWidth !== null}
         onoverride={(on) => {
           d.windowWidth = on ? g.windowWidth : null;
@@ -384,40 +386,40 @@
         <input class="input num" type="number" min="480" value={d.windowHeight ?? g.windowHeight} oninput={(e) => (d.windowHeight = +e.currentTarget.value)} />
       </Row>
       <Row
-        title="Start fullscreen"
+        title={t('Start fullscreen')}
         override={d.fullscreen !== null}
         onoverride={(on) => (d.fullscreen = on ? g.fullscreen : null)}
         globalHint={g.fullscreen ? 'on' : 'off'}
       >
-        <Switch bind:checked={() => d.fullscreen ?? g.fullscreen, (v) => (d.fullscreen = v)} label="Fullscreen" />
+        <Switch bind:checked={() => d.fullscreen ?? g.fullscreen, (v) => (d.fullscreen = v)} label={t('Fullscreen')} />
       </Row>
     </div>
   </section>
 
   <section class="panel glass">
-    <h3>Commands</h3>
-    <p class="sub">Run your own commands around the game. Available: <code>$INST_NAME</code> <code>$INST_ID</code> <code>$INST_DIR</code> <code>$INST_MC_DIR</code> <code>$INST_JAVA</code></p>
+    <h3>{t('Commands')}</h3>
+    <p class="sub">{t('Run your own commands around the game. Available:')} <code>$INST_NAME</code> <code>$INST_ID</code> <code>$INST_DIR</code> <code>$INST_MC_DIR</code> <code>$INST_JAVA</code></p>
     <div class="rows">
       <Row
-        title="Enable commands"
+        title={t('Enable commands')}
         override={d.enableCommands !== null}
         onoverride={(on) => (d.enableCommands = on ? true : null)}
         globalHint={g.enableCommands ? 'on' : 'off'}
       >
-        <Switch bind:checked={() => d.enableCommands ?? g.enableCommands, (v) => (d.enableCommands = v)} label="Enable commands" />
+        <Switch bind:checked={() => d.enableCommands ?? g.enableCommands, (v) => (d.enableCommands = v)} label={t('Enable commands')} />
       </Row>
-      <Row title="Pre-launch command" desc="Runs before the game starts; a failure cancels the launch" override={d.preLaunchCommand !== null} onoverride={(on) => (d.preLaunchCommand = on ? g.preLaunchCommand : null)}>
+      <Row title={t('Pre-launch command')} desc={t('Runs before the game starts; a failure cancels the launch')} override={d.preLaunchCommand !== null} onoverride={(on) => (d.preLaunchCommand = on ? g.preLaunchCommand : null)}>
         <input class="input mono" value={d.preLaunchCommand ?? g.preLaunchCommand} oninput={(e) => (d.preLaunchCommand = e.currentTarget.value)} />
       </Row>
-      <Row title="Post-exit command" desc="Runs after the game closes" override={d.postExitCommand !== null} onoverride={(on) => (d.postExitCommand = on ? g.postExitCommand : null)}>
+      <Row title={t('Post-exit command')} desc={t('Runs after the game closes')} override={d.postExitCommand !== null} onoverride={(on) => (d.postExitCommand = on ? g.postExitCommand : null)}>
         <input class="input mono" value={d.postExitCommand ?? g.postExitCommand} oninput={(e) => (d.postExitCommand = e.currentTarget.value)} />
       </Row>
-      <Row title="Wrapper command" desc="Prefixed to the Java command, e.g. prime-run or mangohud" override={d.wrapperCommand !== null} onoverride={(on) => (d.wrapperCommand = on ? g.wrapperCommand : null)}>
+      <Row title={t('Wrapper command')} desc={t('Prefixed to the Java command, e.g. prime-run or mangohud')} override={d.wrapperCommand !== null} onoverride={(on) => (d.wrapperCommand = on ? g.wrapperCommand : null)}>
         <input class="input mono" value={d.wrapperCommand ?? g.wrapperCommand} oninput={(e) => (d.wrapperCommand = e.currentTarget.value)} />
       </Row>
       <Row
-        title="Environment variables"
-        desc="One KEY=value per line, added to the ones in Settings (a name set in both uses this one)"
+        title={t('Environment variables')}
+        desc={t('One KEY=value per line, added to the ones in Settings (a name set in both uses this one)')}
         override={d.envVars != null}
         onoverride={(on) => (d.envVars = on ? '' : null)}
         wide
@@ -429,22 +431,22 @@
 
   {#if app.info?.os === 'linux'}
     <section class="panel glass">
-      <h3>Advanced</h3>
+      <h3>{t('Advanced')}</h3>
       <div class="rows">
-        <Row title="Use system GLFW" desc="Use your distro's GLFW instead of Minecraft's (Wayland, ARM)" override={d.useSystemGlfw !== null} onoverride={(on) => (d.useSystemGlfw = on ? true : null)} globalHint={g.useSystemGlfw ? 'on' : 'off'}>
-          <Switch bind:checked={() => d.useSystemGlfw ?? g.useSystemGlfw, (v) => (d.useSystemGlfw = v)} label="System GLFW" />
+        <Row title={t('Use system GLFW')} desc={t('Use your distro\'s GLFW instead of Minecraft\'s (Wayland, ARM)')} override={d.useSystemGlfw !== null} onoverride={(on) => (d.useSystemGlfw = on ? true : null)} globalHint={g.useSystemGlfw ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.useSystemGlfw ?? g.useSystemGlfw, (v) => (d.useSystemGlfw = v)} label={t('System GLFW')} />
         </Row>
-        <Row title="Use system OpenAL" override={d.useSystemOpenal !== null} onoverride={(on) => (d.useSystemOpenal = on ? true : null)} globalHint={g.useSystemOpenal ? 'on' : 'off'}>
-          <Switch bind:checked={() => d.useSystemOpenal ?? g.useSystemOpenal, (v) => (d.useSystemOpenal = v)} label="System OpenAL" />
+        <Row title={t('Use system OpenAL')} override={d.useSystemOpenal !== null} onoverride={(on) => (d.useSystemOpenal = on ? true : null)} globalHint={g.useSystemOpenal ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.useSystemOpenal ?? g.useSystemOpenal, (v) => (d.useSystemOpenal = v)} label={t('System OpenAL')} />
         </Row>
-        <Row title="Feral GameMode" override={d.gamemode != null} onoverride={(on) => (d.gamemode = on ? !g.gamemode : null)} globalHint={g.gamemode ? 'on' : 'off'}>
-          <Switch bind:checked={() => d.gamemode ?? g.gamemode, (v) => (d.gamemode = v)} label="GameMode" />
+        <Row title={t('Feral GameMode')} override={d.gamemode != null} onoverride={(on) => (d.gamemode = on ? !g.gamemode : null)} globalHint={g.gamemode ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.gamemode ?? g.gamemode, (v) => (d.gamemode = v)} label={t('GameMode')} />
         </Row>
-        <Row title="MangoHud" desc="FPS and frame-time overlay" override={d.mangohud != null} onoverride={(on) => (d.mangohud = on ? !g.mangohud : null)} globalHint={g.mangohud ? 'on' : 'off'}>
-          <Switch bind:checked={() => d.mangohud ?? g.mangohud, (v) => (d.mangohud = v)} label="MangoHud" />
+        <Row title={t('MangoHud')} desc={t('FPS and frame-time overlay')} override={d.mangohud != null} onoverride={(on) => (d.mangohud = on ? !g.mangohud : null)} globalHint={g.mangohud ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.mangohud ?? g.mangohud, (v) => (d.mangohud = v)} label={t('MangoHud')} />
         </Row>
-        <Row title="Use the dedicated graphics card" override={d.discreteGpu != null} onoverride={(on) => (d.discreteGpu = on ? !g.discreteGpu : null)} globalHint={g.discreteGpu ? 'on' : 'off'}>
-          <Switch bind:checked={() => d.discreteGpu ?? g.discreteGpu, (v) => (d.discreteGpu = v)} label="Dedicated graphics card" />
+        <Row title={t('Use the dedicated graphics card')} override={d.discreteGpu != null} onoverride={(on) => (d.discreteGpu = on ? !g.discreteGpu : null)} globalHint={g.discreteGpu ? 'on' : 'off'}>
+          <Switch bind:checked={() => d.discreteGpu ?? g.discreteGpu, (v) => (d.discreteGpu = v)} label={t('Dedicated graphics card')} />
         </Row>
       </div>
     </section>
@@ -457,9 +459,9 @@
 
 {#if dirty}
   <div class="savebar glass" transition:fly={{ y: 20, duration: 220 }}>
-    <span>You have unsaved changes</span>
-    <button class="btn ghost" onclick={() => (d = clone(inst))}>Discard</button>
-    <button class="btn primary" onclick={save} disabled={!d.name.trim()}>Save changes</button>
+    <span>{t('You have unsaved changes')}</span>
+    <button class="btn ghost" onclick={() => (d = clone(inst))}>{t('Discard')}</button>
+    <button class="btn primary" onclick={save} disabled={!d.name.trim()}>{t('Save changes')}</button>
   </div>
 {/if}
 

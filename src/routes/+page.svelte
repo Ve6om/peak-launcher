@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { onMount } from 'svelte';
   import { watchVisibility } from '$lib/visibility.svelte';
   import { fade } from 'svelte/transition';
@@ -40,6 +41,7 @@
   import Settings from '$lib/views/Settings.svelte';
   import ConsoleWindow from '$lib/views/ConsoleWindow.svelte';
   import { app, init, toast, errorText, pending } from '$lib/state.svelte';
+  import { language } from '$lib/i18n.svelte';
 
   // Pop-out console windows load this same page with an instance id.
   const consoleFor: string | null =
@@ -84,6 +86,8 @@
 <div class="shell">
   <TitleBar />
   {#if app.ready}
+    <!-- Built again when the language changes, so text worked out up front follows it. -->
+    {#key language()}
     <div class="body" in:fade={{ duration: 300 }}>
       <Sidebar />
       <main bind:this={main}>
@@ -110,6 +114,7 @@
         {/key}
       </main>
     </div>
+    {/key}
   {:else}
     <div class="splash"><Logo size={56} /></div>
   {/if}
@@ -151,7 +156,7 @@
 {/if}
 {#if app.packVersionFor}
   {@const inst = app.packVersionFor}
-  <Modal title="Modpack version" subtitle={inst.name} width={600} onclose={() => (app.packVersionFor = null)}>
+  <Modal title={t('Modpack version')} subtitle={inst.name} width={600} onclose={() => (app.packVersionFor = null)}>
     <PackVersionPanel {inst} plain onchanged={() => (app.packVersionFor = null)} />
   </Modal>
 {/if}

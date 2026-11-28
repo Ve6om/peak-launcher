@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { onMount } from 'svelte';
   import Select from './Select.svelte';
   import { Search, LoaderCircle, Check } from '@lucide/svelte';
@@ -72,7 +73,7 @@
   );
 
   $effect(() => {
-    if (!nameTouched) name = version ? (loader === 'vanilla' ? `Minecraft ${version}` : `${loaderLabel(loader)} ${version}`) : '';
+    if (!nameTouched) name = version ? (loader === 'vanilla' ? t('Minecraft {version}', { version }) : `${loaderLabel(loader)} ${version}`) : '';
   });
 
   async function create() {
@@ -83,7 +84,7 @@
       await refreshInstances();
       app.creating = false;
       go('instance', inst.id);
-      toast(`Created ${inst.name}`, 'success');
+      toast(t('Created {name}', { name: inst.name }), 'success');
       // Start downloading right away so Play is instant later.
       api.install(inst.id).catch((e) => toast(errorText(e), 'error'));
     } catch (e) {
@@ -95,7 +96,7 @@
 
 </script>
 
-<Modal title="New instance" subtitle="Pick a version. Everything else is handled for you." width={640} onclose={() => (app.creating = false)}>
+<Modal title={t('New instance')} subtitle={t('Pick a version. Everything else is handled for you.')} width={640} onclose={() => (app.creating = false)}>
   <div class="layout">
     <div class="preview">
       <div class="art" style:--tint={loaderTint(loader)}>
@@ -106,11 +107,11 @@
         {/key}
       </div>
       <label class="field">
-        <span class="label">Name</span>
-        <input class="input" bind:value={name} oninput={() => (nameTouched = true)} placeholder="My world" maxlength="48" />
+        <span class="label">{t('Name')}</span>
+        <input class="input" bind:value={name} oninput={() => (nameTouched = true)} placeholder={t('My world')} maxlength="48" />
       </label>
       <div class="field">
-        <span class="label">Mod loader</span>
+        <span class="label">{t('Mod loader')}</span>
         <div class="loaders">
           {#each LOADERS as l (l.id)}
             <button class="loader" class:active={l.id === loader} onclick={() => (loader = l.id)}>
@@ -122,19 +123,19 @@
       </div>
       {#if loader !== 'vanilla'}
         <div class="field">
-          <span class="label">{loaderLabel(loader)} version</span>
+          <span class="label">{t('{loaderLabel} version', { loaderLabel: loaderLabel(loader) })}</span>
           {#if loadingLoader}
-            <div class="loader-status"><LoaderCircle size={14} class="spin" /> Loading versions…</div>
+            <div class="loader-status"><LoaderCircle size={14} class="spin" /> {t('Loading versions…')}</div>
           {:else if !loaderVersions.length}
-            <div class="loader-status warn">Not available for Minecraft {version}</div>
+            <div class="loader-status warn">{t('Not available for Minecraft {version}', { version })}</div>
           {:else}
             <Select
               bind:value={loaderVersion}
-              ariaLabel="Loader version"
+              ariaLabel={t('Loader version')}
               options={shownLoaderVersions.map((v) => ({ value: v.id, label: v.id, hint: v.recommended ? 'recommended' : v.stable ? undefined : 'beta' }))}
             />
             {#if loaderVersions.some((v) => !v.stable)}
-              <label class="unstable"><input type="checkbox" bind:checked={showUnstable} /> Show beta versions</label>
+              <label class="unstable"><input type="checkbox" bind:checked={showUnstable} /> {t('Show beta versions')}</label>
             {/if}
           {/if}
         </div>
@@ -143,13 +144,13 @@
 
     <div class="picker">
       <div class="tabs">
-        <button class:active={filter === 'release'} onclick={() => (filter = 'release')}>Releases</button>
-        <button class:active={filter === 'snapshot'} onclick={() => (filter = 'snapshot')}>Snapshots</button>
-        <button class:active={filter === 'old'} onclick={() => (filter = 'old')}>Classic</button>
+        <button class:active={filter === 'release'} onclick={() => (filter = 'release')}>{t('Releases')}</button>
+        <button class:active={filter === 'snapshot'} onclick={() => (filter = 'snapshot')}>{t('Snapshots')}</button>
+        <button class:active={filter === 'old'} onclick={() => (filter = 'old')}>{t('Classic')}</button>
       </div>
       <div class="search">
         <Search size={15} />
-        <input bind:value={query} placeholder="Search versions" />
+        <input bind:value={query} placeholder={t('Search versions')} />
       </div>
       <div class="list">
         {#if loading}
@@ -158,11 +159,11 @@
           {#each shown as v (v.id)}
             <button class="ver" class:active={version === v.id} onclick={() => (version = v.id)}>
               <span>{v.id}</span>
-              {#if v.id === latest}<span class="chip">Latest</span>{/if}
+              {#if v.id === latest}<span class="chip">{t('Latest')}</span>{/if}
               {#if version === v.id}<Check size={15} />{/if}
             </button>
           {:else}
-            <div class="center muted">No versions match</div>
+            <div class="center muted">{t('No versions match')}</div>
           {/each}
         {/if}
       </div>
@@ -170,9 +171,9 @@
   </div>
 
   <footer>
-    <button class="btn ghost" onclick={() => (app.creating = false)}>Cancel</button>
+    <button class="btn ghost" onclick={() => (app.creating = false)}>{t('Cancel')}</button>
     <button class="btn primary" disabled={!version || !name.trim() || saving || (loader !== 'vanilla' && !loaderVersion)} onclick={create}>
-      {#if saving}<LoaderCircle size={16} class="spin" />{/if} Create instance
+      {#if saving}<LoaderCircle size={16} class="spin" />{/if} {t('Create instance')}
     </button>
   </footer>
 </Modal>

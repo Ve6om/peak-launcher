@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Import instances from Prism / MultiMC, ATLauncher, CurseForge, the
   // Modrinth App and the official launcher. Files are copied, never moved.
   import { onMount } from 'svelte';
@@ -41,7 +42,7 @@
   }
 
   async function chooseFolder() {
-    const path = await api.pickFolder('Choose an instance folder from another launcher');
+    const path = await api.pickFolder(t('Choose an instance folder from another launcher'));
     if (!path) return;
     try {
       const c = await api.importInspect(path);
@@ -59,7 +60,7 @@
     try {
       const made = await api.importInstances(list);
       await refreshInstances();
-      toast(`Importing ${made.length} instance${made.length > 1 ? 's' : ''}. Files copy in the background.`, 'success');
+      toast((made.length > 1 ? t('Importing {length} instances. Files copy in the background.', { length: made.length }) : t('Importing {length} instance. Files copy in the background.', { length: made.length })), 'success');
       app.importing = false;
       if (made.length === 1) go('instance', made[0].id);
       else go('library');
@@ -72,19 +73,19 @@
 </script>
 
 <Modal
-  title="Import from other launchers"
-  subtitle="Peak copies worlds, mods and settings. Your other launchers are left untouched."
+  title={t('Import from other launchers')}
+  subtitle={t('Peak copies worlds, mods and settings. Your other launchers are left untouched.')}
   width={640}
   onclose={() => (app.importing = false)}
 >
   <div class="body">
     {#if loading}
-      <div class="center"><LoaderCircle size={22} class="spin" /><span>Looking for instances…</span></div>
+      <div class="center"><LoaderCircle size={22} class="spin" /><span>{t('Looking for instances…')}</span></div>
     {:else if !candidates.length}
       <div class="center">
         <SearchX size={26} />
-        <span>No other launchers found in their usual folders.</span>
-        <small>Using MultiMC, or a launcher installed somewhere else? Pick its instance folder below.</small>
+        <span>{t('No other launchers found in their usual folders.')}</span>
+        <small>{t('Using MultiMC, or a launcher installed somewhere else? Pick its instance folder below.')}</small>
       </div>
     {:else}
       {#each groups as [label, list] (label)}
@@ -96,12 +97,12 @@
               <span class="text">
                 <b>{c.name}</b>
                 <span class="meta">
-                  Minecraft {c.gameVersion} · {loaderLabel(c.loader)}{c.loaderVersion ? ` ${c.loaderVersion.replace(`${c.gameVersion}-`, '')}` : ''}
+                  {t('Minecraft {gameVersion} · {loaderLabel}{x}', { gameVersion: c.gameVersion, loaderLabel: loaderLabel(c.loader), x: c.loaderVersion ? ` ${c.loaderVersion.replace(`${c.gameVersion}-`, '')}` : '' })}
                   {#if c.playtimeSecs}<span class="dot"></span><Clock size={11} /> {playtime(c.playtimeSecs)}{/if}
-                  {#if c.lastPlayed}<span class="dot"></span>played {ago(c.lastPlayed).toLowerCase()}{/if}
+                  {#if c.lastPlayed}<span class="dot"></span>{t('played {ago}', { ago: ago(c.lastPlayed).toLowerCase() })}{/if}
                 </span>
               </span>
-              {#if c.alreadyImported}<span class="chip">Imported before</span>{/if}
+              {#if c.alreadyImported}<span class="chip">{t('Imported before')}</span>{/if}
             </button>
           {/each}
         </div>
@@ -110,12 +111,12 @@
   </div>
 
   <footer>
-    <button class="btn ghost" onclick={chooseFolder}><FolderSearch size={16} /> Choose a folder…</button>
+    <button class="btn ghost" onclick={chooseFolder}><FolderSearch size={16} /> {t('Choose a folder…')}</button>
     <span class="spacer"></span>
-    <button class="btn ghost" onclick={() => (app.importing = false)}>Cancel</button>
+    <button class="btn ghost" onclick={() => (app.importing = false)}>{t('Cancel')}</button>
     <button class="btn primary" disabled={!picked.size || importing} onclick={run}>
       {#if importing}<LoaderCircle size={16} class="spin" />{/if}
-      Import {picked.size || ''}
+      {t('Import {x}', { x: picked.size || '' })}
     </button>
   </footer>
 </Modal>

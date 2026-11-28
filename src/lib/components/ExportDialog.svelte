@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Export an instance as a Modrinth .mrpack or CurseForge .zip.
   import { onMount } from 'svelte';
   import { LoaderCircle, Check, Folder, FileText, TriangleAlert, FolderOpen, PackageCheck } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import { api } from '$lib/api';
   import { app, activeAccount, toast, errorText } from '$lib/state.svelte';
+  import { shownPath } from '$lib/privacy.svelte';
   import type { ExportEntry, ExportReport, Instance } from '$lib/types';
 
   let { inst }: { inst: Instance } = $props();
@@ -70,68 +72,71 @@
     }
   }
 
-  const size = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const size = (b: number) => (b > 1048576 ? t('{x} MB', { x: (b / 1048576).toFixed(1) }) : t('{n} KB', { n: Math.max(1, Math.round(b / 1024)) }));
 </script>
 
-<Modal title="Export {inst.name}" subtitle="Share this instance as a modpack others can install." width={600} onclose={() => (app.exporting = null)}>
+<Modal title={t('Export {name}', { name: inst.name })} subtitle={t('Share this instance as a modpack others can install.')} width={600} onclose={() => (app.exporting = null)}>
   {#if report}
     <div class="done">
       <div class="done-icon"><PackageCheck size={26} /></div>
-      <h3>Modpack exported</h3>
-      <p class="path">{report.path}</p>
+      <h3>{t('Modpack exported')}</h3>
+      <p class="path">{shownPath(report.path)}</p>
       <ul class="stats">
-        <li><b>{report.linked}</b> file{report.linked === 1 ? '' : 's'} linked to {format === 'modrinth' ? 'Modrinth' : 'CurseForge'} (downloaded on install)</li>
-        <li><b>{report.overrideFiles}</b> config and extra file{report.overrideFiles === 1 ? '' : 's'} included</li>
-        <li>Pack size <b>{size(report.sizeBytes)}</b></li>
+        <li><b>{report.linked}</b> {(report.linked === 1 ? t('file linked to {x2} (downloaded on install)', { x2: format === 'modrinth' ? 'Modrinth' : 'CurseForge' }) : t('files linked to {x2} (downloaded on install)', { x2: format === 'modrinth' ? 'Modrinth' : 'CurseForge' }))}</li>
+        <li><b>{report.overrideFiles}</b> {(report.overrideFiles === 1 ? t('config and extra file included') : t('config and extra files included'))}</li>
+        <li>{t('Pack size')} <b>{size(report.sizeBytes)}</b></li>
       </ul>
       {#if report.bundled.length}
         <div class="warn">
           <TriangleAlert size={16} />
           <div>
-            <b>{report.bundled.length} file{report.bundled.length > 1 ? 's were' : ' was'} bundled inside the pack</b>
+            <b>{report.bundled.length > 1 ? t('{length} files were bundled inside the pack', { length: report.bundled.length }) : t('1 file was bundled inside the pack')}</b>
             <p>
-              {format === 'modrinth' ? "They aren't on Modrinth" : "They couldn't be matched on CurseForge"}, so the files themselves are in the
-              pack. Make sure you're allowed to share them{format === 'curseforge' && !hasCfKey ? ', or add a CurseForge API key so Peak can link mods that are on CurseForge' : ''}.
+              {format === 'modrinth'
+                ? t("They aren't on Modrinth, so the files themselves are in the pack. Make sure you're allowed to share them.")
+                : !hasCfKey
+                  ? t("They couldn't be matched on CurseForge, so the files themselves are in the pack. Make sure you're allowed to share them, or add a CurseForge API key so Peak can link mods that are on CurseForge.")
+                  : t("They couldn't be matched on CurseForge, so the files themselves are in the pack. Make sure you're allowed to share them.")}
             </p>
             <div class="bundled">{#each report.bundled as b (b)}<code>{b}</code>{/each}</div>
           </div>
         </div>
       {/if}
       <div class="actions">
-        <button class="btn" onclick={() => report && api.revealFile(report.path)}><FolderOpen size={15} /> Show in folder</button>
-        <button class="btn primary" onclick={() => (app.exporting = null)}>Done</button>
+        <button class="btn" onclick={() => report && api.revealFile(report.path)}><FolderOpen size={15} /> {t('Show in folder')}</button>
+        <button class="btn primary" onclick={() => (app.exporting = null)}>{t('Done')}</button>
       </div>
     </div>
   {:else}
     <div class="form">
       <div class="formats">
         <button class="fmt" class:on={format === 'modrinth'} onclick={() => (format = 'modrinth')}>
-          <b>Modrinth</b><span>.mrpack · works in Peak, Modrinth App, Prism</span>
+          <b>{t('Modrinth')}</b><span>{t('.mrpack · works in Peak, Modrinth App, Prism')}</span>
         </button>
         <button class="fmt" class:on={format === 'curseforge'} onclick={() => (format = 'curseforge')}>
-          <b>CurseForge</b><span>.zip · works in the CurseForge app and most launchers</span>
+          <b>{t('CurseForge')}</b><span>{t('.zip · works in the CurseForge app and most launchers')}</span>
         </button>
       </div>
       {#if format === 'curseforge' && !hasCfKey}
-        <p class="hint">Without a CurseForge API key, only mods you installed from CurseForge can be linked; the rest get bundled.</p>
+        <p class="hint">{t('Without a CurseForge API key, only mods you installed from CurseForge can be linked; the rest get bundled.')}</p>
       {/if}
 
       <div class="grid">
-        <label class="field"><span class="label">Name</span><input class="input" bind:value={name} maxlength="64" /></label>
-        <label class="field"><span class="label">Version</span><input class="input" bind:value={version} maxlength="32" /></label>
-        <label class="field"><span class="label">Author</span><input class="input" bind:value={author} maxlength="64" /></label>
+        <label class="field"><span class="label">{t('Name')}</span><input class="input" bind:value={name} maxlength="64" /></label>
+        <label class="field"><span class="label">{t('Version')}</span><input class="input" bind:value={version} maxlength="32" /></label>
+        <label class="field"><span class="label">{t('Author')}</span><input class="input" bind:value={author} maxlength="64" /></label>
         {#if format === 'modrinth'}
-          <label class="field"><span class="label">Summary</span><input class="input" bind:value={summary} placeholder="Optional" maxlength="200" /></label>
+          <label class="field"><span class="label">{t('Summary')}</span><input class="input" bind:value={summary} placeholder={t('Optional')} maxlength="200" /></label>
         {/if}
       </div>
 
       <div class="field">
-        <span class="label">Also include</span>
-        <p class="hint">Mods, resource packs and shaders are always included. Pick any configs or extras the pack needs.</p>
+        <span class="label">{t('Also include')}</span>
+        <p class="hint">{t('Mods, resource packs and shaders are always included. Pick any configs or extras the pack needs.')}</p>
         {#if loading}
           <div class="center"><LoaderCircle size={18} class="spin" /></div>
         {:else if !entries.length}
-          <p class="hint">Nothing else in this instance yet.</p>
+          <p class="hint">{t('Nothing else in this instance yet.')}</p>
         {:else}
           <div class="entries">
             {#each entries as e (e.name)}
@@ -139,7 +144,7 @@
                 <span class="box">{#if include.has(e.name)}<Check size={12} strokeWidth={3} />{/if}</span>
                 {#if e.isDir}<Folder size={14} />{:else}<FileText size={14} />{/if}
                 <span>{e.name}</span>
-                {#if e.name === 'saves'}<span class="tag">worlds</span>{/if}
+                {#if e.name === 'saves'}<span class="tag">{t('worlds')}</span>{/if}
               </button>
             {/each}
           </div>
@@ -147,9 +152,9 @@
       </div>
     </div>
     <footer>
-      <button class="btn ghost" onclick={() => (app.exporting = null)}>Cancel</button>
+      <button class="btn ghost" onclick={() => (app.exporting = null)}>{t('Cancel')}</button>
       <button class="btn primary" disabled={exporting || !name.trim() || !version.trim()} onclick={run}>
-        {#if exporting}<LoaderCircle size={16} class="spin" /> Exporting…{:else}Export {format === 'modrinth' ? '.mrpack' : '.zip'}{/if}
+        {#if exporting}<LoaderCircle size={16} class="spin" /> {t('Exporting…')}{:else}{t('Export {x}', { x: format === 'modrinth' ? '.mrpack' : '.zip' })}{/if}
       </button>
     </footer>
   {/if}

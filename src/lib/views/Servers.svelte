@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Saved servers with live status, and a Join button that launches an
   // instance straight into the server.
   import { onMount } from 'svelte';
@@ -12,6 +13,7 @@
   import { playingAt } from '$lib/invite.svelte';
   import { api } from '$lib/api';
   import { app, go, toast, errorText, activeAccount, isRunning, isBusy } from '$lib/state.svelte';
+  import { shownAddress } from '$lib/privacy.svelte';
   import { motdLines, plain } from '$lib/motd';
   import type { SavedServer, ServerStatus } from '$lib/types';
 
@@ -60,16 +62,16 @@
   async function join(s: SavedServer) {
     const inst = app.instances.find((i) => i.id === chosen(s));
     if (!inst) {
-      toast('Create an instance first, then join from here.', 'info');
+      toast(t('Create an instance first, then join from here.'), 'info');
       return;
     }
     if (!activeAccount()) {
-      toast('Add an account to start playing', 'info');
+      toast(t('Add an account to start playing'), 'info');
       go('accounts');
       return;
     }
     if (isRunning(inst.id)) {
-      toast(`${inst.name} is already running.`, 'info');
+      toast(t('{name} is already running.', { name: inst.name }), 'info');
       return;
     }
     app.logs[inst.id] = [];
@@ -134,7 +136,7 @@
 
   async function copyAddress(address: string) {
     await navigator.clipboard.writeText(address).catch(() => {});
-    toast('Address copied');
+    toast(t('Address copied'));
   }
 
   /** 0-4 bars, like the game's server list. */
@@ -172,7 +174,7 @@
     }
     importing = false;
     found = [];
-    toast(chosenOnes.length === 1 ? 'Added 1 server' : `Added ${chosenOnes.length} servers`, 'success');
+    toast(chosenOnes.length === 1 ? t('Added 1 server') : t('Added {length} servers', { length: chosenOnes.length }), 'success');
     refreshAll();
   }
 
@@ -187,22 +189,22 @@
 <div class="page">
   <header>
     <div>
-      <h1>Servers</h1>
-      <p>{tab === 'mine' ? "Save the servers you play on, see who's online, and join with any instance." : 'Find new servers to play on. Modded servers install their pack for you.'}</p>
+      <h1>{t('Servers')}</h1>
+      <p>{tab === 'mine' ? t('Save the servers you play on, see who\'s online, and join with any instance.') : t('Find new servers to play on. Modded servers install their pack for you.')}</p>
     </div>
     {#if tab === 'mine'}<div class="tools">
-      <button class="btn" onclick={refreshAll} disabled={!servers.length}><RefreshCw size={15} /> Refresh</button>
-      <button class="btn" onclick={openImport} disabled={!app.instances.length}><FolderInput size={15} /> Import from instance</button>
-      <button class="btn primary" onclick={() => (editing = { id: '', name: '', address: '', instanceId: null })}><Plus size={16} /> Add server</button>
+      <button class="btn" onclick={refreshAll} disabled={!servers.length}><RefreshCw size={15} /> {t('Refresh')}</button>
+      <button class="btn" onclick={openImport} disabled={!app.instances.length}><FolderInput size={15} /> {t('Import from instance')}</button>
+      <button class="btn primary" onclick={() => (editing = { id: '', name: '', address: '', instanceId: null })}><Plus size={16} /> {t('Add server')}</button>
     </div>{/if}
   </header>
 
   <div class="tabs" role="tablist">
     <button role="tab" aria-selected={tab === 'mine'} class:active={tab === 'mine'} onclick={() => (tab = 'mine')}>
-      <Bookmark size={15} /> My servers {#if servers.length}<span class="count">{servers.length}</span>{/if}
+      <Bookmark size={15} /> {t('My servers')} {#if servers.length}<span class="count">{servers.length}</span>{/if}
     </button>
     <button role="tab" aria-selected={tab === 'discover'} class:active={tab === 'discover'} onclick={() => (tab = 'discover')}>
-      <Compass size={15} /> Discover <span class="new">New</span>
+      <Compass size={15} /> {t('Discover')} <span class="new">{t('New')}</span>
     </button>
   </div>
 
@@ -226,18 +228,18 @@
         <div class="main">
           <div class="top">
             <b>{s.name}</b>
-            <button class="address" title="Copy address" onclick={() => copyAddress(s.address)}>{s.address} <Copy size={11} /></button>
+            <button class="address" title={t('Copy address')} onclick={() => copyAddress(s.address)}>{shownAddress(s.address)} <Copy size={11} /></button>
           </div>
           {#if st === 'loading' || !st}
-            <div class="motd muted"><LoaderCircle size={13} class="spin" /> Checking…</div>
+            <div class="motd muted"><LoaderCircle size={13} class="spin" /> {t('Checking…')}</div>
           {:else if !st.online}
-            <div class="motd offline"><SignalZero size={14} /> Offline · {st.error ?? "Couldn't reach it"}</div>
+            <div class="motd offline"><SignalZero size={14} /> {t('Offline · {x}', { x: st.error ?? t("Couldn't reach it") })}</div>
           {:else}
             <div class="motd">
               {#each motdLines(st.motd) as line, l (l)}
                 <div class="line">{#each line as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}</div>
               {:else}
-                <div class="line muted">No message</div>
+                <div class="line muted">{t('No message')}</div>
               {/each}
             </div>
           {/if}
@@ -245,42 +247,42 @@
 
         <div class="meta">
           {#if ready?.online}
-            <span class="players" title={ready.playersSample.length ? ready.playersSample.join(', ') : 'Players online'}>
+            <span class="players" title={ready.playersSample.length ? ready.playersSample.join(', ') : t('Players online')}>
               <Users size={13} /> {ready.playersOnline ?? '?'}<span class="faint">/{ready.playersMax ?? '?'}</span>
             </span>
-            <span class="ping" title={ready.pingMs != null ? `${ready.pingMs} ms` : 'Ping unknown'}>
+            <span class="ping" title={ready.pingMs != null ? t('{pingMs} ms', { pingMs: ready.pingMs }) : t('Ping unknown')}>
               <span class="bars" data-bars={bars(ready.pingMs)}><i></i><i></i><i></i><i></i></span>
-              {ready.pingMs != null ? `${ready.pingMs} ms` : ''}
+              {ready.pingMs != null ? t('{pingMs} ms', { pingMs: ready.pingMs }) : ''}
             </span>
             {#if ready.version}<span class="version" title={plain(ready.version)}>{plain(ready.version)}</span>{/if}
           {/if}
         </div>
 
         <div class="actions">
-          <label class="pick" title="Instance to join with">
+          <label class="pick" title={t('Instance to join with')}>
             {#if inst}<LoaderIcon loader={inst.loader} size={16} />{/if}
             <Select
               bare
               bind:value={() => chosen(s), (v) => v && (picked[s.id] = v)}
               disabled={!app.instances.length}
-              placeholder="No instances yet"
-              ariaLabel="Instance to join with"
+              placeholder={t('No instances yet')}
+              ariaLabel={t('Instance to join with')}
               style="max-width: 170px;"
               options={app.instances.map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader }))}
             />
           </label>
           <button class="btn primary" onclick={() => join(s)} disabled={!inst || isRunning(inst.id) || isBusy(inst.id)}>
-            <Play size={15} /> Join
+            <Play size={15} /> {t('Join')}
           </button>
-          <button class="btn ghost icon star" class:on={s.favorite} title={s.favorite ? 'Unstar' : 'Star (keeps it at the top)'} aria-label={s.favorite ? `Unstar ${s.name}` : `Star ${s.name}`} onclick={() => toggleFavorite(s)}>
+          <button class="btn ghost icon star" class:on={s.favorite} title={s.favorite ? t('Unstar') : t('Star (keeps it at the top)')} aria-label={s.favorite ? t('Unstar {name}', { name: s.name }) : t('Star {name}', { name: s.name })} onclick={() => toggleFavorite(s)}>
             <Star size={15} fill={s.favorite ? 'currentColor' : 'none'} />
           </button>
           <span class="order">
-            <button class="btn ghost icon tiny" title="Move up" aria-label="Move {s.name} up" disabled={i === 0 || !!ordered[i - 1]?.favorite !== !!s.favorite} onclick={() => move(s, -1)}><ChevronUp size={13} /></button>
-            <button class="btn ghost icon tiny" title="Move down" aria-label="Move {s.name} down" disabled={i === ordered.length - 1 || !!ordered[i + 1]?.favorite !== !!s.favorite} onclick={() => move(s, 1)}><ChevronDown size={13} /></button>
+            <button class="btn ghost icon tiny" title={t('Move up')} aria-label={t('Move {name} up', { name: s.name })} disabled={i === 0 || !!ordered[i - 1]?.favorite !== !!s.favorite} onclick={() => move(s, -1)}><ChevronUp size={13} /></button>
+            <button class="btn ghost icon tiny" title={t('Move down')} aria-label={t('Move {name} down', { name: s.name })} disabled={i === ordered.length - 1 || !!ordered[i + 1]?.favorite !== !!s.favorite} onclick={() => move(s, 1)}><ChevronDown size={13} /></button>
           </span>
-          <button class="btn ghost icon" title="Edit" aria-label="Edit {s.name}" onclick={() => (editing = { ...s })}><Pencil size={15} /></button>
-          <button class="btn ghost icon del" class:confirm={confirmDelete === s.id} title={confirmDelete === s.id ? 'Click again to remove' : 'Remove'} aria-label="Remove {s.name}" onclick={() => remove(s)}>
+          <button class="btn ghost icon" title={t('Edit')} aria-label={t('Edit {name}', { name: s.name })} onclick={() => (editing = { ...s })}><Pencil size={15} /></button>
+          <button class="btn ghost icon del" class:confirm={confirmDelete === s.id} title={confirmDelete === s.id ? t('Click again to remove') : t('Remove')} aria-label={t('Remove {name}', { name: s.name })} onclick={() => remove(s)}>
             <Trash2 size={15} />
           </button>
         </div>
@@ -289,11 +291,11 @@
       {#if loaded}
         <div class="empty glass">
           <ServerIcon size={30} />
-          <h3>No servers yet</h3>
-          <p>Add a server by its address, or import the list from one of your instances.</p>
+          <h3>{t('No servers yet')}</h3>
+          <p>{t('Add a server by its address, or import the list from one of your instances.')}</p>
           <div class="empty-actions">
-            <button class="btn primary" onclick={() => (editing = { id: '', name: '', address: '', instanceId: null })}><Plus size={16} /> Add server</button>
-            {#if app.instances.length}<button class="btn" onclick={openImport}><FolderInput size={15} /> Import from instance</button>{/if}
+            <button class="btn primary" onclick={() => (editing = { id: '', name: '', address: '', instanceId: null })}><Plus size={16} /> {t('Add server')}</button>
+            {#if app.instances.length}<button class="btn" onclick={openImport}><FolderInput size={15} /> {t('Import from instance')}</button>{/if}
           </div>
         </div>
       {/if}
@@ -303,7 +305,7 @@
 </div>
 
 {#if editing}
-  <Modal title={editing.id ? 'Edit server' : 'Add a server'} subtitle="The address is what you'd type in Minecraft's multiplayer screen." width={460} onclose={() => (editing = null)}>
+  <Modal title={editing.id ? t('Edit server') : t('Add a server')} subtitle={t('The address is what you\'d type in Minecraft\'s multiplayer screen.')} width={460} onclose={() => (editing = null)}>
     <form
       class="form"
       onsubmit={(e) => {
@@ -312,51 +314,51 @@
       }}
     >
       <label class="field">
-        <span class="label">Address</span>
+        <span class="label">{t('Address')}</span>
         <!-- svelte-ignore a11y_autofocus -->
-        <input class="input" bind:value={editing.address} placeholder="play.example.com" autofocus spellcheck="false" />
+        <input class="input private" bind:value={editing.address} placeholder="play.example.com" autofocus spellcheck="false" />
       </label>
       <label class="field">
-        <span class="label">Name</span>
-        <input class="input" bind:value={editing.name} placeholder="Optional, shown in the list" maxlength="48" />
+        <span class="label">{t('Name')}</span>
+        <input class="input" bind:value={editing.name} placeholder={t('Optional, shown in the list')} maxlength="48" />
       </label>
       <footer>
-        <button type="button" class="btn ghost" onclick={() => (editing = null)}>Cancel</button>
-        <button type="submit" class="btn primary" disabled={!editing.address.trim()}>{editing.id ? 'Save' : 'Add server'}</button>
+        <button type="button" class="btn ghost" onclick={() => (editing = null)}>{t('Cancel')}</button>
+        <button type="submit" class="btn primary" disabled={!editing.address.trim()}>{editing.id ? t('Save') : t('Add server')}</button>
       </footer>
     </form>
   </Modal>
 {/if}
 
 {#if importing}
-  <Modal title="Import servers" subtitle="Copy the servers saved in an instance's multiplayer list." width={500} onclose={() => (importing = false)}>
+  <Modal title={t('Import servers')} subtitle={t('Copy the servers saved in an instance\'s multiplayer list.')} width={500} onclose={() => (importing = false)}>
     <label class="field">
-      <span class="label">From instance</span>
+      <span class="label">{t('From instance')}</span>
       <Select
         bind:value={importFrom}
         onchange={loadImport}
-        ariaLabel="Instance to import from"
+        ariaLabel={t('Instance to import from')}
         options={app.instances.map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader }))}
       />
     </label>
     <div class="found">
       {#if finding}
-        <p class="muted"><LoaderCircle size={14} class="spin" /> Reading its server list…</p>
+        <p class="muted"><LoaderCircle size={14} class="spin" /> {t('Reading its server list…')}</p>
       {:else}
         {#each found as f (f.address)}
           <label class="found-row" class:dim={f.exists}>
             <input type="checkbox" bind:checked={f.take} disabled={f.exists} />
-            <span><b>{f.name}</b><small>{f.address}{f.exists ? ' · already added' : ''}</small></span>
+            <span><b>{f.name}</b><small>{shownAddress(f.address)}{f.exists ? t(' · already added') : ''}</small></span>
           </label>
         {:else}
-          <p class="muted">This instance has no saved servers.</p>
+          <p class="muted">{t('This instance has no saved servers.')}</p>
         {/each}
       {/if}
     </div>
     <footer>
-      <button class="btn ghost" onclick={() => (importing = false)}>Cancel</button>
+      <button class="btn ghost" onclick={() => (importing = false)}>{t('Cancel')}</button>
       <button class="btn primary" onclick={doImport} disabled={!found.some((f) => f.take && !f.exists)}>
-        Import {found.filter((f) => f.take && !f.exists).length || ''}
+        {t('Import {x}', { x: found.filter((f) => f.take && !f.exists).length || '' })}
       </button>
     </footer>
   </Modal>

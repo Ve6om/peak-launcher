@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Asks what to do with mods that depend on (or are needed by) the one the
   // user is disabling, removing or enabling.
   import Modal from './Modal.svelte';
@@ -17,26 +18,25 @@
   } = $props();
 
   const n = $derived(links.length);
-  const mods = $derived(n === 1 ? 'mod' : 'mods');
   const text = $derived(
     {
       disable: {
-        title: `Other mods need ${name}`,
-        intro: `${n} ${mods} won't load without it. Disable ${n === 1 ? 'it' : 'them'} too?`,
-        all: `Disable all ${n + 1}`,
-        only: `Only disable ${name}`
+        title: t('Other mods need {name}', { name }),
+        intro: n === 1 ? t("1 mod won't load without it. Disable it too?") : t("{n} mods won't load without it. Disable them too?", { n }),
+        all: t('Disable all {x}', { x: n + 1 }),
+        only: t('Only disable {name}', { name })
       },
       remove: {
-        title: `Other mods need ${name}`,
-        intro: `${n} ${mods} won't load without it. Remove ${n === 1 ? 'it' : 'them'} too?`,
-        all: `Remove all ${n + 1}`,
-        only: `Only remove ${name}`
+        title: t('Other mods need {name}', { name }),
+        intro: n === 1 ? t("1 mod won't load without it. Remove it too?") : t("{n} mods won't load without it. Remove them too?", { n }),
+        all: t('Remove all {x}', { x: n + 1 }),
+        only: t('Only remove {name}', { name })
       },
       enable: {
-        title: `${name} needs disabled mods`,
-        intro: `It won't load without ${n === 1 ? 'this mod' : `these ${n} mods`}. Turn ${n === 1 ? 'it' : 'them'} back on too?`,
-        all: `Enable all ${n + 1}`,
-        only: `Only enable ${name}`
+        title: t('{name} needs disabled mods', { name }),
+        intro: n === 1 ? t("It won't load without this mod. Turn it back on too?") : t("It won't load without these {n} mods. Turn them back on too?", { n }),
+        all: t('Enable all {x}', { x: n + 1 }),
+        only: t('Only enable {name}', { name })
       }
     }[action]
   );
@@ -50,10 +50,10 @@
     {/each}
   </ul>
   {#if action !== 'enable'}
-    <p class="note">If you keep them, the game will probably refuse to start until {name} is back.</p>
+    <p class="note">{t('If you keep them, the game will probably refuse to start until {name} is back.', { name })}</p>
   {/if}
   <footer>
-    <button class="btn ghost" onclick={() => onchoose(null)}>Cancel</button>
+    <button class="btn ghost" onclick={() => onchoose(null)}>{t('Cancel')}</button>
     <button class="btn" onclick={() => onchoose('only')}>{text.only}</button>
     <button class="btn primary" class:danger={action === 'remove'} onclick={() => onchoose('all')}>{text.all}</button>
   </footer>

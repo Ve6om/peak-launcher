@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Logo for a content source. Modrinth and CurseForge use their official
   // brand marks (Simple Icons); FTB and Technic use their site icons.
   import { siModrinth, siCurseforge } from 'simple-icons';
@@ -17,7 +18,7 @@
       <path d={icon.path} fill="#{icon.hex}" />
     </svg>
   {:else}
-    <img src={img[source]} alt={source === 'ftb' ? 'Feed The Beast' : 'Technic'} width={size * 0.78} height={size * 0.78} />
+    <img src={img[source]} alt={source === 'ftb' ? t('Feed The Beast') : t('Technic')} width={size * 0.78} height={size * 0.78} />
   {/if}
 </span>
 

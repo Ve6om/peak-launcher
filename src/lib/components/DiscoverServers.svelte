@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   // Discover servers: browse and filter the public list, see live status,
   // vote once a day, and join in one click (modded servers install their
   // pack first).
@@ -67,7 +68,7 @@
     serverLink.id = null;
     const found = listings.find((l) => l.id === id);
     if (found) open = found;
-    else toast('That server isn’t on the list any more.', 'info');
+    else toast(t('That server isn’t on the list any more.'), 'info');
   });
 
   async function ping(l: Listing) {
@@ -125,7 +126,7 @@
 
   /** Votes are made on the server's page on the website, where they're checked. */
   function vote(l: Listing) {
-    if (!l.pageUrl) return toast('This server has no page to vote on yet.', 'info');
+    if (!l.pageUrl) return toast(t('This server has no page to vote on yet.'), 'info');
     api.openUrl(`${l.pageUrl}#vote`);
   }
 
@@ -133,11 +134,11 @@
     try {
       const list = await api.serversList();
       if (list.some((s) => s.address.toLowerCase() === l.address.toLowerCase())) {
-        toast(`${l.name} is already in My servers`, 'info');
+        toast(t('{name} is already in My servers', { name: l.name }), 'info');
         return;
       }
       await api.serverSave({ id: '', name: l.name, address: l.address, instanceId: null });
-      toast(`Added ${l.name} to My servers`, 'success');
+      toast(t('Added {name} to My servers', { name: l.name }), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
@@ -145,7 +146,7 @@
 
   async function copy(address: string) {
     await navigator.clipboard.writeText(address).catch(() => {});
-    toast('Address copied');
+    toast(t('Address copied'));
   }
 
   // Pressing Play on a modded server asks first (it can be a big download),
@@ -181,12 +182,12 @@
   }
 
   function playLabel(l: Listing): string {
-    if (preparing[l.id]) return 'Getting the pack…';
+    if (preparing[l.id]) return t('Getting the pack…');
     const inst = packInstance(l);
     // Only while something is really happening; otherwise it's just Play.
-    if (inst && pendingJoins[inst.id] && (isBusy(inst.id) || !inst.installed)) return 'Installing…';
-    if (l.pack && !inst) return 'Install & play';
-    return 'Play';
+    if (inst && pendingJoins[inst.id] && (isBusy(inst.id) || !inst.installed)) return t('Installing…');
+    if (l.pack && !inst) return t('Install & play');
+    return t('Play');
   }
 
   const busyFor = (l: Listing) => {
@@ -208,37 +209,37 @@
   <div class="filters glass">
     <label class="search">
       <Search size={15} />
-      <input bind:value={q} placeholder="Search servers, tags or modpacks" spellcheck="false" />
+      <input bind:value={q} placeholder={t('Search servers, tags or modpacks')} spellcheck="false" />
     </label>
     <div class="seg">
-      <button class:active={kind === 'all'} onclick={() => (kind = 'all')}>All</button>
-      <button class:active={kind === 'vanilla'} onclick={() => (kind = 'vanilla')}>Vanilla</button>
-      <button class:active={kind === 'modded'} onclick={() => (kind = 'modded')}>Modpacks</button>
+      <button class:active={kind === 'all'} onclick={() => (kind = 'all')}>{t('All')}</button>
+      <button class:active={kind === 'vanilla'} onclick={() => (kind = 'vanilla')}>{t('Vanilla')}</button>
+      <button class:active={kind === 'modded'} onclick={() => (kind = 'modded')}>{t('Modpacks')}</button>
     </div>
-    <Select small bind:value={tag} ariaLabel="Tag" style="width: auto;" options={[{ value: '', label: 'Any type' }, ...allTags.map((t) => ({ value: t, label: t }))]} />
+    <Select small bind:value={tag} ariaLabel={t('Tag')} style="width: auto;" options={[{ value: '', label: t('Any type') }, ...allTags.map((t) => ({ value: t, label: t }))]} />
     <PackPicker options={allPacks} bind:value={packFilter} />
-    <Select small bind:value={version} ariaLabel="Minecraft version" style="width: auto;" options={[{ value: '', label: 'Any version' }, ...allVersions.map((v) => ({ value: v, label: v }))]} />
-    <label class="check"><input type="checkbox" bind:checked={onlineOnly} /> Online now</label>
+    <Select small bind:value={version} ariaLabel={t('Minecraft version')} style="width: auto;" options={[{ value: '', label: t('Any version') }, ...allVersions.map((v) => ({ value: v, label: v }))]} />
+    <label class="check"><input type="checkbox" bind:checked={onlineOnly} /> {t('Online now')}</label>
     <Select
       small
       bind:value={sort}
-      ariaLabel="Sort"
+      ariaLabel={t('Sort')}
       style="width: auto;"
       options={[
-        { value: 'votes', label: 'Most votes' },
-        { value: 'players', label: 'Most players' },
-        { value: 'name', label: 'Name' }
+        { value: 'votes', label: t('Most votes') },
+        { value: 'players', label: t('Most players') },
+        { value: 'name', label: t('Name') }
       ]}
     />
   </div>
 
   {#if !loaded}
-    <div class="empty"><LoaderCircle size={18} class="spin" /> Loading servers…</div>
+    <div class="empty"><LoaderCircle size={18} class="spin" /> {t('Loading servers…')}</div>
   {:else if loadError}
     <div class="empty error">{loadError}</div>
   {:else}
     {#if featured.length && !filtering}
-      <span class="label">Featured</span>
+      <span class="label">{t('Featured')}</span>
       <div class="featured">
         {#each featured as l (l.id)}
           {@const st = live(l)}
@@ -255,7 +256,7 @@
               <Star size={14} class="star" />
             </div>
             <div class="feat-meta">
-              {#if st?.online}<span><Users size={12} /> {st.playersOnline}</span>{:else if status[l.id] === 'loading'}<span><LoaderCircle size={12} class="spin" /></span>{:else}<span class="faint">Offline</span>{/if}
+              {#if st?.online}<span><Users size={12} /> {st.playersOnline}</span>{:else if status[l.id] === 'loading'}<span><LoaderCircle size={12} class="spin" /></span>{:else}<span class="faint">{t('Offline')}</span>{/if}
               <span><ThumbsUp size={12} /> {compact(l.votes)}</span>
               {#if l.pack}<span class="packname">{l.pack.name}</span>{:else}<span>{l.gameVersion}</span>{/if}
             </div>
@@ -264,7 +265,7 @@
       </div>
     {/if}
 
-    <span class="label">{filtering ? `${shown.length} server${shown.length === 1 ? '' : 's'}` : 'All servers'}</span>
+    <span class="label">{filtering ? (shown.length === 1 ? t('{length} server', { length: shown.length }) : t('{length} servers', { length: shown.length })) : t('All servers')}</span>
     <div class="list">
       {#each shown as l, i (l.id)}
         {@const st = live(l)}
@@ -277,7 +278,7 @@
             <div class="text">
               <div class="name">
                 <b>{l.name}</b>
-                {#if l.verified}<span title="Owner verified"><BadgeCheck size={14} class="verified" /></span>{/if}
+                {#if l.verified}<span title={t('Owner verified')}><BadgeCheck size={14} class="verified" /></span>{/if}
               </div>
               <span class="tagline">{l.tagline}</span>
               <div class="tags">
@@ -287,7 +288,7 @@
                     {l.pack.name}
                   </span>
                 {:else}
-                  <span class="chip">Vanilla {l.gameVersion}</span>
+                  <span class="chip">{t('Vanilla {gameVersion}', { gameVersion: l.gameVersion })}</span>
                 {/if}
                 {#each l.tags.slice(0, 3) as t (t)}<span class="chip">{t}</span>{/each}
               </div>
@@ -299,13 +300,13 @@
               <span class="players"><Users size={13} /> {st.playersOnline ?? '?'}<span class="faint">/{st.playersMax ?? '?'}</span></span>
               <span class="ping"><span class="bars" data-bars={bars(st.pingMs)}><i></i><i></i><i></i><i></i></span>{st.pingMs ?? ''} ms</span>
             {:else if status[l.id] === 'loading' || !status[l.id]}
-              <span class="faint"><LoaderCircle size={13} class="spin" /> Checking…</span>
+              <span class="faint"><LoaderCircle size={13} class="spin" /> {t('Checking…')}</span>
             {:else}
-              <span class="faint"><SignalZero size={13} /> Offline</span>
+              <span class="faint"><SignalZero size={13} /> {t('Offline')}</span>
             {/if}
           </div>
 
-          <button class="votes" onclick={() => vote(l)} title="Vote for this server (opens its page on peaklauncher.com)">
+          <button class="votes" onclick={() => vote(l)} title={t('Vote for this server (opens its page on peaklauncher.com)')}>
             <ThumbsUp size={15} />
             <span>{compact(l.votes)}</span>
           </button>
@@ -315,9 +316,9 @@
               <Select
                 small
                 bind:value={() => chosen(l), (v) => v !== null && (picked[l.id] = v)}
-                ariaLabel="Instance to join with"
+                ariaLabel={t('Instance to join with')}
                 style="width: auto; max-width: 190px;"
-                options={[...vanillaChoices(l).map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader })), { value: 'new', label: `New ${l.gameVersion} instance` }]}
+                options={[...vanillaChoices(l).map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader })), { value: 'new', label: t('New {gameVersion} instance', { gameVersion: l.gameVersion }) }]}
               />
             {/if}
             <button class="btn primary" onclick={() => pressPlay(l)} disabled={busyFor(l)}>
@@ -326,7 +327,7 @@
           </div>
         </article>
       {:else}
-        <div class="empty">No servers match those filters.</div>
+        <div class="empty">{t('No servers match those filters.')}</div>
       {/each}
     </div>
   {/if}
@@ -343,7 +344,7 @@
           {#if st?.favicon}<img src={st.favicon} alt="" />{:else if l.pack?.iconUrl}<img src={l.pack.iconUrl} alt="" />{:else}<ServerIcon size={30} />{/if}
         </span>
         <div class="d-status">
-          <button class="address" onclick={() => copy(l.address)} title="Copy address">{l.address} <Copy size={11} /></button>
+          <button class="address" onclick={() => copy(l.address)} title={t('Copy address')}>{l.address} <Copy size={11} /></button>
           {#if st?.online}
             <div class="motd">
               {#each motdLines(st.motd) as line, n (n)}
@@ -351,12 +352,12 @@
               {/each}
             </div>
             <div class="d-live">
-              <span><Users size={13} /> {st.playersOnline}/{st.playersMax} online</span>
+              <span><Users size={13} /> {t('{playersOnline}/{playersMax} online', { playersOnline: st.playersOnline, playersMax: st.playersMax })}</span>
               {#if st.pingMs != null}<span>{st.pingMs} ms</span>{/if}
               {#if st.version}<span>{plain(st.version)}</span>{/if}
             </div>
           {:else}
-            <span class="faint">{status[l.id] === 'loading' ? 'Checking…' : `Offline · ${st?.error ?? "couldn't reach it"}`}</span>
+            <span class="faint">{status[l.id] === 'loading' ? t('Checking…') : t('Offline · {x}', { x: st?.error ?? t("couldn't reach it") })}</span>
           {/if}
         </div>
       </div>
@@ -364,10 +365,10 @@
       <p class="desc">{l.description}</p>
 
       <div class="facts">
-        <div><span class="label">Version</span><b>{l.gameVersion}</b></div>
-        <div><span class="label">Loader</span><b>{loaderLabel(l.loader)}</b></div>
-        <div><span class="label">Region</span><b>{l.region}</b></div>
-        <div><span class="label">Language</span><b>{l.language}</b></div>
+        <div><span class="label">{t('Version')}</span><b>{l.gameVersion}</b></div>
+        <div><span class="label">{t('Loader')}</span><b>{loaderLabel(l.loader)}</b></div>
+        <div><span class="label">{t('Region')}</span><b>{l.region}</b></div>
+        <div><span class="label">{t('Language')}</span><b>{l.language}</b></div>
       </div>
 
       {#if l.pack}
@@ -377,8 +378,8 @@
             <b>{l.pack.name}</b>
             <span>
               {packInstance(l)
-                ? `Installed as "${packInstance(l)!.name}". Play joins with it.`
-                : 'Play installs this modpack first, then joins the server. No extra steps.'}
+                ? t('Installed as "{name}". Play joins with it.', { name: packInstance(l)!.name })
+                : t('Play installs this modpack first, then joins the server. No extra steps.')}
             </span>
           </div>
         </div>
@@ -387,21 +388,21 @@
       <div class="tags">{#each l.tags as t (t)}<span class="chip">{t}</span>{/each}</div>
 
       <div class="d-actions">
-        <button class="btn" onclick={() => vote(l)} title="Opens this server's page on peaklauncher.com">
-          <ThumbsUp size={15} /> Vote · {compact(l.votes)}
+        <button class="btn" onclick={() => vote(l)} title={t('Opens this server\'s page on peaklauncher.com')}>
+          <ThumbsUp size={15} /> {t('Vote · {compact}', { compact: compact(l.votes) })}
         </button>
-        <button class="btn" onclick={() => save(l)}><Bookmark size={15} /> Save to My servers</button>
-        {#if l.website}<button class="btn ghost" onclick={() => api.openUrl(l.website!)}><Globe size={15} /> Website</button>{/if}
-        {#if l.discord}<button class="btn ghost" onclick={() => api.openUrl(l.discord!)}><ExternalLink size={15} /> Discord</button>{/if}
-        <button class="btn ghost" onclick={() => toast('Thanks. Reports will go to Peak\'s moderators once the list is live.', 'info')}><Flag size={15} /> Report</button>
+        <button class="btn" onclick={() => save(l)}><Bookmark size={15} /> {t('Save to My servers')}</button>
+        {#if l.website}<button class="btn ghost" onclick={() => api.openUrl(l.website!)}><Globe size={15} /> {t('Website')}</button>{/if}
+        {#if l.discord}<button class="btn ghost" onclick={() => api.openUrl(l.discord!)}><ExternalLink size={15} /> {t('Discord')}</button>{/if}
+        <button class="btn ghost" onclick={() => toast('Thanks. Reports will go to Peak\'s moderators once the list is live.', 'info')}><Flag size={15} /> {t('Report')}</button>
         <span class="spacer"></span>
         {#if !l.pack}
           <Select
             small
             bind:value={() => chosen(l), (v) => v !== null && (picked[l.id] = v)}
-            ariaLabel="Instance to join with"
+            ariaLabel={t('Instance to join with')}
             style="width: auto; max-width: 190px;"
-            options={[...vanillaChoices(l).map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader })), { value: 'new', label: `New ${l.gameVersion} instance` }]}
+            options={[...vanillaChoices(l).map((x) => ({ value: x.id, label: x.name, hint: x.gameVersion, icon: instanceIcon(x), loader: x.loader })), { value: 'new', label: t('New {gameVersion} instance', { gameVersion: l.gameVersion }) }]}
           />
         {/if}
         <button class="btn primary" onclick={() => { const plan = planFor(l); if (plan.kind === 'join') open = null; pressPlay(l); }} disabled={busyFor(l)}>
@@ -416,7 +417,7 @@
   {@const l = confirm.l}
   {@const plan = confirm.plan}
   <Modal
-    title={plan.kind === 'install' ? `Install ${l.pack?.name} and join?` : 'Switch to the server\u2019s version?'}
+    title={plan.kind === 'install' ? t('Install {name} and join?', { name: l.pack?.name }) : t('Switch to the server’s version?')}
     subtitle={l.name}
     width={480}
     onclose={() => (confirm = null)}
@@ -425,21 +426,19 @@
       {#if l.pack?.iconUrl}<img class="confirm-icon" src={l.pack.iconUrl} alt="" />{/if}
       {#if plan.kind === 'install'}
         <p>
-          {l.name} runs <b>{l.pack?.name}</b>{l.pack?.versionName ? ` ${l.pack.versionName}` : ''}. Peak installs it as a new
-          instance, shows you the progress, and joins the server as soon as it's ready. Modpacks can be a big download.
+          {@html th("{server} runs <b>{pack}</b>. Peak installs it as a new instance, shows you the progress, and joins the server as soon as it's ready. Modpacks can be a big download.", { server: l.name, pack: `${l.pack?.name ?? ''}${l.pack?.versionName ? ` ${l.pack.versionName}` : ''}` })}
         </p>
       {:else if plan.kind === 'switch'}
         <p>
-          {l.name} runs <b>{plan.to}</b>, but your <b>{plan.inst.name}</b> instance has <b>{plan.from}</b>. Switch it to the
-          server's version, then join? Your worlds stay; the current mods folder is backed up first.
+          {@html th("{server} runs <b>{to}</b>, but your <b>{instance}</b> instance has <b>{from}</b>. Switch it to the server's version, then join? Your worlds stay; the current mods folder is backed up first.", { server: l.name, to: plan.to, instance: plan.inst.name, from: plan.from })}
         </p>
       {/if}
     </div>
     <footer class="confirm-actions">
-      <button class="btn ghost" onclick={() => (confirm = null)}>Cancel</button>
-      {#if plan.kind === 'switch'}<button class="btn" onclick={() => confirmed(false)}>Join anyway</button>{/if}
+      <button class="btn ghost" onclick={() => (confirm = null)}>{t('Cancel')}</button>
+      {#if plan.kind === 'switch'}<button class="btn" onclick={() => confirmed(false)}>{t('Join anyway')}</button>{/if}
       <button class="btn primary" onclick={() => confirmed(true)}>
-        <Play size={15} /> {plan.kind === 'install' ? 'Install & play' : 'Switch & play'}
+        <Play size={15} /> {plan.kind === 'install' ? t('Install & play') : t('Switch & play')}
       </button>
     </footer>
   </Modal>
@@ -759,7 +758,7 @@
     line-height: 1.6;
     color: var(--muted);
   }
-  .confirm-body b {
+  .confirm-body :global(b) {
     color: var(--text);
   }
   .confirm-icon {

@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   // A friend's invite (a peak://join link): which server, what Peak will do
   // (use an instance you have, switch its pack version, or install the pack),
   // and Play once you agree.
   import { Play, Download, ArrowDownUp, Server } from '@lucide/svelte';
   import { instanceIcon } from '$lib/instanceImages';
   import Select from './Select.svelte';
+  import { shownAddress } from '$lib/privacy.svelte';
   import Modal from './Modal.svelte';
   import { invite, inviteListing } from '$lib/invite.svelte';
   import { packMatch, planFor, vanillaChoices, playListing, switchAndJoin } from '$lib/discover.svelte';
@@ -35,47 +37,47 @@
   }
 </script>
 
-<Modal title="Join {i.name}" subtitle="A friend invited you to play on {i.address}" width={500} onclose={close}>
+<Modal title={t('Join {name}', { name: i.name })} subtitle={t('A friend invited you to play on {address}', { address: shownAddress(i.address) })} width={500} onclose={close}>
   <div class="what">
     <Server size={16} />
     {#if l.pack}
       <span>
-        Modpack: <b>{i.packName || 'the server’s pack'}</b>{#if i.versionName} · {i.versionName}{/if}
+        {t('Modpack:')} <b>{i.packName || t('the server’s pack')}</b>{#if i.versionName} · {i.versionName}{/if}
       </span>
     {:else}
-      <span>Minecraft {i.gameVersion ?? ''} (no modpack)</span>
+      <span>{t('Minecraft {x} (no modpack)', { x: i.gameVersion ?? '' })}</span>
     {/if}
   </div>
 
   {#if l.pack}
     <p class="plan">
       {#if !match}
-        Peak installs the pack first (you can watch it on the instance), then joins.
+        {t('Peak installs the pack first (you can watch it on the instance), then joins.')}
       {:else if plan.kind === 'switch'}
-        Your <b>{plan.inst.name}</b> is on {plan.from}; Peak switches it to {plan.to} (your old mods are backed up), then joins.
+        {@html th('Your <b>{instance}</b> is on {from}; Peak switches it to {to} (your old mods are backed up), then joins.', { instance: plan.inst.name, from: plan.from, to: plan.to })}
       {:else}
-        Peak joins with your <b>{match.inst.name}</b>.
+        {@html th('Peak joins with your <b>{instance}</b>.', { instance: match.inst.name })}
       {/if}
     </p>
   {:else}
     <label class="pick">
-      <span>Play with</span>
+      <span>{t('Play with')}</span>
       <Select
         bind:value={() => chosen, (v) => (chosen = v ?? '')}
-        ariaLabel="Instance to play with"
+        ariaLabel={t('Instance to play with')}
         style="flex: 1;"
         options={[
           ...choices.map((c) => ({ value: c.id, label: c.name, hint: c.gameVersion, icon: instanceIcon(c), loader: c.loader })),
-          ...(i.gameVersion ? [{ value: 'new', label: `A new ${i.gameVersion} instance` }] : [])
+          ...(i.gameVersion ? [{ value: 'new', label: t('A new {gameVersion} instance', { gameVersion: i.gameVersion }) }] : [])
         ]}
       />
     </label>
   {/if}
 
   <div class="actions">
-    <button class="btn ghost" onclick={close}>Not now</button>
+    <button class="btn ghost" onclick={close}>{t('Not now')}</button>
     <button class="btn primary" disabled={busy || (!l.pack && !chosen)} onclick={play}>
-      {#if l.pack && !match}<Download size={15} /> Install and join{:else if plan.kind === 'switch'}<ArrowDownUp size={15} /> Switch and join{:else}<Play size={15} /> Join{/if}
+      {#if l.pack && !match}<Download size={15} /> {t('Install and join')}{:else if plan.kind === 'switch'}<ArrowDownUp size={15} /> {t('Switch and join')}{:else}<Play size={15} /> {t('Join')}{/if}
     </button>
   </div>
 </Modal>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Shown once when Peak runs as a Linux AppImage without a menu entry (or
   // after the AppImage was moved): offer to add Peak to the applications menu.
   import { onMount } from 'svelte';
@@ -18,7 +19,7 @@
   async function add() {
     try {
       await addToMenu();
-      toast('Peak is in your applications menu. You can pin it from there.', 'success');
+      toast(t('Peak is in your applications menu. You can pin it from there.'), 'success');
       hidden = true;
     } catch (e) {
       toast(errorText(e), 'error');
@@ -38,24 +39,24 @@
 </script>
 
 {#if show}
-  <div class="offer glass" transition:fly={{ y: 16, duration: 220 }} role="dialog" aria-label="Add Peak to your applications menu">
+  <div class="offer glass" transition:fly={{ y: 16, duration: 220 }} role="dialog" aria-label={t('Add Peak to your applications menu')}>
     <span class="icon"><LayoutGrid size={18} /></span>
     <div class="text">
-      <b>{moved ? 'Peak was moved' : 'Add Peak to your applications menu?'}</b>
+      <b>{moved ? t('Peak was moved') : t('Add Peak to your applications menu?')}</b>
       <span>
         {moved
-          ? 'Your menu entry still points at the old location. Update it so it opens this copy.'
-          : "Open Peak like any other app, without finding the AppImage file. You can remove it again in Settings."}
+          ? t('Your menu entry still points at the old location. Update it so it opens this copy.')
+          : t('Open Peak like any other app, without finding the AppImage file. You can remove it again in Settings.')}
       </span>
     </div>
     <div class="actions">
-      <button class="btn ghost" onclick={dontAsk}>Don't ask again</button>
+      <button class="btn ghost" onclick={dontAsk}>{t('Don\'t ask again')}</button>
       <button class="btn primary" onclick={add} disabled={menu.busy}>
         {#if menu.busy}<LoaderCircle size={15} class="spin" />{/if}
-        {moved ? 'Update entry' : 'Add to menu'}
+        {moved ? t('Update entry') : t('Add to menu')}
       </button>
     </div>
-    <button class="close btn ghost icon" aria-label="Not now" title="Not now" onclick={() => (hidden = true)}><X size={15} /></button>
+    <button class="close btn ghost icon" aria-label={t('Not now')} title={t('Not now')} onclick={() => (hidden = true)}><X size={15} /></button>
   </div>
 {/if}
 

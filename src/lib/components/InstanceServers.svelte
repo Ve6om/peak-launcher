@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // An instance's own multiplayer list (the one in Minecraft's Multiplayer
   // screen): see who's online, join straight in, add, remove and reorder.
   import { onMount } from 'svelte';
   import { Plus, Play, Trash2, ChevronUp, ChevronDown, Server as ServerIcon, Users, SignalZero, LoaderCircle, UserPlus } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { app, toast, errorText, activeAccount, go, isRunning, isBusy } from '$lib/state.svelte';
+  import { shownAddress } from '$lib/privacy.svelte';
   import { motdLines } from '$lib/motd';
   import { playingAt, inviteUrl } from '$lib/invite.svelte';
   import type { Instance, InstanceServer, SavedServer, ServerStatus } from '$lib/types';
@@ -82,15 +84,15 @@
   async function copyInvite(s: InstanceServer) {
     try {
       await navigator.clipboard.writeText(inviteUrl(inst, s));
-      toast(`Invite link to ${s.name} copied. Friends open it to join with the same pack.`, 'success');
+      toast(t('Invite link to {name} copied. Friends open it to join with the same pack.', { name: s.name }), 'success');
     } catch {
-      toast("Couldn't copy the link", 'error');
+      toast(t('Couldn\'t copy the link'), 'error');
     }
   }
 
   async function join(s: InstanceServer) {
     if (!activeAccount()) {
-      toast('Add an account to start playing', 'info');
+      toast(t('Add an account to start playing'), 'info');
       go('accounts');
       return;
     }
@@ -109,13 +111,13 @@
 
 <div class="wrap">
   <section class="panel glass">
-    <h3>Servers in this instance</h3>
-    <p class="sub">The same list as Minecraft's Multiplayer screen. Changes here show up in the game, and the top server is first in its list.{running ? ' Close the game to change the list.' : ''}</p>
+    <h3>{t('Servers in this instance')}</h3>
+    <p class="sub">{t("The same list as Minecraft's Multiplayer screen. Changes here show up in the game, and the top server is first in its list.")}{running ? ` ${t('Close the game to change the list.')}` : ''}</p>
 
     {#if !loaded}
-      <p class="muted"><LoaderCircle size={14} class="spin" /> Loading…</p>
+      <p class="muted"><LoaderCircle size={14} class="spin" /> {t('Loading…')}</p>
     {:else if !list.length}
-      <p class="muted">No servers yet. Add one below, or join one from the Servers page and Peak adds it here for you.</p>
+      <p class="muted">{t('No servers yet. Add one below, or join one from the Servers page and Peak adds it here for you.')}</p>
     {:else}
       <div class="list">
         {#each list as s, i (s.address)}
@@ -123,13 +125,13 @@
           {@const ready = st && st !== 'loading' ? st : null}
           <div class="row">
             <div class="order">
-              <button class="btn ghost icon tiny" aria-label="Move up" title="Move up" disabled={i === 0 || running} onclick={() => move(i, -1)}><ChevronUp size={14} /></button>
-              <button class="btn ghost icon tiny" aria-label="Move down" title="Move down" disabled={i === list.length - 1 || running} onclick={() => move(i, 1)}><ChevronDown size={14} /></button>
+              <button class="btn ghost icon tiny" aria-label={t('Move up')} title={t('Move up')} disabled={i === 0 || running} onclick={() => move(i, -1)}><ChevronUp size={14} /></button>
+              <button class="btn ghost icon tiny" aria-label={t('Move down')} title={t('Move down')} disabled={i === list.length - 1 || running} onclick={() => move(i, 1)}><ChevronDown size={14} /></button>
             </div>
             <span class="icon">{#if ready?.favicon}<img src={ready.favicon} alt="" />{:else}<ServerIcon size={20} />{/if}</span>
             <div class="text">
-              <b>{s.name || s.address}</b>
-              <span class="addr">{s.address}</span>
+              <b>{s.name || shownAddress(s.address)}</b>
+              <span class="addr">{shownAddress(s.address)}</span>
               {#if ready?.online}
                 <span class="motd">
                   {#each motdLines(ready.motd).slice(0, 1) as line, l (l)}{#each line as seg, j (j)}<span style={seg.style || undefined}>{seg.text}</span>{/each}{/each}
@@ -139,11 +141,11 @@
             <span class="state">
               {#if st === 'loading' || !st}<LoaderCircle size={13} class="spin" />
               {:else if ready?.online}<Users size={13} /> {ready.playersOnline}/{ready.playersMax}
-              {:else}<SignalZero size={13} /> Offline{/if}
+              {:else}<SignalZero size={13} /> {t('Offline')}{/if}
             </span>
-            <button class="btn ghost icon" title="Copy an invite link for friends" aria-label="Copy an invite link to {s.name}" onclick={() => copyInvite(s)}><UserPlus size={15} /></button>
-            <button class="btn primary" onclick={() => join(s)} disabled={running || isBusy(inst.id)}><Play size={14} /> Join</button>
-            <button class="btn ghost icon del" class:confirm={confirmRemove === s.address} title={confirmRemove === s.address ? 'Click again to remove' : 'Remove'} aria-label="Remove {s.name}" disabled={running} onclick={() => remove(s)}>
+            <button class="btn ghost icon" title={t('Copy an invite link for friends')} aria-label={t('Copy an invite link to {name}', { name: s.name })} onclick={() => copyInvite(s)}><UserPlus size={15} /></button>
+            <button class="btn primary" onclick={() => join(s)} disabled={running || isBusy(inst.id)}><Play size={14} /> {t('Join')}</button>
+            <button class="btn ghost icon del" class:confirm={confirmRemove === s.address} title={confirmRemove === s.address ? t('Click again to remove') : t('Remove')} aria-label={t('Remove {name}', { name: s.name })} disabled={running} onclick={() => remove(s)}>
               <Trash2 size={15} />
             </button>
           </div>
@@ -153,7 +155,7 @@
   </section>
 
   <section class="panel glass">
-    <h3>Add a server</h3>
+    <h3>{t('Add a server')}</h3>
     <form
       class="add"
       onsubmit={(e) => {
@@ -161,13 +163,13 @@
         add();
       }}
     >
-      <input class="input" bind:value={name} placeholder="Name (optional)" maxlength="40" />
-      <input class="input" bind:value={address} placeholder="play.example.com" spellcheck="false" />
-      <button class="btn primary" type="submit" disabled={!address.trim() || running}><Plus size={15} /> Add</button>
+      <input class="input" bind:value={name} placeholder={t('Name (optional)')} maxlength="40" />
+      <input class="input private" bind:value={address} placeholder="play.example.com" spellcheck="false" />
+      <button class="btn primary" type="submit" disabled={!address.trim() || running}><Plus size={15} /> {t('Add')}</button>
     </form>
     {#if notInList.length}
       <div class="from-saved">
-        <span class="label">From My servers</span>
+        <span class="label">{t('From My servers')}</span>
         <div class="chips">
           {#each notInList as s (s.id)}
             <button class="btn" disabled={running} onclick={() => add(s.name, s.address)}><Plus size={13} /> {s.name}</button>

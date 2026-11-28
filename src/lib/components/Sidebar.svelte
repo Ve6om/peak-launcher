@@ -1,19 +1,21 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { instanceIcon, instanceBanner } from '$lib/instanceImages';
   import { House, Library, Package, Server, Users, Images, Settings, Plus, ChevronRight } from '@lucide/svelte';
   import { app, go, activeAccount, isRunning, openInstanceMenu } from '$lib/state.svelte';
+  import { shownName } from '$lib/privacy.svelte';
   import type { View } from '$lib/types';
   import InstanceArt from './InstanceArt.svelte';
   import SkinHead from './SkinHead.svelte';
 
   const nav: { view: View | 'browse'; label: string; icon: typeof House; soon?: boolean }[] = [
-    { view: 'home', label: 'Home', icon: House },
-    { view: 'library', label: 'Library', icon: Library },
-    { view: 'browse', label: 'Modpacks', icon: Package },
-    { view: 'servers', label: 'Servers', icon: Server },
-    { view: 'accounts', label: 'Accounts', icon: Users },
-    { view: 'screenshots', label: 'Screenshots', icon: Images },
-    { view: 'settings', label: 'Settings', icon: Settings }
+    { view: 'home', label: t('Home'), icon: House },
+    { view: 'library', label: t('Library'), icon: Library },
+    { view: 'browse', label: t('Modpacks'), icon: Package },
+    { view: 'servers', label: t('Servers'), icon: Server },
+    { view: 'accounts', label: t('Accounts'), icon: Users },
+    { view: 'screenshots', label: t('Screenshots'), icon: Images },
+    { view: 'settings', label: t('Settings'), icon: Settings }
   ];
 
   const account = $derived(activeAccount());
@@ -32,15 +34,15 @@
       >
         <Icon size={18} strokeWidth={1.9} />
         <span>{item.label}</span>
-        {#if item.soon}<span class="soon">Soon</span>{/if}
+        {#if item.soon}<span class="soon">{t('Soon')}</span>{/if}
       </button>
     {/each}
   </nav>
 
   <div class="section">
     <div class="section-head">
-      <span class="label">Instances</span>
-      <button class="add" aria-label="New instance" onclick={() => (app.creating = true)}><Plus size={15} /></button>
+      <span class="label">{t('Instances')}</span>
+      <button class="add" aria-label={t('New instance')} onclick={() => (app.creating = true)}><Plus size={15} /></button>
     </div>
     <div class="pins">
       {#each pinned as inst (inst.id)}
@@ -55,19 +57,19 @@
             <span class="pin-name">{inst.name}</span>
             <span class="pin-meta">{inst.gameVersion}</span>
           </span>
-          {#if isRunning(inst.id)}<span class="live" title="Running"></span>{/if}
+          {#if isRunning(inst.id)}<span class="live" title={t('Running')}></span>{/if}
         </button>
       {:else}
-        <p class="empty">No instances yet</p>
+        <p class="empty">{t('No instances yet')}</p>
       {/each}
     </div>
   </div>
 
   <button class="account" onclick={() => go('accounts')}>
-    <SkinHead accountId={account?.id ?? null} name={account?.username ?? ''} size={34} />
+    <SkinHead accountId={account?.id ?? null} name={shownName(account?.username ?? '')} size={34} />
     <span class="acc-text">
-      <span class="acc-name">{account?.username ?? 'Add account'}</span>
-      <span class="acc-meta">{account ? (account.kind === 'microsoft' ? 'Microsoft' : 'Offline') : 'Sign in to play'}</span>
+      <span class="acc-name">{account ? shownName(account.username) : t('Add account')}</span>
+      <span class="acc-meta">{account ? (account.kind === 'microsoft' ? t('Microsoft') : t('Offline')) : t('Sign in to play')}</span>
     </span>
     <ChevronRight size={16} />
   </button>

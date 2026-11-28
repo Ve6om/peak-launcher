@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { fly } from 'svelte/transition';
   import Select from '$lib/components/Select.svelte';
   import { ExternalLink, RefreshCw, MessageCircle } from '@lucide/svelte';
   import { updates, checkForUpdate } from '$lib/updates.svelte';
   import { menu, loadMenuStatus, addToMenu, removeFromMenu } from '$lib/menuEntry.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api } from '$lib/api';
   import { app, ACCENTS, accentName, applyAccent, isHexColor, hexToRgb, rgbToHex, toast, errorText } from '$lib/state.svelte';
+  import { shownPath, streaming, setStreamerMode } from '$lib/privacy.svelte';
+  import { LANGUAGES, loadLanguage } from '$lib/i18n.svelte';
   import Logo from '$lib/components/Logo.svelte';
   import Row from '$lib/components/Row.svelte';
   import Switch from '$lib/components/Switch.svelte';
@@ -22,6 +25,18 @@
 
   let s = $state<Settings>(JSON.parse(JSON.stringify(app.settings)));
 
+  // Streamer mode and the language apply straight away (from here, the title
+  // bar or the shortcut), so the form follows them instead of showing them as
+  // unsaved changes.
+  $effect(() => {
+    const on = app.settings?.streamerMode ?? false;
+    const lang = app.settings?.language ?? '';
+    untrack(() => {
+      s.streamerMode = on;
+      s.language = lang;
+    });
+  });
+
   let applyingShare = $state(false);
   // Give every instance the sharing chosen above (and save it as the default).
   async function shareWithAll() {
@@ -34,7 +49,7 @@
         app.instances = app.instances.map((x) => (x.id === updated.id ? updated : x));
         n++;
       }
-      toast(`Updated ${n} instance${n === 1 ? '' : 's'}`, 'success');
+      toast((n === 1 ? t('Updated {n} instance', { n }) : t('Updated {n} instances', { n })), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -50,16 +65,16 @@
   });
 
   const afterLaunchHelp: Record<string, string> = {
-    open: 'Peak stays where it is while you play.',
-    minimize: 'Peak minimizes once the game is on screen and comes back when the game closes or crashes.',
-    hide: 'Peak hides once the game is on screen; click its tray icon to bring it back. It returns by itself when the game closes or crashes.',
-    close: "Peak closes once the game is on screen. The game keeps running, but that session's playtime and console output aren't kept."
+    open: t('Peak stays where it is while you play.'),
+    minimize: t('Peak minimizes once the game is on screen and comes back when the game closes or crashes.'),
+    hide: t('Peak hides once the game is on screen; click its tray icon to bring it back. It returns by itself when the game closes or crashes.'),
+    close: t('Peak closes once the game is on screen. The game keeps running, but that session\'s playtime and console output aren\'t kept.')
   };
 
   async function checkUpdates() {
     const r = await checkForUpdate(true);
-    if (r === 'current') toast(`You're on the latest version (${app.info?.version}).`, 'success');
-    else if (r === 'error') toast(`Couldn't check for updates: ${updates.error}`, 'error');
+    if (r === 'current') toast(t('You\'re on the latest version ({version}).', { version: app.info?.version }), 'success');
+    else if (r === 'error') toast(t('Couldn\'t check for updates: {error}', { error: updates.error }), 'error');
   }
 
   // Each one is its own tab; the last one opened is remembered.
@@ -90,7 +105,7 @@
     autostart = on;
     try {
       await api.setAutostart(on);
-      toast(on ? 'Peak will start when your computer does' : "Peak won't start with your computer", 'success');
+      toast(on ? t('Peak will start when your computer does') : t('Peak won\'t start with your computer'), 'success');
     } catch (e) {
       autostart = !on;
       toast(errorText(e), 'error');
@@ -148,7 +163,7 @@
       app.bgPreview = null;
       app.lightPreview = null;
       app.glowPreview = null;
-      toast('Settings saved', 'success');
+      toast(t('Settings saved'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     }
@@ -180,11 +195,22 @@
       app.bgPreview = null;
       app.lightPreview = null;
       app.glowPreview = null;
-      toast('Settings are back to their defaults', 'success');
+      toast(t('Settings are back to their defaults'), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
       resetting = false;
+    }
+  }
+
+  // The language applies straight away, like streamer mode.
+  async function setLanguage(code: string) {
+    if (!app.settings || (app.settings.language ?? '') === code) return;
+    try {
+      app.settings = await api.saveSettings({ ...$state.snapshot(app.settings), language: code });
+      await loadLanguage(code);
+    } catch (e) {
+      toast(errorText(e), 'error');
     }
   }
 
@@ -197,67 +223,81 @@
     }
   }
 
-  const gb = (mb: number) => `${(mb / 1024).toFixed(1)} GB`;
+  const gb = (mb: number) => t('{x} GB', { x: (mb / 1024).toFixed(1) });
 </script>
 
 <div class="page">
   <header>
-    <h1>Settings</h1>
-    <p>Defaults for every instance. Instances can override most of these in their own Settings tab.</p>
+    <h1>{t('Settings')}</h1>
+    <p>{t('Defaults for every instance. Instances can override most of these in their own Settings tab.')}</p>
   </header>
 
   <div class="layout">
     <nav class="toc">
       {#each sections as sec (sec)}
-        <button class:active={current === sec} onclick={() => jump(sec)}>{sec}</button>
+        <button class:active={current === sec} onclick={() => jump(sec)}>{t(sec)}</button>
       {/each}
     </nav>
 
     <div class="content">
       <section id="sec-General" class="panel glass" hidden={current !== 'General'}>
-        <h3>General</h3>
+        <h3>{t('General')}</h3>
         <div class="rows">
-          <Row title="Start Peak when my computer starts" desc="Peak opens minimized when you sign in to your computer, ready when you are. This takes effect straight away.">
+          <Row title={t('Start Peak when my computer starts')} desc={t('Peak opens minimized when you sign in to your computer, ready when you are. This takes effect straight away.')}>
             <Switch
               checked={!!autostart}
               disabled={autostart === null || autostartBusy}
               onchange={(on: boolean) => setAutostart(on)}
-              label="Start Peak when my computer starts"
+              label={t('Start Peak when my computer starts')}
             />
           </Row>
-          <Row title="When the game window opens" desc={afterLaunchHelp[s.afterLaunch] ?? afterLaunchHelp.open}>
+          <Row title={t('Language')} desc={t('The language Peak shows its own text in. Mod and modpack descriptions stay as their authors wrote them.')}>
+            <Select
+              value={app.settings?.language ?? ''}
+              options={[{ value: '', label: t('Same as this computer') }, ...LANGUAGES.map((l) => ({ value: l.code, label: l.name }))]}
+              onchange={(v: string | null) => setLanguage(v ?? '')}
+              style="min-width: 220px;"
+            />
+          </Row>
+          <Row
+            title={t('Streamer mode')}
+            desc={t('Hides account names, your UUID, server addresses and the folder paths that contain your computer\'s user name, here and in the game console. Turn it on or off from anywhere with Ctrl+Shift+S.')}
+          >
+            <Switch checked={streaming()} onchange={(on: boolean) => setStreamerMode(on)} label={t('Streamer mode')} />
+          </Row>
+          <Row title={t('When the game window opens')} desc={afterLaunchHelp[s.afterLaunch] ?? afterLaunchHelp.open}>
             <div class="seg">
-              <button class:active={s.afterLaunch === 'open'} onclick={() => (s.afterLaunch = 'open')}>Stay open</button>
-              <button class:active={s.afterLaunch === 'minimize'} onclick={() => (s.afterLaunch = 'minimize')}>Minimize</button>
-              <button class:active={s.afterLaunch === 'hide'} onclick={() => (s.afterLaunch = 'hide')}>Hide to tray</button>
-              <button class:active={s.afterLaunch === 'close'} onclick={() => (s.afterLaunch = 'close')}>Close Peak</button>
+              <button class:active={s.afterLaunch === 'open'} onclick={() => (s.afterLaunch = 'open')}>{t('Stay open')}</button>
+              <button class:active={s.afterLaunch === 'minimize'} onclick={() => (s.afterLaunch = 'minimize')}>{t('Minimize')}</button>
+              <button class:active={s.afterLaunch === 'hide'} onclick={() => (s.afterLaunch = 'hide')}>{t('Hide to tray')}</button>
+              <button class:active={s.afterLaunch === 'close'} onclick={() => (s.afterLaunch = 'close')}>{t('Close Peak')}</button>
             </div>
           </Row>
         </div>
       </section>
 
       <section id="sec-Appearance" class="panel glass" hidden={current !== 'Appearance'}>
-        <h3>Appearance</h3>
+        <h3>{t('Appearance')}</h3>
         <div class="rows">
-          <Row title="Background" desc="The colourful aurora glow, a quiet topographic map, or both">
+          <Row title={t('Background')} desc={t('The colourful aurora glow, a quiet topographic map, or both')}>
             <div class="seg">
-              <button class:active={s.background === 'aurora'} onclick={() => pickBackground('aurora')}>Aurora</button>
-              <button class:active={s.background === 'both'} onclick={() => pickBackground('both')}>Aurora + contours</button>
-              <button class:active={s.background === 'contours'} onclick={() => pickBackground('contours')}>Contours</button>
+              <button class:active={s.background === 'aurora'} onclick={() => pickBackground('aurora')}>{t('Aurora')}</button>
+              <button class:active={s.background === 'both'} onclick={() => pickBackground('both')}>{t('Aurora + contours')}</button>
+              <button class:active={s.background === 'contours'} onclick={() => pickBackground('contours')}>{t('Contours')}</button>
             </div>
           </Row>
           {#if s.background !== 'contours'}
             <Row
-              title="Moving glow"
-              desc={linux ? 'The aurora slowly drifts. Off by default on Linux, where it can make Peak sluggish.' : 'The aurora slowly drifts while Peak is open in front of you.'}
+              title={t('Moving glow')}
+              desc={linux ? t('The aurora slowly drifts. Off by default on Linux, where it can make Peak sluggish.') : t('The aurora slowly drifts while Peak is open in front of you.')}
             >
-              <Switch bind:checked={s.movingGlow} disabled={s.lightEffects} onchange={(on: boolean) => (app.glowPreview = on)} label="Moving glow" />
+              <Switch bind:checked={s.movingGlow} disabled={s.lightEffects} onchange={(on: boolean) => (app.glowPreview = on)} label={t('Moving glow')} />
             </Row>
           {/if}
-          <Row title="Lighter effects" desc="Skip the blur and the moving background glow. Can be smoother on older PCs, and on Linux.">
-            <Switch bind:checked={s.lightEffects} onchange={(on: boolean) => (app.lightPreview = on)} label="Lighter effects" />
+          <Row title={t('Lighter effects')} desc={t('Skip the blur and the moving background glow. Can be smoother on older PCs, and on Linux.')}>
+            <Switch bind:checked={s.lightEffects} onchange={(on: boolean) => (app.lightPreview = on)} label={t('Lighter effects')} />
           </Row>
-          <Row title="Accent color" desc="Used for buttons, highlights and markers" wide>
+          <Row title={t('Accent color')} desc={t('Used for buttons, highlights and markers')} wide>
             <div class="accents">
               {#each Object.entries(ACCENTS) as [name, [a]] (name)}
                 <button class="swatch" class:active={accentNow === name} onclick={() => pickAccent(name)} title={name}>
@@ -267,18 +307,18 @@
               {/each}
             </div>
             <div class="accents special">
-              <button class="swatch" class:active={isHexColor(accentNow)} onclick={() => pickAccent(custom)} title="Pick your own colour">
+              <button class="swatch" class:active={isHexColor(accentNow)} onclick={() => pickAccent(custom)} title={t('Pick your own colour')}>
                 <span class="dot" style:background={custom}></span>
-                <span class="name">Custom</span>
+                <span class="name">{t('Custom')}</span>
               </button>
-              <button class="swatch" class:active={accentNow === 'rainbow'} onclick={() => pickAccent('rainbow')} title="Cycles through every colour">
+              <button class="swatch" class:active={accentNow === 'rainbow'} onclick={() => pickAccent('rainbow')} title={t('Cycles through every colour')}>
                 <span class="dot rainbow-dot"></span>
-                <span class="name">Rainbow</span>
+                <span class="name">{t('Rainbow')}</span>
               </button>
             </div>
             {#if isHexColor(accentNow)}
               <div class="custom-color">
-                <input type="color" value={custom} oninput={(e) => setCustom(e.currentTarget.value)} aria-label="Pick a colour" />
+                <input type="color" value={custom} oninput={(e) => setCustom(e.currentTarget.value)} aria-label={t('Pick a colour')} />
                 {#each ['R', 'G', 'B'] as ch, i (ch)}
                   <label class="chan">
                     <span>{ch}</span>
@@ -286,115 +326,115 @@
                   </label>
                 {/each}
                 <label class="chan hex">
-                  <span>Hex</span>
+                  <span>{t('Hex')}</span>
                   <input class="input mono" maxlength="7" bind:value={hexText} onchange={() => typedHex(hexText)} spellcheck="false" />
                 </label>
               </div>
             {:else if accentNow === 'rainbow'}
-              <p class="note">Cycles through every colour, and pauses while Peak is minimized. It keeps Peak redrawing, so it uses a little more CPU than a fixed colour{linux ? ', and noticeably more on Linux' : ''}.</p>
+              <p class="note">{linux ? t('Cycles through every colour, and pauses while Peak is minimized. It keeps Peak redrawing, so it uses a little more CPU than a fixed colour, and noticeably more on Linux.') : t('Cycles through every colour, and pauses while Peak is minimized. It keeps Peak redrawing, so it uses a little more CPU than a fixed colour.')}</p>
             {/if}
           </Row>
         </div>
       </section>
 
       <section id="sec-Java & memory" class="panel glass" hidden={current !== 'Java & memory'}>
-        <h3>Java & memory</h3>
+        <h3>{t('Java & memory')}</h3>
         <div class="rows">
-          <Row title="Maximum memory" desc="How much RAM Minecraft may use. 4–6 GB suits most modpacks; vanilla is happy with 2–4 GB.">
+          <Row title={t('Maximum memory')} desc={t('How much RAM Minecraft may use. 4–6 GB suits most modpacks; vanilla is happy with 2–4 GB.')}>
             <input type="range" min="1024" max={maxMem} step="512" bind:value={s.memoryMb} />
             <span class="val">{gb(s.memoryMb)}</span>
           </Row>
-          <Row title="Metaspace" desc="Initial metaspace size in MB (0 to leave it to Java)">
+          <Row title={t('Metaspace')} desc={t('Initial metaspace size in MB (0 to leave it to Java)')}>
             <input class="input num" type="number" min="0" step="64" bind:value={s.metaspaceMb} />
           </Row>
-          <Row title="Use Minecraft's Java" desc="Let Peak download the Java each game version needs (recommended)">
-            <Switch bind:checked={s.useBundledJava} label="Use Minecraft's Java" />
+          <Row title={t('Use Minecraft\'s Java')} desc={t('Let Peak download the Java each game version needs (recommended)')}>
+            <Switch bind:checked={s.useBundledJava} label={t('Use Minecraft\'s Java')} />
           </Row>
           {#if s.useBundledJava}
-            <Row title="Java build" desc="Peak downloads the Java version each game needs, from the build you pick here. Instances can pick their own." wide>
+            <Row title={t('Java build')} desc={t('Peak downloads the Java version each game needs, from the build you pick here. Instances can pick their own.')} wide>
               <JavaVendorPicker bind:value={s.javaVendor} />
             </Row>
           {:else}
-            <Row title="Java executable" desc="Used for every instance unless it picks its own" wide>
+            <Row title={t('Java executable')} desc={t('Used for every instance unless it picks its own')} wide>
               <JavaPicker bind:value={s.javaPath} />
             </Row>
           {/if}
-          <Row title="Performance flags" desc="Java tuning presets. None is fine for most players; the others can smooth out big modpacks." wide>
+          <Row title={t('Performance flags')} desc={t('Java tuning presets. None is fine for most players; the others can smooth out big modpacks.')} wide>
             <JvmPresetPicker bind:value={s.jvmPreset} />
           </Row>
-          <Row title="Extra Java arguments" desc="Your own flags, added after the preset" wide>
-            <textarea class="input mono" rows="2" bind:value={s.jvmArgs} placeholder="e.g. -Dfml.readTimeout=180"></textarea>
+          <Row title={t('Extra Java arguments')} desc={t('Your own flags, added after the preset')} wide>
+            <textarea class="input mono" rows="2" bind:value={s.jvmArgs} placeholder={t('e.g. -Dfml.readTimeout=180')}></textarea>
           </Row>
-          <Row title="Downloaded Java" desc="Every Java Peak has downloaded for your games, and the space each one takes" wide>
+          <Row title={t('Downloaded Java')} desc={t('Every Java Peak has downloaded for your games, and the space each one takes')} wide>
             <JavaDownloads />
           </Row>
         </div>
       </section>
 
       <section id="sec-Game" class="panel glass" hidden={current !== 'Game'}>
-        <h3>Game</h3>
+        <h3>{t('Game')}</h3>
         <div class="rows">
-          <Row title="Window size" desc="Starting resolution of the game window">
+          <Row title={t('Window size')} desc={t('Starting resolution of the game window')}>
             <input class="input num" type="number" min="640" bind:value={s.windowWidth} />
             <span class="x">×</span>
             <input class="input num" type="number" min="480" bind:value={s.windowHeight} />
           </Row>
-          <Row title="Start fullscreen">
-            <Switch bind:checked={s.fullscreen} label="Start fullscreen" />
+          <Row title={t('Start fullscreen')}>
+            <Switch bind:checked={s.fullscreen} label={t('Start fullscreen')} />
           </Row>
-          <Row title="Open console on launch" desc="Switch to the instance's console when the game starts">
-            <Switch bind:checked={s.openConsole} label="Open console on launch" />
+          <Row title={t('Open console on launch')} desc={t('Switch to the instance\'s console when the game starts')}>
+            <Switch bind:checked={s.openConsole} label={t('Open console on launch')} />
           </Row>
           {#if linux}
-            <Row title="Feral GameMode" desc="Run the game through gamemoderun for better performance">
-              <Switch bind:checked={s.gamemode} label="GameMode" />
+            <Row title={t('Feral GameMode')} desc={t('Run the game through gamemoderun for better performance')}>
+              <Switch bind:checked={s.gamemode} label={t('GameMode')} />
             </Row>
-            <Row title="MangoHud" desc="Show FPS, frame times and GPU use over the game (needs MangoHud installed)">
-              <Switch bind:checked={s.mangohud} label="MangoHud" />
+            <Row title={t('MangoHud')} desc={t('Show FPS, frame times and GPU use over the game (needs MangoHud installed)')}>
+              <Switch bind:checked={s.mangohud} label={t('MangoHud')} />
             </Row>
-            <Row title="Use the dedicated graphics card" desc="On laptops with two graphics chips, run the game on the faster one (NVIDIA PRIME or DRI_PRIME)">
-              <Switch bind:checked={s.discreteGpu} label="Dedicated graphics card" />
+            <Row title={t('Use the dedicated graphics card')} desc={t('On laptops with two graphics chips, run the game on the faster one (NVIDIA PRIME or DRI_PRIME)')}>
+              <Switch bind:checked={s.discreteGpu} label={t('Dedicated graphics card')} />
             </Row>
-            <Row title="Use system GLFW" desc="Use your distro's GLFW instead of Minecraft's (helps on Wayland and ARM)">
-              <Switch bind:checked={s.useSystemGlfw} label="System GLFW" />
+            <Row title={t('Use system GLFW')} desc={t('Use your distro\'s GLFW instead of Minecraft\'s (helps on Wayland and ARM)')}>
+              <Switch bind:checked={s.useSystemGlfw} label={t('System GLFW')} />
             </Row>
-            <Row title="Use system OpenAL">
-              <Switch bind:checked={s.useSystemOpenal} label="System OpenAL" />
+            <Row title={t('Use system OpenAL')}>
+              <Switch bind:checked={s.useSystemOpenal} label={t('System OpenAL')} />
             </Row>
           {/if}
-          <Row title="Environment variables" desc="For every game, one KEY=value per line. Instances can add their own." wide>
+          <Row title={t('Environment variables')} desc={t('For every game, one KEY=value per line. Instances can add their own.')} wide>
             <textarea class="input mono" rows="3" spellcheck="false" placeholder="MESA_GL_VERSION_OVERRIDE=4.5" bind:value={s.envVars}></textarea>
           </Row>
         </div>
       </section>
 
       <section id="sec-Defaults" class="panel glass" hidden={current !== 'Defaults'}>
-        <h3>Default game settings</h3>
+        <h3>{t('Default game settings')}</h3>
         <p class="sub">
-          Keybinds and options saved from one instance. Instances with them switched on get them every time they start; each instance has the switches in its own Settings tab.
+          {t('Keybinds and options saved from one instance. Instances with them switched on get them every time they start; each instance has the switches in its own Settings tab.')}
         </p>
         {#if current === 'Defaults'}<GameDefaults />{/if}
-        <h4 class="minor">New instances</h4>
+        <h4 class="minor">{t('New instances')}</h4>
         <SharedSwitches show="defaults" bind:value={s.sharedDefault} />
         <SharedSwitches show="packs" bind:value={s.sharedDefault} />
         <div class="share-actions">
-          <button class="btn" disabled={applyingShare} onclick={shareWithAll}>Use these for all instances now</button>
-          <button class="btn ghost" onclick={() => api.openSharedFolder()}>Open shared packs folder</button>
+          <button class="btn" disabled={applyingShare} onclick={shareWithAll}>{t('Use these for all instances now')}</button>
+          <button class="btn ghost" onclick={() => api.openSharedFolder()}>{t('Open shared packs folder')}</button>
         </div>
       </section>
 
       <section id="sec-Storage" class="panel glass" hidden={current !== 'Storage'}>
-        <h3>Storage</h3>
+        <h3>{t('Storage')}</h3>
         <div class="rows">
-          <Row title="Back up worlds when the game closes" desc="Each world that was played gets a backup, in every instance. Find them in an instance's Worlds tab.">
-            <Switch bind:checked={s.worldBackupsAuto} label="Back up worlds when the game closes" />
+          <Row title={t('Back up worlds when the game closes')} desc={t('Each world that was played gets a backup, in every instance. Find them in an instance\'s Worlds tab.')}>
+            <Switch bind:checked={s.worldBackupsAuto} label={t('Back up worlds when the game closes')} />
           </Row>
-          <Row title="Automatic backups to keep" desc="Per world; the oldest go first. Backups made by hand are always kept.">
+          <Row title={t('Automatic backups to keep')} desc={t('Per world; the oldest go first. Backups made by hand are always kept.')}>
             <Select
               small
               disabled={!s.worldBackupsAuto}
               bind:value={() => String(s.worldBackupsKeep), (v) => (s.worldBackupsKeep = +(v ?? 5))}
-              ariaLabel="Automatic backups to keep"
+              ariaLabel={t('Automatic backups to keep')}
               style="width: 90px;"
               options={[1, 2, 3, 5, 10, 20].map((n) => ({ value: String(n), label: String(n) }))}
             />
@@ -404,63 +444,63 @@
       </section>
 
       <section id="sec-Commands" class="panel glass" hidden={current !== 'Commands'}>
-        <h3>Commands</h3>
+        <h3>{t('Commands')}</h3>
         <p class="sub">
-          Variables: <code>$INST_NAME</code> <code>$INST_ID</code> <code>$INST_DIR</code> <code>$INST_MC_DIR</code> <code>$INST_JAVA</code>
+          {t('Variables:')} <code>$INST_NAME</code> <code>$INST_ID</code> <code>$INST_DIR</code> <code>$INST_MC_DIR</code> <code>$INST_JAVA</code>
         </p>
         <div class="rows">
-          <Row title="Enable commands">
-            <Switch bind:checked={s.enableCommands} label="Enable commands" />
+          <Row title={t('Enable commands')}>
+            <Switch bind:checked={s.enableCommands} label={t('Enable commands')} />
           </Row>
-          <Row title="Pre-launch command" desc="Runs before the game starts; a failure cancels the launch">
+          <Row title={t('Pre-launch command')} desc={t('Runs before the game starts; a failure cancels the launch')}>
             <input class="input mono" bind:value={s.preLaunchCommand} disabled={!s.enableCommands} />
           </Row>
-          <Row title="Post-exit command" desc="Runs after the game closes">
+          <Row title={t('Post-exit command')} desc={t('Runs after the game closes')}>
             <input class="input mono" bind:value={s.postExitCommand} disabled={!s.enableCommands} />
           </Row>
-          <Row title="Wrapper command" desc="Prefixed to the Java command (e.g. prime-run, mangohud)">
+          <Row title={t('Wrapper command')} desc={t('Prefixed to the Java command (e.g. prime-run, mangohud)')}>
             <input class="input mono" bind:value={s.wrapperCommand} disabled={!s.enableCommands} />
           </Row>
         </div>
       </section>
 
       <section id="sec-Network" class="panel glass" hidden={current !== 'Network'}>
-        <h3>Network</h3>
+        <h3>{t('Network')}</h3>
         <div class="rows">
           {#if menu.status?.isAppImage}
-            <Row title="Applications menu" desc={menu.status.installed && menu.status.upToDate ? 'Peak is in your applications menu.' : menu.status.installed ? 'Your menu entry points at an old location of this AppImage.' : 'Add Peak to your applications menu so you can open it like any other app.'}>
+            <Row title={t('Applications menu')} desc={menu.status.installed && menu.status.upToDate ? t('Peak is in your applications menu.') : menu.status.installed ? t('Your menu entry points at an old location of this AppImage.') : t('Add Peak to your applications menu so you can open it like any other app.')}>
               {#if menu.status.installed && menu.status.upToDate}
-                <button class="btn" onclick={() => removeFromMenu().catch((e) => toast(errorText(e), 'error'))} disabled={menu.busy}>Remove from menu</button>
+                <button class="btn" onclick={() => removeFromMenu().catch((e) => toast(errorText(e), 'error'))} disabled={menu.busy}>{t('Remove from menu')}</button>
               {:else}
-                <button class="btn primary" onclick={() => addToMenu().catch((e) => toast(errorText(e), 'error'))} disabled={menu.busy}>{menu.status.installed ? 'Update entry' : 'Add to menu'}</button>
+                <button class="btn primary" onclick={() => addToMenu().catch((e) => toast(errorText(e), 'error'))} disabled={menu.busy}>{menu.status.installed ? t('Update entry') : t('Add to menu')}</button>
               {/if}
             </Row>
           {/if}
-          <Row title="Check for updates automatically" desc="Peak asks GitHub for a newer version when it starts and every few hours. Updates are only installed when you choose to.">
-            <Switch bind:checked={s.autoUpdateCheck} label="Check for updates automatically" />
+          <Row title={t('Check for updates automatically')} desc={t('Peak asks GitHub for a newer version when it starts and every few hours. Updates are only installed when you choose to.')}>
+            <Switch bind:checked={s.autoUpdateCheck} label={t('Check for updates automatically')} />
           </Row>
-          <Row title="Tell me about modpack updates" desc="Check your modpacks for new versions, mark them Latest or Outdated, and ask when you press Play on one that has an update.">
-            <Switch bind:checked={s.modpackUpdateCheck} label="Tell me about modpack updates" />
+          <Row title={t('Tell me about modpack updates')} desc={t('Check your modpacks for new versions, mark them Latest or Outdated, and ask when you press Play on one that has an update.')}>
+            <Switch bind:checked={s.modpackUpdateCheck} label={t('Tell me about modpack updates')} />
           </Row>
-          <Row title="Parallel downloads" desc="Files downloaded at once. Lower this on slow connections.">
+          <Row title={t('Parallel downloads')} desc={t('Files downloaded at once. Lower this on slow connections.')}>
             <input type="range" min="1" max="64" bind:value={s.concurrentDownloads} />
             <span class="val">{s.concurrentDownloads}</span>
           </Row>
-          <Row title="Connection timeout" desc="Seconds to wait before giving up on a server">
+          <Row title={t('Connection timeout')} desc={t('Seconds to wait before giving up on a server')}>
             <input class="input num" type="number" min="5" max="600" bind:value={s.connectionTimeout} />
           </Row>
-          <Row title="Use a proxy">
-            <Switch bind:checked={s.proxyEnabled} label="Use a proxy" />
+          <Row title={t('Use a proxy')}>
+            <Switch bind:checked={s.proxyEnabled} label={t('Use a proxy')} />
           </Row>
           {#if s.proxyEnabled}
-            <Row title="Proxy">
+            <Row title={t('Proxy')}>
               <Select
                 bind:value={() => s.proxyType, (v) => v && (s.proxyType = v as typeof s.proxyType)}
-                ariaLabel="Proxy type"
+                ariaLabel={t('Proxy type')}
                 style="width: 120px; flex-shrink: 0;"
                 options={[
                   { value: 'http', label: 'HTTP' },
-                  { value: 'socks5', label: 'SOCKS5' }
+                  { value: 'socks5', label: t('SOCKS5') }
                 ]}
               />
               <input class="input" bind:value={s.proxyHost} placeholder="host" />
@@ -472,22 +512,22 @@
       </section>
 
       <section id="sec-Integrations" class="panel glass" hidden={current !== 'Integrations'}>
-        <h3>Integrations</h3>
+        <h3>{t('Integrations')}</h3>
         <div class="rows">
-          <Row title="Show what I'm doing in Discord" desc="Your Discord profile shows Playing Peak Launcher, with what you're doing: the modpack you're playing, the server you're on, or that you're browsing. It's only shared with the Discord app on this computer.">
-            <Switch bind:checked={s.discordPresence} label="Show what I'm doing in Discord" />
+          <Row title={t('Show what I\'m doing in Discord')} desc={t('Your Discord profile shows Playing Peak Launcher, with what you\'re doing: the modpack you\'re playing, the server you\'re on, or that you\'re browsing. It\'s only shared with the Discord app on this computer.')}>
+            <Switch bind:checked={s.discordPresence} label={t('Show what I\'m doing in Discord')} />
           </Row>
           <Row
-            title="Join button for any server"
-            desc="On servers from Peak's server list, your Discord status has a Join on Peak button so friends can join you. Turn this on to show it on other servers too. Their address is shown to anyone who sees your status."
+            title={t('Join button for any server')}
+            desc={t('On servers from Peak\'s server list, your Discord status has a Join on Peak button so friends can join you. Turn this on to show it on other servers too. Their address is shown to anyone who sees your status.')}
           >
-            <Switch bind:checked={s.discordJoinAnyServer} disabled={!s.discordPresence} label="Join button for any server" />
+            <Switch bind:checked={s.discordJoinAnyServer} disabled={!s.discordPresence} label={t('Join button for any server')} />
           </Row>
           <Row
-            title="CurseForge API key"
+            title={t('CurseForge API key')}
             desc={app.info?.curseforgeBuiltIn
-              ? 'This build already includes a key. Add your own only if you want to use it instead.'
-              : 'Needed to browse and install from CurseForge. Get a free key from the CurseForge console. It stays on this computer.'}
+              ? t('This build already includes a key. Add your own only if you want to use it instead.')
+              : t('Needed to browse and install from CurseForge. Get a free key from the CurseForge console. It stays on this computer.')}
             wide
           >
             <div class="key">
@@ -495,26 +535,26 @@
                 class="input mono"
                 type={showKey ? 'text' : 'password'}
                 bind:value={s.curseforgeApiKey}
-                placeholder={app.info?.curseforgeBuiltIn ? 'Using the built-in key' : 'Paste your key'}
+                placeholder={app.info?.curseforgeBuiltIn ? t('Using the built-in key') : t('Paste your key')}
                 autocomplete="off"
                 spellcheck="false"
               />
-              <button class="btn" onclick={() => (showKey = !showKey)}>{showKey ? 'Hide' : 'Show'}</button>
-              <button class="btn" onclick={() => api.openUrl('https://console.curseforge.com/')}><ExternalLink size={14} /> Get a key</button>
+              <button class="btn" onclick={() => (showKey = !showKey)}>{showKey ? t('Hide') : t('Show')}</button>
+              <button class="btn" onclick={() => api.openUrl('https://console.curseforge.com/')}><ExternalLink size={14} /> {t('Get a key')}</button>
             </div>
           </Row>
         </div>
       </section>
 
       <section class="panel glass" hidden={current !== 'About'}>
-        <h3>Reset</h3>
+        <h3>{t('Reset')}</h3>
         <div class="rows">
           <Row
-            title="Reset all settings"
-            desc="Put every setting on this page back to its default. Your instances, accounts and worlds aren't touched, your own CurseForge key is kept, and settings you set on a single instance stay."
+            title={t('Reset all settings')}
+            desc={t('Put every setting on this page back to its default. Your instances, accounts and worlds aren\'t touched, your own CurseForge key is kept, and settings you set on a single instance stay.')}
           >
             <button class="btn danger" class:confirm-reset={confirmReset} onclick={resetAll} disabled={resetting}>
-              {confirmReset ? 'Click again to reset' : 'Reset to defaults'}
+              {confirmReset ? t('Click again to reset') : t('Reset to defaults')}
             </button>
           </Row>
         </div>
@@ -523,16 +563,16 @@
       <section id="sec-About" class="panel glass about" hidden={current !== 'About'}>
         <Logo size={34} />
         <div>
-          <b>Peak Launcher</b>
-          <span>Version {app.info?.version}{app.info?.devBuild ? ' · development build' : ''} · GPL-3.0</span>
-          {#if app.info?.dataDir}<span class="mono path">{app.info.dataDir}</span>{/if}
+          <b>{t('Peak Launcher')}</b>
+          <span>{t('Version {version}{x} · GPL-3.0', { version: app.info?.version, x: app.info?.devBuild ? ` · ${t('development build')}` : '' })}</span>
+          {#if app.info?.dataDir}<span class="mono path">{shownPath(app.info.dataDir)}</span>{/if}
         </div>
-        <button class="btn discord" title="Help, news and support" onclick={() => api.openUrl('https://discord.gg/DR2XVfVCku')}>
-          <MessageCircle size={14} /> Discord
+        <button class="btn discord" title={t('Help, news and support')} onclick={() => api.openUrl('https://discord.gg/DR2XVfVCku')}>
+          <MessageCircle size={14} /> {t('Discord')}
         </button>
         <button class="btn check" disabled={updates.checking} onclick={checkUpdates}>
           <RefreshCw size={14} class={updates.checking ? 'spin' : ''} />
-          {updates.checking ? 'Checking…' : 'Check for updates'}
+          {updates.checking ? t('Checking…') : t('Check for updates')}
         </button>
       </section>
     </div>
@@ -541,9 +581,9 @@
 
 {#if dirty}
   <div class="savebar glass" transition:fly={{ y: 20, duration: 220 }}>
-    <span>You have unsaved changes</span>
-    <button class="btn ghost" onclick={reset}>Discard</button>
-    <button class="btn primary" onclick={save}>Save changes</button>
+    <span>{t('You have unsaved changes')}</span>
+    <button class="btn ghost" onclick={reset}>{t('Discard')}</button>
+    <button class="btn primary" onclick={save}>{t('Save changes')}</button>
   </div>
 {/if}
 

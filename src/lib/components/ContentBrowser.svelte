@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Search Modrinth / CurseForge for mods, resource packs or shaders that fit
   // one instance, and install into it.
   import { Search, Download, Heart, Check, LoaderCircle, SearchX, KeyRound, ExternalLink, SlidersHorizontal } from '@lucide/svelte';
@@ -115,39 +116,39 @@
 <div class="browser">
   <div class="bar">
     <div class="seg">
-      <button class:active={source === 'modrinth'} onclick={() => (source = 'modrinth')}><SourceLogo source="modrinth" size={20} /> Modrinth</button>
-      <button class:active={source === 'curseforge'} onclick={() => (source = 'curseforge')}><SourceLogo source="curseforge" size={20} /> CurseForge</button>
+      <button class:active={source === 'modrinth'} onclick={() => (source = 'modrinth')}><SourceLogo source="modrinth" size={20} /> {t('Modrinth')}</button>
+      <button class:active={source === 'curseforge'} onclick={() => (source = 'curseforge')}><SourceLogo source="curseforge" size={20} /> {t('CurseForge')}</button>
     </div>
     <div class="search">
       <Search size={15} />
-      <input bind:value={query} placeholder="Search {label.label.toLowerCase()} for {inst.gameVersion}{kind === 'mod' ? ` ${loaderLabel(inst.loader)}` : ''}…" />
+      <input bind:value={query} placeholder={t('Search {label} for {gameVersion}{x}…', { label: t(label.label.toLowerCase()), gameVersion: inst.gameVersion, x: kind === 'mod' ? ` ${loaderLabel(inst.loader)}` : '' })} />
       {#if loading}<LoaderCircle size={15} class="spin" />{/if}
     </div>
     {#if kind === 'mod'}
       <Select
         bind:value={side}
         disabled={!sideFilters}
-        title={sideFilters ? 'Where the mod runs' : "CurseForge doesn't say which side mods run on"}
-        ariaLabel="Runs on"
+        title={sideFilters ? t('Where the mod runs') : t('CurseForge doesn\'t say which side mods run on')}
+        ariaLabel={t('Runs on')}
         style="flex: 0 0 auto; width: auto; min-width: 150px;"
         options={[
-          { value: 'any', label: 'Any side' },
-          { value: 'client', label: 'Client only' },
-          { value: 'server', label: 'Server only' },
-          { value: 'both', label: 'Client and server' }
+          { value: 'any', label: t('Any side') },
+          { value: 'client', label: t('Client only') },
+          { value: 'server', label: t('Server only') },
+          { value: 'both', label: t('Client and server') }
         ]}
       />
     {/if}
     <Select
       bind:value={sort}
-      ariaLabel="Sort"
+      ariaLabel={t('Sort')}
       style="flex: 0 0 auto; width: auto; min-width: 150px;"
       options={[
-        { value: 'relevance', label: 'Relevance' },
-        { value: 'downloads', label: 'Most downloaded' },
-        { value: 'follows', label: 'Most followed' },
-        { value: 'updated', label: 'Recently updated' },
-        { value: 'newest', label: 'Newest' }
+        { value: 'relevance', label: t('Relevance') },
+        { value: 'downloads', label: t('Most downloaded') },
+        { value: 'follows', label: t('Most followed') },
+        { value: 'updated', label: t('Recently updated') },
+        { value: 'newest', label: t('Newest') }
       ]}
     />
   </div>
@@ -155,51 +156,51 @@
   {#if needsKey}
     <div class="empty glass">
       <KeyRound size={28} />
-      <h3>CurseForge needs an API key</h3>
-      <p>Get a free key at console.curseforge.com and paste it into Settings → Integrations.</p>
+      <h3>{t('CurseForge needs an API key')}</h3>
+      <p>{t('Get a free key at console.curseforge.com and paste it into Settings → Integrations.')}</p>
       <div class="actions">
-        <button class="btn" onclick={() => api.openUrl('https://console.curseforge.com/')}><ExternalLink size={15} /> Get a key</button>
-        <button class="btn primary" onclick={() => go('settings')}>Open Settings</button>
+        <button class="btn" onclick={() => api.openUrl('https://console.curseforge.com/')}><ExternalLink size={15} /> {t('Get a key')}</button>
+        <button class="btn primary" onclick={() => go('settings')}>{t('Open Settings')}</button>
       </div>
     </div>
   {:else if error}
     <div class="empty glass">
       <SearchX size={28} />
-      <h3>Can't show {label.label.toLowerCase()}</h3>
+      <h3>{t('Can\'t show {label}', { label: t(label.label.toLowerCase()) })}</h3>
       <p>{error}</p>
       {#if inst.loader === 'vanilla' && kind === 'mod'}
-        <button class="btn primary" onclick={() => go('instance', inst.id, 'settings')}><SlidersHorizontal size={15} /> Add a mod loader</button>
+        <button class="btn primary" onclick={() => go('instance', inst.id, 'settings')}><SlidersHorizontal size={15} /> {t('Add a mod loader')}</button>
       {/if}
     </div>
   {:else}
     <div class="list">
       {#each hits as hit (hit.project_id)}
         <div class="row glass">
-          <button class="open" aria-label="Details for {hit.title}" onclick={() => (open = hit.project_id)}></button>
+          <button class="open" aria-label={t('Details for {title}', { title: hit.title })} onclick={() => (open = hit.project_id)}></button>
           <ProjectIcon url={hit.icon_url} title={hit.title} size={48} />
           <div class="info">
-            <div class="title-line"><b>{hit.title}</b><span class="by">by {hit.author}</span></div>
+            <div class="title-line"><b>{hit.title}</b><span class="by">{t('by {author}', { author: hit.author })}</span></div>
             <p>{hit.description}</p>
             <div class="tags">
               <span class="stat"><Download size={12} /> {compact(hit.downloads)}</span>
               <span class="stat"><Heart size={12} /> {compact(hit.follows)}</span>
-              <span class="stat">Updated {ago(hit.date_modified).toLowerCase()}</span>
+              <span class="stat">{t('Updated {ago}', { ago: ago(hit.date_modified).toLowerCase() })}</span>
               {#if kind === 'mod' && sideLabel(hit)}<span class="side">{sideLabel(hit)}</span>{/if}
             </div>
           </div>
           <div class="action">
             {#if isInstalled(hit)}
-              <span class="installed"><Check size={15} /> Installed</span>
+              <span class="installed"><Check size={15} /> {t('Installed')}</span>
             {:else}
               <button class="btn primary" disabled={installing.has(hit.project_id)} onclick={() => install(hit)}>
-                {#if installing.has(hit.project_id)}<LoaderCircle size={15} class="spin" />{:else}<Download size={15} />{/if} Install
+                {#if installing.has(hit.project_id)}<LoaderCircle size={15} class="spin" />{:else}<Download size={15} />{/if} {t('Install')}
               </button>
             {/if}
           </div>
         </div>
       {:else}
         {#if !loading}
-          <div class="empty glass"><SearchX size={28} /><h3>No results</h3><p>Try a different search.</p></div>
+          <div class="empty glass"><SearchX size={28} /><h3>{t('No results')}</h3><p>{t('Try a different search.')}</p></div>
         {/if}
       {/each}
       <div bind:this={sentinel} class="sentinel">{#if loading && hits.length}<LoaderCircle size={18} class="spin" />{/if}</div>

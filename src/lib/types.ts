@@ -468,6 +468,10 @@ export interface Settings {
   appimageMenuDismissed: boolean;
   /** Tell the player when an installed modpack has a new version. */
   modpackUpdateCheck: boolean;
+  /** Language code for Peak's own text ("de", "pt-BR"); empty follows the computer. */
+  language: string;
+  /** Hide usernames, server addresses and folder paths while streaming. */
+  streamerMode: boolean;
   /** Show what the player is doing on their Discord profile. */
   discordPresence: boolean;
   /** Join button on the Discord status for any server, not only listed ones. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { onMount } from 'svelte';
   import Select from './Select.svelte';
   import { Download, Heart, Check, LoaderCircle, ExternalLink, Code, Bug, BookOpen, Trash2 } from '@lucide/svelte';
@@ -81,7 +82,7 @@
       const k = kind;
       const item = (await api.contentList(instanceId, k)).find((i) => i.projectId === projectId);
       if (!item) {
-        toast("It's no longer installed in this instance.", 'info');
+        toast(t('It\'s no longer installed in this instance.'), 'info');
         oninstalled();
         onclose();
         return;
@@ -99,7 +100,7 @@
       }
       await api.contentRemove(instanceId, k, item.fileName);
       for (const l of alsoRemove) await api.contentRemove(instanceId, k, l.fileName);
-      toast(alsoRemove.length ? `Removed ${item.title} and ${alsoRemove.length} more` : `Removed ${item.title}`);
+      toast(alsoRemove.length ? t('Removed {title} and {length} more', { title: item.title, length: alsoRemove.length }) : t('Removed {title}', { title: item.title }));
       oninstalled();
       onclose();
     } catch (e) {
@@ -119,14 +120,14 @@
           project.id.startsWith('cf:')
             ? ['CurseForge', project.website_url, ExternalLink]
             : project.id.startsWith('ftb:')
-              ? ['Feed The Beast', project.website_url, ExternalLink]
+              ? [t('Feed The Beast'), project.website_url, ExternalLink]
               : ['Modrinth', `https://modrinth.com/${project.project_type}/${project.slug}`, ExternalLink]
         ].filter(([, url]) => !!url) as [string, string, typeof Code][])
       : []
   );
 </script>
 
-<Modal title={project?.title ?? 'Loading…'} subtitle={project?.description ?? ''} width={760} {onclose}>
+<Modal title={project?.title ?? t('Loading…')} subtitle={project?.description ?? ''} width={760} {onclose}>
   {#if !project}
     <div class="loading"><LoaderCircle size={22} class="spin" /></div>
   {:else}
@@ -134,9 +135,9 @@
       <div class="top">
         <ProjectIcon url={project.icon_url} title={project.title} size={64} />
         <div class="stats">
-          <span><Download size={14} /> {compact(project.downloads)} downloads</span>
-          <span><Heart size={14} /> {compact(project.followers)} followers</span>
-          {#if project.updated}<span>Updated {ago(project.updated).toLowerCase()}</span>{/if}
+          <span><Download size={14} /> {t('{compact} downloads', { compact: compact(project.downloads) })}</span>
+          <span><Heart size={14} /> {t('{compact} followers', { compact: compact(project.followers) })}</span>
+          {#if project.updated}<span>{t('Updated {ago}', { ago: ago(project.updated).toLowerCase() })}</span>{/if}
           <div class="cats">
             {#each project.categories.slice(0, 5) as c (c)}<span class="chip">{c}</span>{/each}
           </div>
@@ -145,19 +146,19 @@
           {#if versions.length}
             <Select
               bind:value={() => versionId, (v) => (versionId = v ?? '')}
-              ariaLabel="Version"
+              ariaLabel={t('Version')}
               options={versions.map((v) => ({ value: v.id, label: v.version_number, hint: v.version_type !== 'release' ? v.version_type : undefined }))}
             />
             <button class="btn primary" disabled={installing || removing || !versionId} onclick={install}>
-              {#if installing}<LoaderCircle size={16} class="spin" /> Installing{:else if kind === 'modpack'}<Download size={16} /> Install as new instance{:else if installed}<Check size={16} /> Reinstall{:else}<Download size={16} /> Install{/if}
+              {#if installing}<LoaderCircle size={16} class="spin" /> {t('Installing')}{:else if kind === 'modpack'}<Download size={16} /> {t('Install as new instance')}{:else if installed}<Check size={16} /> {t('Reinstall')}{:else}<Download size={16} /> {t('Install')}{/if}
             </button>
             {#if installed && kind !== 'modpack'}
               <button class="btn remove" class:confirm={confirmRemove} disabled={installing || removing} onclick={remove}>
-                {#if removing}<LoaderCircle size={15} class="spin" /> Removing…{:else}<Trash2 size={15} /> {confirmRemove ? 'Click again to remove' : 'Remove'}{/if}
+                {#if removing}<LoaderCircle size={15} class="spin" /> {t('Removing…')}{:else}<Trash2 size={15} /> {confirmRemove ? t('Click again to remove') : t('Remove')}{/if}
               </button>
             {/if}
           {:else}
-            <span class="none">{kind === 'modpack' ? 'This modpack has no versions' : "No version for this instance's game version and loader"}</span>
+            <span class="none">{kind === 'modpack' ? t('This modpack has no versions') : t('No version for this instance\'s game version and loader')}</span>
           {/if}
         </div>
       </div>
@@ -184,7 +185,7 @@
 </Modal>
 
 {#if image}
-  <button class="lightbox" onclick={() => (image = null)} aria-label="Close image"><img src={image} alt="" /></button>
+  <button class="lightbox" onclick={() => (image = null)} aria-label={t('Close image')}><img src={image} alt="" /></button>
 {/if}
 
 {#if linkPrompt}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   // "Download this pack yourself": open its CurseForge page, then Peak
   // spots the zip in Downloads and installs it.
   import { ExternalLink, FolderOpen, LoaderCircle, CheckCircle2, CircleAlert } from '@lucide/svelte';
@@ -62,33 +63,32 @@
     }
   }
 
-  const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 100 * 1024 * 1024 ? 0 : 1)} MB`;
+  const mb = (n: number) => t('{x} MB', { x: (n / 1024 / 1024).toFixed(n > 100 * 1024 * 1024 ? 0 : 1) });
 </script>
 
 {#if cur}
-  <Modal title="Download {cur.info.name} from CurseForge" subtitle={cur.info.version} width={520} onclose={() => !installing && (manualPack.current = null)}>
+  <Modal title={t('Download {name} from CurseForge', { name: cur.info.name })} subtitle={cur.info.version} width={520} onclose={() => !installing && (manualPack.current = null)}>
     <div class="body">
       {#if cur.info.iconUrl}<img src={cur.info.iconUrl} alt="" />{/if}
       <p>
-        The pack's author doesn't allow launchers to download it, so download it from CurseForge yourself. Keep this
-        open: as soon as <b>{cur.info.fileName}</b> ({mb(cur.info.size)}) is in your Downloads folder, Peak installs it.
+        {@html th("The pack's author doesn't allow launchers to download it, so download it from CurseForge yourself. Keep this open: as soon as <b>{file}</b> ({mb}) is in your Downloads folder, Peak installs it.", { file: cur.info.fileName, mb: mb(cur.info.size) })}
       </p>
     </div>
     <div class="status">
       {#if installing}
-        <CheckCircle2 size={16} /> Found it. Installing…
+        <CheckCircle2 size={16} /> {t('Found it. Installing…')}
       {:else if failed}
-        <CircleAlert size={16} /> That file didn't install. Download it again, or pick the file yourself.
+        <CircleAlert size={16} /> {t('That file didn\'t install. Download it again, or pick the file yourself.')}
       {:else if opened}
-        <LoaderCircle size={16} class="spin" /> Waiting for the download to finish…
+        <LoaderCircle size={16} class="spin" /> {t('Waiting for the download to finish…')}
       {:else}
-        <LoaderCircle size={16} class="spin" /> Watching your Downloads folder…
+        <LoaderCircle size={16} class="spin" /> {t('Watching your Downloads folder…')}
       {/if}
     </div>
     <footer>
-      <button class="btn ghost" onclick={() => (manualPack.current = null)} disabled={installing}>Cancel</button>
-      <button class="btn" onclick={pick} disabled={installing}><FolderOpen size={15} /> I already have the file</button>
-      <button class="btn primary" onclick={download} disabled={installing}><ExternalLink size={15} /> Download from CurseForge</button>
+      <button class="btn ghost" onclick={() => (manualPack.current = null)} disabled={installing}>{t('Cancel')}</button>
+      <button class="btn" onclick={pick} disabled={installing}><FolderOpen size={15} /> {t('I already have the file')}</button>
+      <button class="btn primary" onclick={download} disabled={installing}><ExternalLink size={15} /> {t('Download from CurseForge')}</button>
     </footer>
   </Modal>
 {/if}
@@ -111,7 +111,7 @@
     line-height: 1.6;
     color: var(--muted);
   }
-  b {
+  p :global(b) {
     color: var(--text);
     word-break: break-all;
   }

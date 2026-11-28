@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Plus, Search, Layers, Package, FileUp, FolderInput, ChevronDown } from '@lucide/svelte';
   import InstanceCard from '$lib/components/InstanceCard.svelte';
   import { app, browseFor, importModpack } from '$lib/state.svelte';
@@ -50,23 +51,23 @@
 <div class="library">
   <header>
     <div>
-      <h1>Library</h1>
-      <p>{app.instances.length} instance{app.instances.length === 1 ? '' : 's'}</p>
+      <h1>{t('Library')}</h1>
+      <p>{(app.instances.length === 1 ? t('{length} instance', { length: app.instances.length }) : t('{length} instances', { length: app.instances.length }))}</p>
     </div>
     <div class="tools">
       <div class="search glass">
         <Search size={15} />
-        <input bind:value={query} placeholder="Search instances" />
+        <input bind:value={query} placeholder={t('Search instances')} />
       </div>
       <div class="seg glass">
-        <button class:active={sort === 'recent'} onclick={() => (sort = 'recent')}>Recent</button>
-        <button class:active={sort === 'name'} onclick={() => (sort = 'name')}>Name</button>
-        <button class:active={sort === 'version'} onclick={() => (sort = 'version')}>Version</button>
+        <button class:active={sort === 'recent'} onclick={() => (sort = 'recent')}>{t('Recent')}</button>
+        <button class:active={sort === 'name'} onclick={() => (sort = 'name')}>{t('Name')}</button>
+        <button class:active={sort === 'version'} onclick={() => (sort = 'version')}>{t('Version')}</button>
       </div>
-      <button class="btn icon" title="Import a modpack file (.mrpack or CurseForge .zip)" aria-label="Import modpack file" onclick={importModpack}><FileUp size={16} /></button>
-      <button class="btn" onclick={() => (app.importing = true)}><FolderInput size={16} /> Import</button>
-      <button class="btn" onclick={() => browseFor(null, 'modpack')}><Package size={16} /> Modpacks</button>
-      <button class="btn primary" onclick={() => (app.creating = true)}><Plus size={17} /> New instance</button>
+      <button class="btn icon" title="Import a modpack file (.mrpack or CurseForge .zip)" aria-label={t('Import modpack file')} onclick={importModpack}><FileUp size={16} /></button>
+      <button class="btn" onclick={() => (app.importing = true)}><FolderInput size={16} /> {t('Import')}</button>
+      <button class="btn" onclick={() => browseFor(null, 'modpack')}><Package size={16} /> {t('Modpacks')}</button>
+      <button class="btn primary" onclick={() => (app.creating = true)}><Plus size={17} /> {t('New instance')}</button>
     </div>
   </header>
 
@@ -76,7 +77,7 @@
         {#if sec.name}
           <button class="heading" aria-expanded={isOpen(sec.name)} onclick={() => toggle(sec.name!)}>
             <span class="chev" class:shut={!isOpen(sec.name)}><ChevronDown size={16} /></span>
-            <span class="title">{sec.name}</span>
+            <span class="title">{sec.name === 'Not in a group' ? t('Not in a group') : sec.name}</span>
             <span class="count">{sec.items.length}</span>
           </button>
         {/if}
@@ -92,8 +93,8 @@
   {:else}
     <div class="empty glass">
       <Layers size={30} />
-      <h3>{query ? 'No matches' : 'No instances yet'}</h3>
-      <p>{query ? 'Try a different search.' : 'Create one to get started.'}</p>
+      <h3>{query ? t('No matches') : t('No instances yet')}</h3>
+      <p>{query ? t('Try a different search.') : t('Create one to get started.')}</p>
     </div>
   {/if}
 </div>

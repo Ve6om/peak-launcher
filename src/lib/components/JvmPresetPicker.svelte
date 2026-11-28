@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Pick a Java flag preset. Each card says what it's for; the exact flags
   // are one click away for anyone curious.
   import { Check } from '@lucide/svelte';
@@ -12,7 +13,7 @@
 </script>
 
 <div class="picker" class:disabled>
-  <div class="grid" role="radiogroup" aria-label="Java flag preset">
+  <div class="grid" role="radiogroup" aria-label={t('Java flag preset')}>
     {#each presets as p (p.id)}
       <button
         class="preset"
@@ -28,7 +29,7 @@
     {/each}
   </div>
   {#if current?.flags}
-    <button class="toggle" onclick={() => (showFlags = !showFlags)}>{showFlags ? 'Hide' : 'Show'} the flags</button>
+    <button class="toggle" onclick={() => (showFlags = !showFlags)}>{showFlags ? t('Hide the flags') : t('Show the flags')}</button>
     {#if showFlags}<code class="flags">{current.flags}</code>{/if}
   {/if}
 </div>

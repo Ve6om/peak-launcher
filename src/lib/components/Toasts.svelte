@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { fly } from 'svelte/transition';
   import { CircleCheck, CircleAlert, Info, Angry } from '@lucide/svelte';
   import { app } from '$lib/state.svelte';
@@ -6,12 +7,12 @@
 </script>
 
 <div class="toasts">
-  {#each app.toasts as t (t.id)}
-    <div class="toast glass {t.kind}" transition:fly={{ y: 16, duration: 250 }}>
-      {#if t.kind === 'success'}<CircleCheck size={17} />{:else if t.kind === 'error'}<CircleAlert size={17} />{:else}<Info size={17} />{/if}
-      <span>{t.text}</span>
-      {#if t.rage}
-        <button class="rage" title="Let it out: shake Peak for five seconds" onclick={rage}><Angry size={14} /> Rage</button>
+  {#each app.toasts as item (item.id)}
+    <div class="toast glass {item.kind}" transition:fly={{ y: 16, duration: 250 }}>
+      {#if item.kind === 'success'}<CircleCheck size={17} />{:else if item.kind === 'error'}<CircleAlert size={17} />{:else}<Info size={17} />{/if}
+      <span>{item.text}</span>
+      {#if item.rage}
+        <button class="rage" title={t('Let it out: shake Peak for five seconds')} onclick={rage}><Angry size={14} /> {t('Rage')}</button>
       {/if}
     </div>
   {/each}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   import { Play, Square, LoaderCircle } from '@lucide/svelte';
   import { app, play, stop, isRunning, isBusy } from '$lib/state.svelte';
   import type { Instance } from '$lib/types';
@@ -10,15 +11,15 @@
 
 {#if running}
   <button class="btn {size} stop" onclick={() => stop(inst)}>
-    <Square size={15} fill="currentColor" /> Stop
+    <Square size={15} fill="currentColor" /> {t('Stop')}
   </button>
 {:else if busy}
   <button class="btn primary {size}" disabled>
-    <LoaderCircle size={17} class="spin" /> {app.progress[inst.id]?.stage === 'Downloading Java' ? 'Getting Java' : 'Installing'}
+    <LoaderCircle size={17} class="spin" /> {app.progress[inst.id]?.stage === 'Downloading Java' ? t('Getting Java') : t('Installing')}
   </button>
 {:else}
   <button class="btn primary {size}" onclick={() => play(inst)}>
-    <Play size={16} fill="currentColor" /> Play
+    <Play size={16} fill="currentColor" /> {t('Play')}
   </button>
 {/if}
 

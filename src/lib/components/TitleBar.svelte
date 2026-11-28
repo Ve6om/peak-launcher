@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { Minus, Square, X, Gamepad2 } from '@lucide/svelte';
+  import { t } from '$lib/i18n.svelte';
+  import { Minus, Square, X, Gamepad2, EyeOff } from '@lucide/svelte';
   import { scale } from 'svelte/transition';
   import { isTauri } from '$lib/api';
   import { app, go, stop, requestClose } from '$lib/state.svelte';
   import Logo from './Logo.svelte';
+  import { streaming, setStreamerMode } from '$lib/privacy.svelte';
 
   async function win() {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -21,13 +23,27 @@
     if (!running.length) open = false;
   });
 
+  // Lets the page blur private fields (see .private in app.css).
+  $effect(() => {
+    document.documentElement.classList.toggle('streaming', streaming());
+  });
+
+  // Ctrl+Shift+S turns streamer mode on or off from anywhere.
+  function keys(e: KeyboardEvent) {
+    if (e.key === 'Escape') open = false;
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's' && app.settings) {
+      e.preventDefault();
+      setStreamerMode(!streaming());
+    }
+  }
+
   async function stopAll() {
     for (const inst of running) await stop(inst);
     open = false;
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && (open = false)} />
+<svelte:window onkeydown={keys} />
 
 <header class="titlebar" data-tauri-drag-region>
   <div class="brand" data-tauri-drag-region>
@@ -40,25 +56,30 @@
   </div>
 
   <div class="right">
+    {#if streaming()}
+      <button class="streamer" onclick={() => setStreamerMode(false)} title={t('Names, server addresses and folder paths are hidden. Click to turn off (Ctrl+Shift+S).')}>
+        <EyeOff size={13} /> {t('Streamer mode')}
+      </button>
+    {/if}
     {#if running.length}
       <div class="games">
-        <button class="playing" class:on={open} onclick={() => (open = !open)} title="Running games">
+        <button class="playing" class:on={open} onclick={() => (open = !open)} title={t('Running games')}>
           <span class="dot"></span>
-          {running.length === 1 ? 'Playing' : `${running.length} playing`}
+          {running.length === 1 ? t('Playing') : t('{length} playing', { length: running.length })}
         </button>
         {#if open}
-          <button class="catch" aria-label="Close menu" onclick={() => (open = false)}></button>
+          <button class="catch" aria-label={t('Close menu')} onclick={() => (open = false)}></button>
           <div class="menu glass" transition:scale={{ start: 0.96, duration: 120 }}>
-            <span class="label">Running</span>
+            <span class="label">{t('Running')}</span>
             {#each running as inst (inst.id)}
               <div class="game">
                 <Gamepad2 size={15} />
                 <button class="name" onclick={() => { open = false; go('instance', inst.id, 'console'); }}>{inst.name}</button>
-                <button class="btn stop" onclick={() => stop(inst)}><Square size={11} fill="currentColor" /> Stop</button>
+                <button class="btn stop" onclick={() => stop(inst)}><Square size={11} fill="currentColor" /> {t('Stop')}</button>
               </div>
             {/each}
             {#if running.length > 1}
-              <button class="btn stop all" onclick={stopAll}>Stop all</button>
+              <button class="btn stop all" onclick={stopAll}>{t('Stop all')}</button>
             {/if}
           </div>
         {/if}
@@ -66,9 +87,9 @@
     {/if}
 
     <div class="controls">
-      <button aria-label="Minimize" onclick={minimize}><Minus size={15} /></button>
-      <button aria-label="Maximize" onclick={maximize}><Square size={12} /></button>
-      <button aria-label="Close" class="close" onclick={requestClose}><X size={16} /></button>
+      <button aria-label={t('Minimize')} onclick={minimize}><Minus size={15} /></button>
+      <button aria-label={t('Maximize')} onclick={maximize}><Square size={12} /></button>
+      <button aria-label={t('Close')} class="close" onclick={requestClose}><X size={16} /></button>
     </div>
   </div>
 </header>
@@ -109,6 +130,22 @@
   }
   .games {
     position: relative;
+  }
+  .streamer {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ddd6fe;
+    background: rgba(139, 92, 246, 0.14);
+    border: 1px solid rgba(167, 139, 250, 0.32);
+  }
+  .streamer:hover {
+    background: rgba(139, 92, 246, 0.24);
   }
   .playing {
     display: inline-flex;

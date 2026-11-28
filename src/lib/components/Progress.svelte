@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { InstallProgress } from '$lib/types';
+  import { t } from '$lib/i18n.svelte';
   let { p }: { p: InstallProgress } = $props();
   const pct = $derived(p.total ? Math.round((p.done / p.total) * 100) : 0);
 </script>
 
 <div class="progress">
   <div class="row">
-    <span>{p.stage}</span>
+    <span>{t(p.stage)}</span>
     <span class="num">{p.total ? `${p.done.toLocaleString()} / ${p.total.toLocaleString()}` : ''}</span>
   </div>
   <div class="track" class:indeterminate={!p.total}>

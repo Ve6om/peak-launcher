@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   // A modpack instance's pack version: switch to any other version (newer or
   // older) in place, and choose whether Peak mentions updates to this pack.
   import { onMount, untrack } from 'svelte';
@@ -82,7 +83,7 @@
       packUpdates.list = packUpdates.list.filter((u) => u.instanceId !== inst.id);
       await refreshInstances();
       onchanged(app.instances.find((i) => i.id === inst.id) ?? changed);
-      toast(`Switching ${pack.name} to ${choice.version_number}. Your old mods folder was backed up.`, 'success');
+      toast(t('Switching {name} to {version_number}. Your old mods folder was backed up.', { name: pack.name, version_number: choice.version_number }), 'success');
     } catch (e) {
       toast(errorText(e), 'error');
     } finally {
@@ -102,36 +103,36 @@
 </script>
 
 <section class:panel={!plain} class:glass={!plain}>
-  {#if !plain}<h3><Package size={16} /> Modpack</h3>{/if}
+  {#if !plain}<h3><Package size={16} /> {t('Modpack')}</h3>{/if}
   <div class="rows">
-    <Row title={pack.name} desc="Installed version: {packVersion(pack) || pack.versionNumber || 'unknown'}">
+    <Row title={pack.name} desc={t('Installed version: {x}', { x: packVersion(pack) || pack.versionNumber || t('unknown') })}>
       {#if pack.previousVersionId && pack.previousVersionId !== pack.versionId && !update}
-        <button class="btn" onclick={() => ((selected = pack.previousVersionId!), change())} disabled={busy || running || installing} title="Put the pack back to the version you had before">
-          <Undo2 size={15} /> {confirming && selected === pack.previousVersionId ? 'Click again to go back' : `Go back to ${pack.previousVersionNumber || 'the previous version'}`}
+        <button class="btn" onclick={() => ((selected = pack.previousVersionId!), change())} disabled={busy || running || installing} title={t('Put the pack back to the version you had before')}>
+          <Undo2 size={15} /> {confirming && selected === pack.previousVersionId ? t('Click again to go back') : t('Go back to {x}', { x: pack.previousVersionNumber || t('the previous version') })}
         </button>
       {/if}
       {#if update}
         <button class="btn primary" onclick={() => ((selected = update.latestId), change())} disabled={busy || running || installing}>
-          <ArrowUpCircle size={15} /> {confirming && selected === update.latestId ? 'Click again to update' : `Update to ${update.latest}`}
+          <ArrowUpCircle size={15} /> {confirming && selected === update.latestId ? t('Click again to update') : t('Update to {latest}', { latest: update.latest })}
         </button>
       {/if}
     </Row>
 
     {#if !pack.projectId}
-      <p class="hint">This pack was installed from a file, so Peak can't fetch its other versions.</p>
+      <p class="hint">{t('This pack was installed from a file, so Peak can\'t fetch its other versions.')}</p>
     {:else}
-      <Row title="Version" desc="Switch to any version of this pack, newer or older, without making a new instance">
+      <Row title={t('Version')} desc={t('Switch to any version of this pack, newer or older, without making a new instance')}>
         <div class="pick">
           {#if loading}
-            <span class="hint"><LoaderCircle size={14} class="spin" /> Loading versions…</span>
+            <span class="hint"><LoaderCircle size={14} class="spin" /> {t('Loading versions…')}</span>
           {:else if loadError}
             <span class="hint warn">{loadError}</span>
-            <button class="btn ghost icon" title="Try again" aria-label="Try again" onclick={load}><RefreshCw size={14} /></button>
+            <button class="btn ghost icon" title={t('Try again')} aria-label={t('Try again')} onclick={load}><RefreshCw size={14} /></button>
           {:else}
             <Select
               bind:value={() => selected, (v) => v && (selected = v)}
               onchange={() => (confirming = false)}
-              ariaLabel="Modpack version"
+              ariaLabel={t('Modpack version')}
               style="min-width: 0; flex: 1;"
               options={versions.map((v) => ({ value: v.id, label: label(v) }))}
             />
@@ -142,24 +143,23 @@
               disabled={!choice || choice.id === current || busy || running || installing}
             >
               {#if busy}<LoaderCircle size={15} class="spin" />{/if}
-              {confirming ? 'Click again to switch' : older ? 'Switch to older version' : 'Switch version'}
+              {confirming ? t('Click again to switch') : older ? t('Switch to older version') : t('Switch version')}
             </button>
           {/if}
         </div>
       </Row>
       {#if confirming}
         <p class="note">
-          Your worlds, settings and screenshots stay. The current mods folder is moved to a backup in this instance's
-          <code>backups</code> folder first, so any mods you added yourself aren't lost; add them back after the switch.
-          {#if older} Going back can break worlds that were opened in a newer version, so back those up first.{/if}
+          {@html th("Your worlds, settings and screenshots stay. The current mods folder is moved to a backup in this instance's <code>backups</code> folder first, so any mods you added yourself aren't lost; add them back after the switch.")}
+          {#if older} {t('Going back can break worlds that were opened in a newer version, so back those up first.')}{/if}
         </p>
       {/if}
-      {#if running}<p class="hint">Close the game to change the version.</p>{/if}
+      {#if running}<p class="hint">{t('Close the game to change the version.')}</p>{/if}
 
-      <Row title="Update reminders" desc="Ask me when a new version of this pack comes out">
+      <Row title={t('Update reminders')} desc={t('Ask me when a new version of this pack comes out')}>
         <!-- The switch's input fires change before it bubbles here, so `prompts` is already updated. -->
         <div class="switch-wrap" onchange={() => setPrompts(prompts)}>
-          <Switch bind:checked={prompts} label="Update reminders" />
+          <Switch bind:checked={prompts} label={t('Update reminders')} />
         </div>
       </Row>
     {/if}
@@ -202,7 +202,7 @@
     background: color-mix(in srgb, var(--accent) 7%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   }
-  code {
+  .note :global(code) {
     font-size: 11.5px;
     padding: 1px 5px;
     border-radius: 5px;

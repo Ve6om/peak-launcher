@@ -392,6 +392,8 @@ const mock = (() => {
     autoUpdateCheck: true,
     appimageMenuDismissed: false,
     modpackUpdateCheck: true,
+    language: '',
+    streamerMode: false,
     discordPresence: true,
     discordJoinAnyServer: false,
     lightEffects: false,

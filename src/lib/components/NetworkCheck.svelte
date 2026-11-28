@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // "Check my connection": which of the services Peak needs can be reached.
   import { Wifi, LoaderCircle, CircleCheck, CircleX } from '@lucide/svelte';
   import { api } from '$lib/api';
@@ -25,20 +26,22 @@
 <div class="check">
   <div class="top">
     <div>
-      <b>Check my connection</b>
-      <span>See whether Peak can reach Mojang, Microsoft sign-in, Modrinth, CurseForge and the mod loaders. Useful when downloads or signing in fail.</span>
+      <b>{t('Check my connection')}</b>
+      <span>{t('See whether Peak can reach Mojang, Microsoft sign-in, Modrinth, CurseForge and the mod loaders. Useful when downloads or signing in fail.')}</span>
     </div>
     <button class="btn" disabled={running} onclick={run}>
-      {#if running}<LoaderCircle size={14} class="spin" /> Checking…{:else}<Wifi size={14} /> {results ? 'Check again' : 'Check'}{/if}
+      {#if running}<LoaderCircle size={14} class="spin" /> {t('Checking…')}{:else}<Wifi size={14} /> {results ? t('Check again') : t('Check')}{/if}
     </button>
   </div>
 
   {#if results}
     <p class="summary" class:bad={failed.length}>
       {#if !failed.length}
-        Everything answered. If something still won't download, the service itself may be having trouble.
+        {t('Everything answered. If something still won\'t download, the service itself may be having trouble.')}
       {:else}
-        {failed.length} service{failed.length === 1 ? '' : 's'} couldn't be reached. A firewall, antivirus, school or work network, or DNS filter may be blocking {failed.length === 1 ? 'it' : 'them'}{failed.length === results.length ? ', or you may be offline' : ''}. A proxy (above) can help.
+        {failed.length === 1
+          ? t("1 service couldn't be reached. A firewall, antivirus, school or work network, or DNS filter may be blocking it. A proxy (above) can help.")
+          : t("{length} services couldn't be reached. A firewall, antivirus, school or work network, or DNS filter may be blocking them. A proxy (above) can help.", { length: failed.length })}{failed.length === results.length ? ` ${t('You may also be offline.')}` : ''}
       {/if}
     </p>
     <div class="list">
@@ -47,7 +50,7 @@
           {#if r.ok}<CircleCheck size={15} />{:else}<CircleX size={15} />{/if}
           <span class="name">{r.name}<em>{r.usedFor}</em></span>
           <span class="host">{r.host}</span>
-          <span class="res">{r.ok ? `${r.ms} ms` : r.error}</span>
+          <span class="res">{r.ok ? t('{ms} ms', { ms: r.ms }) : r.error}</span>
         </div>
       {/each}
     </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // Right-click menu for an instance (cards, sidebar, hero).
   import { tick } from 'svelte';
   import { scale } from 'svelte/transition';
@@ -68,28 +69,28 @@
   >
     <div class="title">{inst.name}</div>
     {#if running}
-      <button role="menuitem" onclick={run((i) => stop(i))}><Square size={15} /> Stop</button>
+      <button role="menuitem" onclick={run((i) => stop(i))}><Square size={15} /> {t('Stop')}</button>
     {:else}
-      <button role="menuitem" class="accent" disabled={busy} onclick={run((i) => play(i))}><Play size={15} /> Play</button>
+      <button role="menuitem" class="accent" disabled={busy} onclick={run((i) => play(i))}><Play size={15} /> {t('Play')}</button>
     {/if}
-    <button role="menuitem" onclick={run((i) => go('instance', i.id))}><ExternalLink size={15} /> Open</button>
-    <button role="menuitem" onclick={run((i) => go('instance', i.id, 'settings'))}><SlidersHorizontal size={15} /> Edit settings</button>
-    <button role="menuitem" onclick={run((i) => (app.optimizing = i))}><Sparkles size={15} /> Optimize…</button>
+    <button role="menuitem" onclick={run((i) => go('instance', i.id))}><ExternalLink size={15} /> {t('Open')}</button>
+    <button role="menuitem" onclick={run((i) => go('instance', i.id, 'settings'))}><SlidersHorizontal size={15} /> {t('Edit settings')}</button>
+    <button role="menuitem" onclick={run((i) => (app.optimizing = i))}><Sparkles size={15} /> {t('Optimize…')}</button>
     {#if inst.pack?.projectId}
       <button role="menuitem" disabled={busy || running} onclick={run((i) => (app.packVersionFor = i))}>
-        <ArrowDownUp size={15} /> {hasUpdate ? 'Update modpack…' : 'Change modpack version…'}
+        <ArrowDownUp size={15} /> {hasUpdate ? t('Update modpack…') : t('Change modpack version…')}
       </button>
     {/if}
-    <button role="menuitem" onclick={run((i) => api.openFolder(i.id))}><FolderOpen size={15} /> Open folder</button>
+    <button role="menuitem" onclick={run((i) => api.openFolder(i.id))}><FolderOpen size={15} /> {t('Open folder')}</button>
     <div class="sep"></div>
-    <button role="menuitem" onclick={run((i) => duplicateInstance(i))}><Copy size={15} /> Duplicate</button>
-    <button role="menuitem" onclick={run((i) => createShortcut(i))}><MonitorPlay size={15} /> Desktop shortcut</button>
-    <button role="menuitem" onclick={run((i) => (app.grouping = i))}><FolderTree size={15} /> {inst.group ? 'Change group…' : 'Add to group…'}</button>
-    <button role="menuitem" onclick={run((i) => (app.exporting = i))}><PackageOpen size={15} /> Export as modpack…</button>
-    <button role="menuitem" onclick={run((i) => (app.serverPack = i))}><Server size={15} /> Export as server pack…</button>
-    <button role="menuitem" disabled={busy || running} onclick={run((i) => repairInstance(i))}><Wrench size={15} /> Verify & repair</button>
+    <button role="menuitem" onclick={run((i) => duplicateInstance(i))}><Copy size={15} /> {t('Duplicate')}</button>
+    <button role="menuitem" onclick={run((i) => createShortcut(i))}><MonitorPlay size={15} /> {t('Desktop shortcut')}</button>
+    <button role="menuitem" onclick={run((i) => (app.grouping = i))}><FolderTree size={15} /> {inst.group ? t('Change group…') : t('Add to group…')}</button>
+    <button role="menuitem" onclick={run((i) => (app.exporting = i))}><PackageOpen size={15} /> {t('Export as modpack…')}</button>
+    <button role="menuitem" onclick={run((i) => (app.serverPack = i))}><Server size={15} /> {t('Export as server pack…')}</button>
+    <button role="menuitem" disabled={busy || running} onclick={run((i) => repairInstance(i))}><Wrench size={15} /> {t('Verify & repair')}</button>
     <div class="sep"></div>
-    <button role="menuitem" class="danger" disabled={running} onclick={run((i) => (app.deleting = i))}><Trash2 size={15} /> Delete…</button>
+    <button role="menuitem" class="danger" disabled={running} onclick={run((i) => (app.deleting = i))}><Trash2 size={15} /> {t('Delete…')}</button>
   </div>
 {/if}
 

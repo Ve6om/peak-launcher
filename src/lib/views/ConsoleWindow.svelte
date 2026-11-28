@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // An instance's console in its own window. It keeps working on its own:
   // it loads what was already printed, then follows the game's output.
   import { onMount } from 'svelte';
   import ConsolePanel from '$lib/components/ConsolePanel.svelte';
   import { api, on, isTauri } from '$lib/api';
-  import { applyAccent, errorText } from '$lib/state.svelte';
+  import { app, applyAccent, errorText } from '$lib/state.svelte';
   import type { LogLine } from '$lib/types';
 
   let { instanceId }: { instanceId: string } = $props();
@@ -17,13 +18,17 @@
   onMount(() => {
     const stops: Array<() => void> = [];
     (async () => {
-      const [instances, runningIds, history, settings] = await Promise.all([
+      const [instances, runningIds, history, settings, accounts] = await Promise.all([
         api.instances(),
         api.running(),
         api.gameLogs(instanceId),
-        api.settings()
+        api.settings(),
+        api.accounts().catch(() => [])
       ]);
       applyAccent(settings.accent);
+      // Streamer mode hides names and paths in this window too.
+      app.settings = settings;
+      app.accounts = accounts;
       const name = instances.find((i) => i.id === instanceId)?.name ?? 'Instance';
       document.title = `${name} - Console`;
       running = runningIds.includes(instanceId);
@@ -42,8 +47,8 @@
           if (s.instanceId !== instanceId) return;
           running = s.state === 'running';
           if (running) notice = null;
-          else if (s.exitCode && s.exitCode !== 0) notice = { kind: 'error', text: `The game exited with code ${s.exitCode}.` };
-          else notice = { kind: 'info', text: 'The game has stopped.' };
+          else if (s.exitCode && s.exitCode !== 0) notice = { kind: 'error', text: t('The game exited with code {exitCode}.', { exitCode: s.exitCode }) };
+          else notice = { kind: 'info', text: t('The game has stopped.') };
         })
       );
     })().catch((e) => (notice = { kind: 'error', text: errorText(e) }));
@@ -81,7 +86,7 @@
   {#if notice}
     <div class="notice {notice.kind}">
       <span>{notice.text}</span>
-      <button class="btn ghost" onclick={() => (notice = null)}>Dismiss</button>
+      <button class="btn ghost" onclick={() => (notice = null)}>{t('Dismiss')}</button>
     </div>
   {/if}
 </div>

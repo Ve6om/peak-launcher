@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t, th } from '$lib/i18n.svelte';
   // Files a modpack author doesn't allow launchers to download. The user opens
   // each page and downloads it; Peak watches the Downloads folder, moves each
   // file into the instance as it appears and removes it from Downloads.
@@ -15,7 +16,7 @@
   let loading = $state(true);
   const inst = $derived(app.instances.find((i) => i.id === instanceId));
   const remaining = $derived(files.filter((f) => !f.done).length);
-  const where: Record<string, string> = { mods: 'Mods', resourcepacks: 'Resource packs', shaderpacks: 'Shaders', datapacks: 'Data packs' };
+  const where: Record<string, string> = { mods: t('Mods'), resourcepacks: t('Resource packs'), shaderpacks: t('Shaders'), datapacks: t('Data packs') };
 
   async function scan() {
     try {
@@ -45,7 +46,7 @@
   // Everything found: close and celebrate.
   $effect(() => {
     if (!loading && files.length && remaining === 0) {
-      toast(`All files added to ${inst?.name ?? 'the instance'}`, 'success');
+      toast(t('All files added to {x}', { x: inst?.name ?? t('the instance') }), 'success');
       delete app.blocked[instanceId];
       app.manualFor = null;
     }
@@ -70,14 +71,14 @@
 </script>
 
 <Modal
-  title="{remaining} file{remaining === 1 ? ' needs' : 's need'} a manual download"
-  subtitle="Their authors don't allow launchers to download them. Download each one in your browser and Peak will move it into {inst?.name ?? 'the instance'} for you."
+  title={remaining === 1 ? t('1 file needs a manual download') : t('{remaining} files need a manual download', { remaining })}
+  subtitle={t('Their authors don\'t allow launchers to download them. Download each one in your browser and Peak will move it into {x} for you.', { x: inst?.name ?? t('the instance') })}
   width={600}
   onclose={skip}
 >
   <ol class="steps">
-    <li>Open each page below and press <b>Download</b> on CurseForge.</li>
-    <li>Leave the file in your <b>Downloads</b> folder. Peak picks it up automatically.</li>
+    <li>{@html th('Open each page below and press <b>Download</b> on CurseForge.')}</li>
+    <li>{@html th('Leave the file in your <b>Downloads</b> folder. Peak picks it up automatically.')}</li>
   </ol>
 
   <div class="list">
@@ -95,23 +96,23 @@
           </div>
           <span class="chip">{where[f.folder] ?? f.folder}</span>
           {#if f.done}
-            <span class="added">Added</span>
+            <span class="added">{t('Added')}</span>
           {:else}
-            <button class="btn" onclick={() => api.openUrl(f.url)}><ExternalLink size={14} /> Open</button>
+            <button class="btn" onclick={() => api.openUrl(f.url)}><ExternalLink size={14} /> {t('Open')}</button>
           {/if}
         </div>
       {/each}
     {/if}
   </div>
 
-  <p class="watch"><Download size={13} /> Watching your Downloads folder. Files are moved into the instance and removed from Downloads.</p>
+  <p class="watch"><Download size={13} /> {t('Watching your Downloads folder. Files are moved into the instance and removed from Downloads.')}</p>
 
   <footer>
-    <button class="btn ghost" onclick={() => api.openDownloadsFolder()}><FolderOpen size={15} /> Open Downloads</button>
+    <button class="btn ghost" onclick={() => api.openDownloadsFolder()}><FolderOpen size={15} /> {t('Open Downloads')}</button>
     <span class="spacer"></span>
-    <button class="btn ghost" onclick={dismiss} title="Stop asking about these files">Ignore</button>
-    <button class="btn" onclick={skip}>Later</button>
-    <button class="btn primary" disabled={!remaining} onclick={openAll}><ExternalLink size={15} /> Open all ({remaining})</button>
+    <button class="btn ghost" onclick={dismiss} title={t('Stop asking about these files')}>{t('Ignore')}</button>
+    <button class="btn" onclick={skip}>{t('Later')}</button>
+    <button class="btn primary" disabled={!remaining} onclick={openAll}><ExternalLink size={15} /> {t('Open all ({remaining})', { remaining })}</button>
   </footer>
 </Modal>
 
@@ -123,7 +124,7 @@
     color: var(--muted);
     line-height: 1.6;
   }
-  .steps b {
+  .steps :global(b) {
     color: var(--text);
   }
   .list {

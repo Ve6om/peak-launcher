@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '$lib/i18n.svelte';
   // A 3D model of a skin that turns slowly and can be dragged around.
   // skinview3d (and three.js) load only when this first appears.
   import { onMount } from 'svelte';
@@ -58,9 +59,9 @@
 </script>
 
 {#if failed}
-  <img class="flat" src={png} alt="Skin" />
+  <img class="flat" src={png} alt={t('Skin')} />
 {:else}
-  <canvas bind:this={canvas} {width} {height} aria-label="3D view of the skin. Drag to turn it."></canvas>
+  <canvas bind:this={canvas} {width} {height} aria-label={t('3D view of the skin. Drag to turn it.')}></canvas>
 {/if}
 
 <style>
