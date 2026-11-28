@@ -540,10 +540,10 @@ export async function stop(inst: Instance) {
 // ---- formatting helpers ----
 
 export function playtime(secs: number) {
-  if (secs < 60) return secs ? `${secs}s` : t('Never played');
+  if (secs < 60) return secs ? t('{s}s', { s: secs }) : t('Never played');
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
-  return h ? `${h}h ${m}m` : `${m}m`;
+  return h ? t('{h}h {m}m', { h, m }) : t('{m}m', { m });
 }
 
 export function ago(iso: string | null) {

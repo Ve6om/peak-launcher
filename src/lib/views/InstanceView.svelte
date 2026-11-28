@@ -157,7 +157,7 @@
           <div class="stat glass"><Clock size={17} /><div><b>{playtime(inst.playtimeSecs)}</b><span>{t('Playtime')}</span></div></div>
           <div class="stat glass"><Calendar size={17} /><div><b>{ago(inst.lastPlayed)}</b><span>{t('Last played')}</span></div></div>
           <div class="stat glass">
-            <Cpu size={17} /><div><b>{((inst.memoryMb ?? app.settings?.memoryMb ?? 4096) / 1024).toFixed(1)} GB</b><span>{inst.memoryMb ? t('Memory') : t('Memory (default)')}</span></div>
+            <Cpu size={17} /><div><b>{t('{x} GB', { x: ((inst.memoryMb ?? app.settings?.memoryMb ?? 4096) / 1024).toFixed(1) })}</b><span>{inst.memoryMb ? t('Memory') : t('Memory (default)')}</span></div>
           </div>
         </div>
 

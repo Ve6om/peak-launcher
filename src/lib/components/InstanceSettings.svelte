@@ -248,7 +248,7 @@
         desc={t('Initial metaspace size (MB). Larger modpacks can benefit from 512.')}
         override={d.metaspaceMb !== null}
         onoverride={(on) => (d.metaspaceMb = on ? g.metaspaceMb : null)}
-        globalHint="{g.metaspaceMb} MB"
+        globalHint={t('{n} MB', { n: g.metaspaceMb })}
       >
         <input class="input num" type="number" min="0" step="64" value={d.metaspaceMb ?? g.metaspaceMb} oninput={(e) => (d.metaspaceMb = +e.currentTarget.value)} />
       </Row>
