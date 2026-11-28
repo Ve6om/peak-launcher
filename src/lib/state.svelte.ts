@@ -382,7 +382,7 @@ function startRainbow() {
   const step = () => {
     if (!view.shown) return;
     hue = (hue + (360 * RAINBOW_STEP_MS) / RAINBOW_LAP_MS) % 360;
-    setAccentVars([t('hsl({hue} 85% 66%)', { hue: hue.toFixed(1) }), t('hsl({hue} 90% 84%)', { hue: hue.toFixed(1) }), t('hsl({hue} 60% 8%)', { hue: hue.toFixed(1) })]);
+    setAccentVars([`hsl(${hue.toFixed(1)} 85% 66%)`, `hsl(${hue.toFixed(1)} 90% 84%)`, `hsl(${hue.toFixed(1)} 60% 8%)`]);
   };
   step();
   rainbowTimer = setInterval(step, RAINBOW_STEP_MS);

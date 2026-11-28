@@ -264,17 +264,17 @@
     <div class="seg">
       {#each CONTENT_KINDS as k (k.id)}
         {@const Icon = kindIcons[k.id]}
-        <button class:active={kind === k.id} onclick={() => (kind = k.id)}><Icon size={14} /> {k.label}</button>
+        <button class:active={kind === k.id} onclick={() => (kind = k.id)}><Icon size={14} /> {t(k.label)}</button>
       {/each}
     </div>
     <div class="seg mode">
       <button class:active={mode === 'installed'} onclick={() => (mode = 'installed')}><List size={14} /> {t('Installed ({length})', { length: items.length })}</button>
-      <button class:active={mode === 'browse'} onclick={() => (mode = 'browse')}><Plus size={14} /> {t('Add {label}', { label: label.label.toLowerCase() })}</button>
+      <button class:active={mode === 'browse'} onclick={() => (mode = 'browse')}><Plus size={14} /> {t('Add {label}', { label: t(label.label.toLowerCase()) })}</button>
     </div>
     {#if mode === 'installed'}
       <div class="filter">
         <Search size={14} />
-        <input bind:value={filter} placeholder={t('Filter {label}', { label: label.label.toLowerCase() })} />
+        <input bind:value={filter} placeholder={t('Filter {label}', { label: t(label.label.toLowerCase()) })} />
       </div>
       <button class="btn" title={t('Open folder')} onclick={() => api.openContentFolder(inst.id, kind)}><FolderOpen size={15} /></button>
       <button class="btn" onclick={checkUpdates} disabled={checking || !items.length}>
@@ -328,13 +328,13 @@
     <div class="empty"><LoaderCircle size={20} class="spin" /></div>
   {:else if !items.length}
     <div class="empty glass">
-      <h3>{t('No {label} yet', { label: label.label.toLowerCase() })}</h3>
+      <h3>{t('No {label} yet', { label: t(label.label.toLowerCase()) })}</h3>
       <p>
         {kind === 'mod' && inst.loader === 'vanilla'
           ? t('This is a vanilla instance. Pick a mod loader in Settings to use mods.')
-          : t('Find {label} on Modrinth or CurseForge, or drop files into the folder.', { label: label.label.toLowerCase() })}
+          : t('Find {label} on Modrinth or CurseForge, or drop files into the folder.', { label: t(label.label.toLowerCase()) })}
       </p>
-      <button class="btn primary" onclick={() => (mode = 'browse')}><Plus size={15} /> {t('Add {label}', { label: label.label.toLowerCase() })}</button>
+      <button class="btn primary" onclick={() => (mode = 'browse')}><Plus size={15} /> {t('Add {label}', { label: t(label.label.toLowerCase()) })}</button>
     </div>
   {:else}
     <div class="list glass">
@@ -385,7 +385,7 @@
         </div>
       {/each}
     </div>
-    <p class="count">{t('{length} {x} · {length2} disabled', { length: items.length, x: items.length === 1 ? label.single : label.label.toLowerCase(), length2: items.filter((i) => !i.enabled).length })}</p>
+    <p class="count">{t('{length} {x} · {length2} disabled', { length: items.length, x: items.length === 1 ? t(label.single) : t(label.label.toLowerCase()), length2: items.filter((i) => !i.enabled).length })}</p>
   {/if}
 </div>
 

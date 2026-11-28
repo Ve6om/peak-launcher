@@ -18,18 +18,17 @@
   } = $props();
 
   const n = $derived(links.length);
-  const mods = $derived(n === 1 ? 'mod' : 'mods');
   const text = $derived(
     {
       disable: {
         title: t('Other mods need {name}', { name }),
-        intro: t('{n} {mods} won\'t load without it. Disable {x} too?', { n, mods, x: n === 1 ? 'it' : 'them' }),
+        intro: n === 1 ? t("1 mod won't load without it. Disable it too?") : t("{n} mods won't load without it. Disable them too?", { n }),
         all: t('Disable all {x}', { x: n + 1 }),
         only: t('Only disable {name}', { name })
       },
       remove: {
         title: t('Other mods need {name}', { name }),
-        intro: t('{n} {mods} won\'t load without it. Remove {x} too?', { n, mods, x: n === 1 ? 'it' : 'them' }),
+        intro: n === 1 ? t("1 mod won't load without it. Remove it too?") : t("{n} mods won't load without it. Remove them too?", { n }),
         all: t('Remove all {x}', { x: n + 1 }),
         only: t('Only remove {name}', { name })
       },

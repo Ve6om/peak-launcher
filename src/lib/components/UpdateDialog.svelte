@@ -18,7 +18,7 @@
   onclose={() => !updates.installing && snooze()}
 >
   <div class="notes">
-    <span class="label">{t('What\'s new{x}', { x: u.releases.length > 1 ? ` in ${u.releases.length} updates` : '' })}</span>
+    <span class="label">{u.releases.length > 1 ? t("What's new in {count} updates", { count: u.releases.length }) : t("What's new")}</span>
     <div class="body">
       {#if u.releases.length > 1}
         {#each u.releases as r (r.version)}

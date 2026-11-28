@@ -78,7 +78,7 @@
   }
 
   // Each one is its own tab; the last one opened is remembered.
-  const sections = ['General', 'Appearance', t('Java & memory'), 'Game', 'Defaults', 'Storage', 'Commands', 'Network', 'Integrations', 'About'] as const;
+  const sections = ['General', 'Appearance', 'Java & memory', 'Game', 'Defaults', 'Storage', 'Commands', 'Network', 'Integrations', 'About'] as const;
   type Section = (typeof sections)[number];
   let showKey = $state(false);
   let current = $state<Section>(lastTab());
@@ -90,7 +90,7 @@
     } catch {
       // No storage: start on General.
     }
-    return t('General');
+    return 'General';
   }
 
   // Start Peak with the computer. Kept by the OS (not in settings.json), and
@@ -403,7 +403,7 @@
             </Row>
           {/if}
           <Row title={t('Environment variables')} desc={t('For every game, one KEY=value per line. Instances can add their own.')} wide>
-            <textarea class="input mono" rows="3" spellcheck="false" placeholder={t('MESA_GL_VERSION_OVERRIDE=4.5')} bind:value={s.envVars}></textarea>
+            <textarea class="input mono" rows="3" spellcheck="false" placeholder="MESA_GL_VERSION_OVERRIDE=4.5" bind:value={s.envVars}></textarea>
           </Row>
         </div>
       </section>

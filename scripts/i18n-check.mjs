@@ -29,6 +29,9 @@ const keys = new Set();
 for (const f of files(src)) {
   const text = readFileSync(f, 'utf8');
   for (const m of text.matchAll(CALL)) keys.add(unescape(m[1] ?? m[2]));
+  if (f.endsWith('gameOptions.ts')) {
+    for (const m of text.matchAll(/label: '((?:[^'\\]|\\.)*)'|kb\('[^']*', '((?:[^'\\]|\\.)*)'/g)) keys.add(unescape(m[1] ?? m[2]));
+  }
   if (f.endsWith('i18n.svelte.ts')) {
     const list = text.match(/BACKEND_TEXT = \[([\s\S]*?)\]/);
     for (const m of list?.[1].matchAll(/'((?:[^'\\]|\\.)*)'/g) ?? []) keys.add(unescape(m[1]));

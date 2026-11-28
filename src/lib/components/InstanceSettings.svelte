@@ -424,7 +424,7 @@
         onoverride={(on) => (d.envVars = on ? '' : null)}
         wide
       >
-        <textarea class="input mono" rows="3" spellcheck="false" placeholder={t('MESA_GL_VERSION_OVERRIDE=4.5')} disabled={d.envVars == null} value={d.envVars ?? ''} oninput={(e) => (d.envVars = e.currentTarget.value)}></textarea>
+        <textarea class="input mono" rows="3" spellcheck="false" placeholder="MESA_GL_VERSION_OVERRIDE=4.5" disabled={d.envVars == null} value={d.envVars ?? ''} oninput={(e) => (d.envVars = e.currentTarget.value)}></textarea>
       </Row>
     </div>
   </section>

@@ -63,7 +63,7 @@
     <section class="welcome glass rise" class:with-art={heroImg}>
       {#if heroImg}<img class="welcome-bg" src="/hero.jpg" alt="" onerror={() => (heroImg = false)} />{/if}
       <div class="welcome-icon"><Sparkles size={26} /></div>
-      <h2>{t('Welcome to')} <span class="gradient-text">{t('Peak')}</span></h2>
+      <h2>{t('Welcome to')} <span class="gradient-text">Peak</span></h2>
       <p>{t('Create an instance and we\'ll download the game, its assets and the right Java version for you. No setup needed.')}</p>
       <div class="welcome-actions">
         <button class="btn primary lg" onclick={() => (app.creating = true)}><Plus size={18} /> {t('Create your first instance')}</button>

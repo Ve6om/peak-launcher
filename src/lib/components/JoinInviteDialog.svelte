@@ -56,7 +56,7 @@
       {:else if plan.kind === 'switch'}
         {@html th('Your <b>{instance}</b> is on {from}; Peak switches it to {to} (your old mods are backed up), then joins.', { instance: plan.inst.name, from: plan.from, to: plan.to })}
       {:else}
-        {t('Peak joins with your')} <b>{match.inst.name}</b>.
+        {@html th('Peak joins with your <b>{instance}</b>.', { instance: match.inst.name })}
       {/if}
     </p>
   {:else}

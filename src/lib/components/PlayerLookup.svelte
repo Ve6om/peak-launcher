@@ -168,7 +168,7 @@
             <ExternalLink size={14} /> {t('View on NameMC')}
           </button>
           <button class="btn ghost" onclick={() => api.openUrl(`https://crafty.gg/@${player!.name}`)}>
-            <ExternalLink size={14} /> {t('Crafty.gg')}
+            <ExternalLink size={14} /> Crafty.gg
           </button>
         </div>
         <span class="hint">{t('History from Crafty.gg. It can miss some older names; NameMC sometimes has more.')}</span>

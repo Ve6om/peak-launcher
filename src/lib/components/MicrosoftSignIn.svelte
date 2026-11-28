@@ -76,7 +76,7 @@
       <div class="qr-row">
         <div class="tile" role="img" aria-label={t('QR code for Microsoft\'s code page')}>{@html qr}</div>
         <div class="code-side">
-          <span class="scan"><Smartphone size={13} /> {t('Scan to open')} <button class="linkish" onclick={() => api.openUrl(link)}>{page}</button> {t('on your phone, then enter this code:')}</span>
+          <span class="scan"><Smartphone size={13} /> {t('Scan the code or open this page on your phone, then enter the code below:')} <button class="linkish" onclick={() => api.openUrl(link)}>{page}</button></span>
           <div class="code">{code.userCode}</div>
         </div>
       </div>

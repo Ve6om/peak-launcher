@@ -49,9 +49,9 @@
   <div class="brand" data-tauri-drag-region>
     <Logo size={18} />
     {#if wordmark}
-      <img class="wordmark" src="/wordmark.png" alt={t('Peak')} data-tauri-drag-region onerror={() => (wordmark = false)} />
+      <img class="wordmark" src="/wordmark.png" alt="Peak" data-tauri-drag-region onerror={() => (wordmark = false)} />
     {:else}
-      <span data-tauri-drag-region>{t('Peak')} <b>{t('Launcher')}</b></span>
+      <span data-tauri-drag-region>Peak <b>Launcher</b></span>
     {/if}
   </div>
 

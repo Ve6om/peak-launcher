@@ -124,7 +124,7 @@
     <div class="list">
       {#if tab === 'Keybinds'}
         {#each KEYBINDS as k (k.key)}
-          {@render keyRow(k.key, k.label, k.initial)}
+          {@render keyRow(k.key, t(k.label), k.initial)}
         {/each}
         {#if modKeys.length}
           <h4>{t('From mods')}</h4>
@@ -147,23 +147,23 @@
           {@const raw = get(o.key)}
           {@const on = raw !== undefined}
           <div class="row" class:off={!on}>
-            <Switch bind:checked={() => on, (v) => set(o.key, v ? o.initial : null)} label={t('Set a default for {label}', { label: o.label })} />
-            <span class="name">{o.label}</span>
+            <Switch bind:checked={() => on, (v) => set(o.key, v ? o.initial : null)} label={t('Set a default for {label}', { label: t(o.label) })} />
+            <span class="name">{t(o.label)}</span>
             <span class="ctl">
               {#if o.control.kind === 'range'}
                 {@const n = numberOf(o, raw)}
                 <input type="range" min={o.control.min} max={o.control.max} step={o.control.step} value={n} disabled={!on} oninput={(e) => writeNumber(o, +e.currentTarget.value)} />
                 <span class="val">{o.control.show(n)}</span>
               {:else if o.control.kind === 'toggle'}
-                <Switch disabled={!on} bind:checked={() => (raw ?? o.initial) === 'true', (v) => set(o.key, v ? 'true' : 'false')} label={o.label} />
+                <Switch disabled={!on} bind:checked={() => (raw ?? o.initial) === 'true', (v) => set(o.key, v ? 'true' : 'false')} label={t(o.label)} />
               {:else}
                 <Select
                   disabled={!on}
                   value={raw ?? o.initial}
                   onchange={(v) => v !== null && set(o.key, v)}
-                  ariaLabel={o.label}
+                  ariaLabel={t(o.label)}
                   style="width: 180px;"
-                  options={o.control.options.map((c) => ({ value: c.value, label: c.label }))}
+                  options={o.control.options.map((c) => ({ value: c.value, label: t(c.label) }))}
                 />
               {/if}
             </span>

@@ -121,7 +121,7 @@
     </div>
     <div class="search">
       <Search size={15} />
-      <input bind:value={query} placeholder={t('Search {label} for {gameVersion}{x}…', { label: label.label.toLowerCase(), gameVersion: inst.gameVersion, x: kind === 'mod' ? ` ${loaderLabel(inst.loader)}` : '' })} />
+      <input bind:value={query} placeholder={t('Search {label} for {gameVersion}{x}…', { label: t(label.label.toLowerCase()), gameVersion: inst.gameVersion, x: kind === 'mod' ? ` ${loaderLabel(inst.loader)}` : '' })} />
       {#if loading}<LoaderCircle size={15} class="spin" />{/if}
     </div>
     {#if kind === 'mod'}
@@ -166,7 +166,7 @@
   {:else if error}
     <div class="empty glass">
       <SearchX size={28} />
-      <h3>{t('Can\'t show {label}', { label: label.label.toLowerCase() })}</h3>
+      <h3>{t('Can\'t show {label}', { label: t(label.label.toLowerCase()) })}</h3>
       <p>{error}</p>
       {#if inst.loader === 'vanilla' && kind === 'mod'}
         <button class="btn primary" onclick={() => go('instance', inst.id, 'settings')}><SlidersHorizontal size={15} /> {t('Add a mod loader')}</button>

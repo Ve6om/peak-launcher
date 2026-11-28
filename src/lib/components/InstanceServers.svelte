@@ -112,7 +112,7 @@
 <div class="wrap">
   <section class="panel glass">
     <h3>{t('Servers in this instance')}</h3>
-    <p class="sub">{t('The same list as Minecraft\'s Multiplayer screen. Changes here show up in the game, and the top server is first in its list.{x}', { x: running ? ' Close the game to change the list.' : '' })}</p>
+    <p class="sub">{t("The same list as Minecraft's Multiplayer screen. Changes here show up in the game, and the top server is first in its list.")}{running ? ` ${t('Close the game to change the list.')}` : ''}</p>
 
     {#if !loaded}
       <p class="muted"><LoaderCircle size={14} class="spin" /> {t('Loading…')}</p>

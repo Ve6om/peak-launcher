@@ -153,7 +153,7 @@
     return new Date(ms).toLocaleDateString();
   }
   const date = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-  const modeName = (w: WorldInfo) => (w.hardcore ? t('Hardcore') : w.mode ? w.mode[0].toUpperCase() + w.mode.slice(1) : null);
+  const modeName = (w: WorldInfo) => (w.hardcore ? t('Hardcore') : w.mode ? t(w.mode[0].toUpperCase() + w.mode.slice(1)) : null);
 </script>
 
 <div class="wrap">

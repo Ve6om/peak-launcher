@@ -15,7 +15,7 @@ export const LANGUAGES: { code: string; name: string }[] = [
   { code: 'zh-CN', name: '简体中文' }
 ];
 
-/** Text the backend sends that the UI passes through t() (install steps). */
+/** Text that reaches t() from data rather than a literal: install steps from the backend and content kinds. */
 export const BACKEND_TEXT = [
   'Preparing',
   'Downloading game files',
@@ -30,7 +30,36 @@ export const BACKEND_TEXT = [
   'Unpacking modpack',
   'Copying modpack files',
   'Copying files',
-  'Done'
+  'Done',
+  'Mods',
+  'Resource packs',
+  'Shaders',
+  'mods',
+  'resource packs',
+  'shaders',
+  'mod',
+  'resource pack',
+  'shader',
+  'General',
+  'Appearance',
+  'Java & memory',
+  'Game',
+  'Defaults',
+  'Storage',
+  'Commands',
+  'Network',
+  'Integrations',
+  'About',
+  'Video',
+  'Sound',
+  'Controls',
+  'Keybinds',
+  'Chat & other',
+  'More',
+  'Survival',
+  'Creative',
+  'Adventure',
+  'Spectator'
 ];
 
 const STORE = 'peak.language';

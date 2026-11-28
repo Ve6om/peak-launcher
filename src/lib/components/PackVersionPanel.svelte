@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
+  import { t, th } from '$lib/i18n.svelte';
   // A modpack instance's pack version: switch to any other version (newer or
   // older) in place, and choose whether Peak mentions updates to this pack.
   import { onMount, untrack } from 'svelte';
@@ -150,8 +150,7 @@
       </Row>
       {#if confirming}
         <p class="note">
-          {t('Your worlds, settings and screenshots stay. The current mods folder is moved to a backup in this instance\'s')}
-          <code>backups</code> {t('folder first, so any mods you added yourself aren\'t lost; add them back after the switch.')}
+          {@html th("Your worlds, settings and screenshots stay. The current mods folder is moved to a backup in this instance's <code>backups</code> folder first, so any mods you added yourself aren't lost; add them back after the switch.")}
           {#if older} {t('Going back can break worlds that were opened in a newer version, so back those up first.')}{/if}
         </p>
       {/if}
@@ -203,7 +202,7 @@
     background: color-mix(in srgb, var(--accent) 7%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   }
-  code {
+  .note :global(code) {
     font-size: 11.5px;
     padding: 1px 5px;
     border-radius: 5px;
